@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-demo
+*.tsbuildinfo
+.DS_Store
+coverage
+
+# Third-party reference template (TailAdmin) — visual reference only, not
+# part of this library; kept out of version control to avoid redistributing
+# licensed template source.
+references/

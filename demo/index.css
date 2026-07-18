@@ -1,0 +1,72 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap")
+layer(base);
+
+@import "tailwindcss";
+
+/* Library source is imported directly (not from dist) during dev, so Tailwind
+   v4 must scan it for utility classes — mirrors what a real consumer project
+   will need via `@source "../node_modules/react-component-library/dist"`. */
+@source "../src";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-outfit: Outfit, sans-serif;
+
+  --color-current: currentColor;
+  --color-transparent: transparent;
+  --color-white: #ffffff;
+  --color-black: #101828;
+
+  --color-brand-25: #f2f7ff;
+  --color-brand-50: #ecf3ff;
+  --color-brand-100: #dde9ff;
+  --color-brand-200: #c2d6ff;
+  --color-brand-300: #9cb9ff;
+  --color-brand-400: #7592ff;
+  --color-brand-500: #465fff;
+  --color-brand-600: #3641f5;
+  --color-brand-700: #2a31d8;
+  --color-brand-800: #252dae;
+  --color-brand-900: #262e89;
+  --color-brand-950: #161950;
+
+  --color-gray-25: #fcfcfd;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f2f4f7;
+  --color-gray-200: #e4e7ec;
+  --color-gray-300: #d0d5dd;
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #1d2939;
+  --color-gray-900: #101828;
+  --color-gray-950: #0c111d;
+
+  --color-success-500: #12b76a;
+  --color-success-300: #6ce9a6;
+  --color-success-400: #32d583;
+  --color-success-800: #05603a;
+
+  --color-error-500: #f04438;
+  --color-error-300: #fda29b;
+  --color-error-400: #f97066;
+  --color-error-800: #912018;
+
+  --shadow-theme-xs: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+  body {
+    @apply relative font-normal bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-white/90;
+    font-family: var(--font-outfit);
+  }
+}
