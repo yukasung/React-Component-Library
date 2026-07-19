@@ -7,3 +7,12 @@
 @source "../node_modules/react-component-library/dist";
 
 @custom-variant dark (&:is(.dark *));
+
+/* nextra-theme-docs underlines every h2 by default (border-bottom) — drop
+   it and use margin instead so heading-to-content spacing stays even
+   without the line. */
+article h2 {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 1rem;
+}

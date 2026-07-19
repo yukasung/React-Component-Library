@@ -12,7 +12,7 @@ export function DefaultDemo() {
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <InputNumber value={value} onChange={setValue} />
+      <InputNumber value={value} onChange={setValue} showSpinButtons={false} />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
         Committed value: {formatCommitted(value)}
       </p>
@@ -50,6 +50,19 @@ export function IsRequiredDemo() {
           Committed value: {formatCommitted(optionalValue)} — ลบจนหมดแล้วปล่อยว่างได้ตามปกติ
         </p>
       </div>
+    </div>
+  )
+}
+
+export function MinMaxDemo() {
+  const [value, setValue] = useState<number | null>(50)
+
+  return (
+    <div className="not-prose my-6 max-w-xs">
+      <InputNumber min={0} max={100} value={value} onChange={setValue} />
+      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+        Committed value: {formatCommitted(value)} — min: 0, max: 100 (ลองกดปุ่ม spin ค้างไปจนสุดขอบเขต)
+      </p>
     </div>
   )
 }

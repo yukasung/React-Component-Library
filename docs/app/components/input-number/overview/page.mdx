@@ -1,4 +1,5 @@
-import { DefaultDemo, IsRequiredDemo } from './demo'
+import { DefaultDemo, IsRequiredDemo, MinMaxDemo } from './demo'
+import { PropertyIndex, PropertySignature } from './property-index'
 
 export const metadata = {
   title: 'InputNumber',
@@ -9,7 +10,7 @@ export const metadata = {
 
 InputNumber คือ input สำหรับกรอกตัวเลขโดยเฉพาะ ป้องกันไม่ให้ผู้ใช้กรอกข้อมูลที่ไม่ถูกต้องโดยไม่ตั้งใจ และจัดรูปแบบตัวเลขขณะแก้ไข ออกแบบ API ให้เป็นไปตามแนวทางของ React (value + onChange)
 
-เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมีเฉพาะ isRequired ที่ผ่านแล้ว
+เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมี isRequired และ min / max ที่ผ่านแล้ว
 
 <DefaultDemo />
 
@@ -21,11 +22,11 @@ import { InputNumber } from '@your-scope/components'
 
 ## Properties
 
-| Property | Type |
-| --- | --- |
-| isRequired | boolean |
+<PropertyIndex />
 
 ### isRequired
+
+<PropertySignature name="isRequired" type="boolean" />
 
 เมื่อเป็น true ฟิลด์นี้ห้ามว่างเปล่า — ค่าที่เป็น null จะแสดงเป็น 0 เสมอ และหากผู้ใช้ลบข้อความจนหมด (ระหว่างพิมพ์ ไม่ต้องรอจน blur) ฟิลด์จะกระโดดกลับเป็น 0 ทันทีพร้อมเลือกตัวเลขนั้นไว้ ให้พิมพ์ทับได้เลย
 
@@ -43,4 +44,23 @@ import { InputNumber } from '@your-scope/components'
 
 {/* ปิด isRequired เพื่อให้เป็นฟิลด์ optional ปล่อยว่างได้ (commit เป็น null) */}
 <InputNumber isRequired={false} defaultValue={null} placeholder="ไม่บังคับกรอก" />
+```
+
+### min / max
+
+<PropertySignature name="min" type="number" />
+<PropertySignature name="max" type="number" />
+
+กำหนดค่าต่ำสุด/สูงสุดที่ยอมรับได้ การ clamp ค่าให้อยู่ในช่วงเกิดขึ้นเฉพาะตอน commit (blur, Enter, ปุ่ม spin, ปุ่มลูกศรบนคีย์บอร์ด) เท่านั้น ไม่ได้บล็อกระหว่างพิมพ์ ดังนั้นพิมพ์เลขที่เกินช่วงชั่วคราวระหว่างแก้ไขได้ตามปกติ ปุ่ม spin แต่ละปุ่มจะ disable เองเมื่อค่าที่ commit แล้วถึงขอบเขต (ปุ่มขึ้นที่ max, ปุ่มลงที่ min)
+
+ไม่ระบุ min หรือ max หมายถึงไม่จำกัดด้านนั้น
+
+#### Live Example
+
+<MinMaxDemo />
+
+#### Example
+
+```tsx
+<InputNumber min={0} max={100} defaultValue={50} />
 ```
