@@ -10,6 +10,7 @@ import {
   resolvePrecision,
   stripSign,
   toggleSign,
+  zeroDraftWithPrecision,
 } from '../../lib/number'
 
 export interface InputNumberProps
@@ -255,6 +256,29 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         setDraft(stripSign(draft))
         pendingSelectionRef.current = Math.max(0, cursorPos - 1)
       }
+    } else if (event.key === '.' && !readOnly) {
+      const dotIndex = draft.indexOf('.')
+      if (dotIndex !== -1) {
+        // Already has a decimal point — jump the cursor there instead of
+        // inserting a second one or clearing anything, even if some of the
+        // draft is currently selected. No draft change happens here, so
+        // there's no re-render to hang the usual pendingSelectionRef effect
+        // off of — set the selection synchronously instead.
+        event.preventDefault()
+        event.currentTarget.setSelectionRange(dotIndex + 1, dotIndex + 1)
+      } else if (effectivePrecision === 0) {
+        // Integer-only (precision explicitly 0) — a decimal point is never
+        // meaningful, so block it outright rather than letting it in and
+        // rounding it away on commit.
+        event.preventDefault()
+      } else if (draft === '') {
+        event.preventDefault()
+        setDraft(zeroDraftWithPrecision(effectivePrecision))
+        pendingSelectionRef.current = 2
+      }
+      // else: no existing dot, precision allows decimals, draft non-empty —
+      // this is an ordinary decimal point insertion, handled by the normal
+      // handleChange -> isValidDraft path same as any other digit.
     }
   }
 

@@ -68,3 +68,11 @@ export function toggleSign(draft: string): string {
 export function stripSign(draft: string): string {
   return draft.startsWith('-') ? draft.slice(1) : draft
 }
+
+// Draft to show when "." is pressed on an empty field: "0." followed by a
+// zero per decimal place (e.g. precision 2 -> "0.00"), or just "0." when no
+// precision is set.
+export function zeroDraftWithPrecision(precision?: number): string {
+  const zeros = typeof precision === 'number' ? '0'.repeat(precision) : ''
+  return `0.${zeros}`
+}

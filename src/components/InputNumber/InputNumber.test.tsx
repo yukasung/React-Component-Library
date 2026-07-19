@@ -727,14 +727,17 @@ describe('InputNumber', () => {
       expect(input).toHaveValue('-12.5')
     })
 
-    it('blocks a second decimal point', async () => {
+    it('never inserts a second decimal point', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} onChange={() => {}} />)
       const input = screen.getByRole('textbox')
 
       await user.clear(input)
+      // Typing "1.2.3": the second "." (DEV-52) jumps the cursor back to
+      // just after the first "." instead of inserting one — so the
+      // trailing "3" lands right after the dot, not at the end.
       await user.type(input, '1.2.3')
-      expect(input).toHaveValue('1.23')
+      expect(input).toHaveValue('1.32')
     })
   })
 
@@ -868,6 +871,80 @@ describe('InputNumber', () => {
       expect(input).toHaveValue('500')
       expect(input.selectionStart).toBe(1)
       expect(input.selectionEnd).toBe(1)
+    })
+  })
+
+  describe('decimal point (.) key', () => {
+    it('jumps the cursor to just after an existing "." instead of inserting a second one', () => {
+      const onChange = vi.fn()
+      render(<InputNumber value={12.5} onChange={onChange} />)
+      const input = screen.getByRole('textbox') as HTMLInputElement
+      input.focus()
+      input.setSelectionRange(4, 4) // cursor at the end of "12.5"
+      fireEvent.keyDown(input, { key: '.' })
+
+      expect(input).toHaveValue('12.5')
+      expect(input.selectionStart).toBe(3) // right after the "." at index 2
+      expect(input.selectionEnd).toBe(3)
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('jumps to just after the existing "." even when part of the draft is selected', () => {
+      render(<InputNumber value={12.5} onChange={() => {}} />)
+      const input = screen.getByRole('textbox') as HTMLInputElement
+      input.focus()
+      input.setSelectionRange(0, 2) // select "12"
+      fireEvent.keyDown(input, { key: '.' })
+
+      expect(input).toHaveValue('12.5') // unchanged, nothing cleared
+      expect(input.selectionStart).toBe(3)
+      expect(input.selectionEnd).toBe(3)
+    })
+
+    it('is fully blocked when precision is 0', () => {
+      const onChange = vi.fn()
+      render(<InputNumber value={5} precision={0} onChange={onChange} />)
+      const input = screen.getByRole('textbox') as HTMLInputElement
+      input.focus()
+      input.setSelectionRange(1, 1)
+      fireEvent.keyDown(input, { key: '.' })
+
+      expect(input).toHaveValue('5')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('fills an empty draft with "0." padded to the configured precision', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={5} precision={2} onChange={() => {}} />)
+      const input = screen.getByRole('textbox') as HTMLInputElement
+
+      await user.clear(input)
+      fireEvent.keyDown(input, { key: '.' })
+
+      expect(input).toHaveValue('0.00')
+      expect(input.selectionStart).toBe(2)
+      expect(input.selectionEnd).toBe(2)
+    })
+
+    it('fills an empty draft with "0." when no precision is set', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={5} onChange={() => {}} />)
+      const input = screen.getByRole('textbox')
+
+      await user.clear(input)
+      fireEvent.keyDown(input, { key: '.' })
+
+      expect(input).toHaveValue('0.')
+    })
+
+    it('still types an ordinary decimal point normally when there is no existing dot', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={5} onChange={() => {}} />)
+      const input = screen.getByRole('textbox')
+
+      await user.clear(input)
+      await user.type(input, '12.5')
+      expect(input).toHaveValue('12.5')
     })
   })
 })

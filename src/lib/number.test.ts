@@ -10,6 +10,7 @@ import {
   stripSign,
   toggleSign,
   truncateToPrecision,
+  zeroDraftWithPrecision,
 } from './number'
 
 describe('parseDraft', () => {
@@ -193,5 +194,20 @@ describe('stripSign', () => {
 
   it('is a no-op on an empty string', () => {
     expect(stripSign('')).toBe('')
+  })
+})
+
+describe('zeroDraftWithPrecision', () => {
+  it('produces "0." followed by a zero per decimal place', () => {
+    expect(zeroDraftWithPrecision(2)).toBe('0.00')
+    expect(zeroDraftWithPrecision(3)).toBe('0.000')
+  })
+
+  it('produces "0." with no trailing zeros when precision is 0', () => {
+    expect(zeroDraftWithPrecision(0)).toBe('0.')
+  })
+
+  it('produces "0." with no trailing zeros when precision is undefined', () => {
+    expect(zeroDraftWithPrecision(undefined)).toBe('0.')
   })
 })
