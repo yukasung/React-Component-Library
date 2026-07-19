@@ -16,7 +16,7 @@ import {
 export interface InputNumberProps
   extends Omit<
     InputHTMLAttributes<HTMLInputElement>,
-    'value' | 'defaultValue' | 'onChange' | 'type' | 'min' | 'max' | 'step'
+    'value' | 'defaultValue' | 'onChange' | 'type' | 'min' | 'max' | 'step' | 'required'
   > {
   value?: number | null
   defaultValue?: number | null
@@ -29,6 +29,10 @@ export interface InputNumberProps
   repeatButtons?: boolean
   handleWheel?: boolean
   truncate?: boolean
+  // Named to match Wijmo's InputNumber API (isRequired), not the native
+  // HTML/React convention (`required`) most of this component's other
+  // boolean props otherwise follow — deliberate choice, see DEV-54.
+  isRequired?: boolean
   hint?: string
 }
 
@@ -58,7 +62,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     precision,
     disabled = false,
     readOnly = false,
-    required = false,
+    isRequired = true,
     showSpinButtons = true,
     repeatButtons = true,
     handleWheel = false,
@@ -75,7 +79,13 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   const [isFocused, setIsFocused] = useState(false)
   const committedValue = isControlled ? value : internalValue
   const effectivePrecision = precision ?? resolvePrecision(step)
-  const formattedValue = formatValue(committedValue, effectivePrecision)
+  // Required fields never display as blank — a null committed value (e.g.
+  // before the user's first interaction, or a controlled consumer passing
+  // null anyway) still shows "0" rather than an empty field. The underlying
+  // committed value itself isn't force-changed to 0 by this alone; it's a
+  // display-only fallback that becomes real once the user commits.
+  const displayValue = isRequired && committedValue === null ? 0 : committedValue
+  const formattedValue = formatValue(displayValue, effectivePrecision)
   const [draft, setDraft] = useSyncedState(formattedValue)
   const atMax = typeof max === 'number' && committedValue !== null && committedValue >= max
   const atMin = typeof min === 'number' && committedValue !== null && committedValue <= min
@@ -99,16 +109,16 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   // the latest logic via this ref so it never goes stale like a normal
   // closure would.
   const handleWheelRef = useRef<(event: globalThis.WheelEvent) => void>(() => {})
-  // Set right before a setDraft call that needs the cursor placed somewhere
-  // specific afterward (e.g. right after a lone "-") — setting draft via
-  // React state doesn't reliably control where the browser leaves the
-  // cursor, so this makes it explicit.
-  const pendingSelectionRef = useRef<number | null>(null)
+  // Set right before a setDraft call that needs the cursor (or a selection
+  // range) placed somewhere specific afterward — setting draft via React
+  // state doesn't reliably control where the browser leaves the cursor, so
+  // this makes it explicit. A collapsed cursor is `{ start: pos, end: pos }`.
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
 
   useEffect(() => {
     if (pendingSelectionRef.current !== null && inputElementRef.current) {
-      const pos = pendingSelectionRef.current
-      inputElementRef.current.setSelectionRange(pos, pos)
+      const { start, end } = pendingSelectionRef.current
+      inputElementRef.current.setSelectionRange(start, end)
       pendingSelectionRef.current = null
     }
   })
@@ -145,7 +155,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   function commitDraft() {
     if (readOnly) return
     const parsed = parseDraft(draft)
-    if (parsed === undefined || (required && parsed === null)) {
+    if (parsed === undefined || (isRequired && parsed === null)) {
       setDraft(formattedValue)
       return
     }
@@ -193,7 +203,17 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.value
-    if (isValidDraft(next)) setDraft(next)
+    if (!isValidDraft(next)) return
+    if (isRequired && next.trim() === '') {
+      // Required fields can't sit empty even mid-edit — snap to "0"
+      // immediately (not just on blur) and select it so the next keystroke
+      // naturally overwrites it, matching Wijmo's live-blocking behavior
+      // rather than allowing a blank flash until commit.
+      setDraft('0')
+      pendingSelectionRef.current = { start: 0, end: 1 }
+      return
+    }
+    setDraft(next)
   }
 
   handleWheelRef.current = (event) => {
@@ -235,7 +255,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       const el = event.currentTarget
       if (el.selectionStart !== el.selectionEnd) {
         setDraft('-')
-        pendingSelectionRef.current = 1
+        pendingSelectionRef.current = { start: 1, end: 1 }
       } else {
         // Setting `draft` via React state doesn't preserve cursor position
         // on its own (browsers tend to snap a programmatically-set value's
@@ -244,9 +264,8 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         const cursorPos = el.selectionStart ?? 0
         const hadSign = draft.startsWith('-')
         setDraft(toggleSign(draft))
-        pendingSelectionRef.current = hadSign
-          ? Math.max(0, cursorPos - 1)
-          : cursorPos + 1
+        const pos = hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1
+        pendingSelectionRef.current = { start: pos, end: pos }
       }
     } else if (event.key === '+' && !readOnly) {
       event.preventDefault()
@@ -254,7 +273,8 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         const el = event.currentTarget
         const cursorPos = el.selectionStart ?? 0
         setDraft(stripSign(draft))
-        pendingSelectionRef.current = Math.max(0, cursorPos - 1)
+        const pos = Math.max(0, cursorPos - 1)
+        pendingSelectionRef.current = { start: pos, end: pos }
       }
     } else if (event.key === '.' && !readOnly) {
       const dotIndex = draft.indexOf('.')
@@ -274,7 +294,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       } else if (draft === '') {
         event.preventDefault()
         setDraft(zeroDraftWithPrecision(effectivePrecision))
-        pendingSelectionRef.current = 2
+        pendingSelectionRef.current = { start: 2, end: 2 }
       }
       // else: no existing dot, precision allows decimals, draft non-empty —
       // this is an ordinary decimal point insertion, handled by the normal
@@ -296,7 +316,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           inputMode="decimal"
           disabled={disabled}
           readOnly={readOnly}
-          required={required}
+          required={isRequired}
           aria-describedby={describedBy}
           value={draft}
           onChange={handleChange}

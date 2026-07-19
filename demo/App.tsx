@@ -39,7 +39,7 @@ function Field({
 export function App() {
   const [defaultVal, setDefaultVal] = useState<number | null>(0)
   const [quantity, setQuantity] = useState<number | null>(1)
-  const [requiredQty, setRequiredQty] = useState<number | null>(5)
+  const [optionalQty, setOptionalQty] = useState<number | null>(null)
   const [price, setPrice] = useState<number | null>(9.5)
   const [wheelQty, setWheelQty] = useState<number | null>(5)
   const [truncatedPrice, setTruncatedPrice] = useState<number | null>(0)
@@ -56,9 +56,9 @@ export function App() {
 
       <Section title="Default">
         <Field
-          label="Default InputNumber (no props restricting it — for free-form testing)"
+          label="Default InputNumber (required by default — try clearing it)"
           htmlFor="default-input-number"
-          note={`Committed value: ${defaultVal === null ? 'null' : defaultVal}`}
+          note={`Committed value: ${defaultVal === null ? 'null' : defaultVal} (clearing the field snaps to 0 immediately, not just on blur)`}
         >
           <InputNumber id="default-input-number" value={defaultVal} onChange={setDefaultVal} />
         </Field>
@@ -91,15 +91,16 @@ export function App() {
         </Field>
 
         <Field
-          label="Quantity (required — clearing reverts)"
-          htmlFor="quantity-required"
-          note={`Committed value: ${requiredQty === null ? 'null' : requiredQty}`}
+          label="Quantity (isRequired={false} — can be left empty)"
+          htmlFor="quantity-optional"
+          note={`Committed value: ${optionalQty === null ? 'null' : optionalQty}`}
         >
           <InputNumber
-            id="quantity-required"
-            value={requiredQty}
-            onChange={setRequiredQty}
-            required
+            id="quantity-optional"
+            value={optionalQty}
+            onChange={setOptionalQty}
+            isRequired={false}
+            placeholder="Your age (optional)"
           />
         </Field>
       </Section>

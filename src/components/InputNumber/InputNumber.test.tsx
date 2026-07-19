@@ -24,7 +24,7 @@ describe('InputNumber', () => {
   it('updates the displayed value while typing without committing', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={1} onChange={onChange} />)
+    render(<InputNumber value={1} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -94,7 +94,7 @@ describe('InputNumber', () => {
   it('reverts an unparseable draft on blur without committing', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} onChange={onChange} />)
+    render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -122,7 +122,7 @@ describe('InputNumber', () => {
   it('commits null when the field is cleared and blurred', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} onChange={onChange} />)
+    render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -161,7 +161,7 @@ describe('InputNumber', () => {
   it('clamps a typed value above max down to max on commit', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} max={10} onChange={onChange} />)
+    render(<InputNumber value={5} max={10} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -195,7 +195,7 @@ describe('InputNumber', () => {
   it('does not clamp an empty (null) commit even when min/max are set', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} min={0} max={10} onChange={onChange} />)
+    render(<InputNumber value={5} min={0} max={10} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -329,10 +329,10 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('5')
   })
 
-  it('allows clearing to null when not required (default)', async () => {
+  it('allows clearing to null when isRequired is false', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} onChange={onChange} />)
+    render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -342,23 +342,29 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('')
   })
 
-  it('reverts instead of committing null when cleared and required', async () => {
+  it('snaps to 0 immediately (not the previous value) when cleared while isRequired (default)', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} required onChange={onChange} />)
+    render(<InputNumber value={5} onChange={onChange} />) // isRequired defaults to true
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
+    // snapped before blur even happens — matches Wijmo's live-blocking
+    // behavior (DEV-53), not a "revert to previous value" like DEV-43's
+    // original commit-time-only revert.
+    expect(input).toHaveValue('0')
+    expect(onChange).not.toHaveBeenCalled()
+
     await user.tab()
 
-    expect(onChange).not.toHaveBeenCalled()
-    expect(input).toHaveValue('5')
+    expect(onChange).toHaveBeenCalledWith(0)
+    expect(input).toHaveValue('0')
   })
 
-  it('still commits a valid non-empty value when required', async () => {
+  it('still commits a valid non-empty value when isRequired', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} required onChange={onChange} />)
+    render(<InputNumber value={5} isRequired onChange={onChange} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -429,7 +435,7 @@ describe('InputNumber', () => {
 
   it('does not reformat the live draft to the given precision while typing', async () => {
     const user = userEvent.setup()
-    render(<InputNumber value={3} precision={2} onChange={() => {}} />)
+    render(<InputNumber value={3} precision={2} onChange={() => {}} isRequired={false} />)
     const input = screen.getByRole('textbox')
 
     await user.clear(input)
@@ -706,7 +712,7 @@ describe('InputNumber', () => {
   describe('keystroke restriction', () => {
     it('blocks letters and symbols from ever being typed', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} onChange={() => {}} />)
+      render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('textbox')
 
       await user.clear(input)
@@ -719,7 +725,7 @@ describe('InputNumber', () => {
 
     it('still allows digits, a leading minus, and a single decimal point', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} onChange={() => {}} />)
+      render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('textbox')
 
       await user.clear(input)
@@ -729,7 +735,7 @@ describe('InputNumber', () => {
 
     it('never inserts a second decimal point', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} onChange={() => {}} />)
+      render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('textbox')
 
       await user.clear(input)
@@ -811,7 +817,7 @@ describe('InputNumber', () => {
 
     it('never inserts a literal "+" character via typing', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} onChange={() => {}} />)
+      render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('textbox')
 
       await user.clear(input)
@@ -822,7 +828,7 @@ describe('InputNumber', () => {
     it('still reverts on blur when toggled to a lone "-" with nothing else typed', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
-      render(<InputNumber value={5} onChange={onChange} />)
+      render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
       const input = screen.getByRole('textbox') as HTMLInputElement
 
       await user.clear(input)
@@ -915,7 +921,7 @@ describe('InputNumber', () => {
 
     it('fills an empty draft with "0." padded to the configured precision', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} precision={2} onChange={() => {}} />)
+      render(<InputNumber value={5} precision={2} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('textbox') as HTMLInputElement
 
       await user.clear(input)
@@ -928,7 +934,7 @@ describe('InputNumber', () => {
 
     it('fills an empty draft with "0." when no precision is set', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} onChange={() => {}} />)
+      render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('textbox')
 
       await user.clear(input)
@@ -939,12 +945,65 @@ describe('InputNumber', () => {
 
     it('still types an ordinary decimal point normally when there is no existing dot', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} onChange={() => {}} />)
+      render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('textbox')
 
       await user.clear(input)
       await user.type(input, '12.5')
       expect(input).toHaveValue('12.5')
+    })
+  })
+
+  describe('isRequired (default true) — immediate empty-block', () => {
+    it('defaults to isRequired, reflected as the native "required" input attribute', () => {
+      render(<InputNumber value={5} onChange={() => {}} />)
+      expect(screen.getByRole('textbox')).toHaveAttribute('required')
+    })
+
+    it('displays "0" instead of blank when there is no value (controlled null)', () => {
+      render(<InputNumber value={null} onChange={() => {}} />)
+      expect(screen.getByRole('textbox')).toHaveValue('0')
+    })
+
+    it('displays "0" instead of blank when uncontrolled with no defaultValue', () => {
+      render(<InputNumber onChange={() => {}} />)
+      expect(screen.getByRole('textbox')).toHaveValue('0')
+    })
+
+    it('snaps to "0" immediately while backspacing one character at a time, not just on select-all', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber value={7} onChange={onChange} />)
+      const input = screen.getByRole('textbox')
+
+      input.focus()
+      await user.keyboard('{Backspace}')
+
+      expect(input).toHaveValue('0')
+      expect(onChange).not.toHaveBeenCalled() // snap is display-only until commit
+    })
+
+    it('selects the auto-inserted "0" so the next keystroke can replace it', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={7} onChange={() => {}} />)
+      const input = screen.getByRole('textbox') as HTMLInputElement
+
+      input.focus()
+      await user.keyboard('{Backspace}')
+
+      // fully selected, not just a collapsed cursor after it — real
+      // browsers replace a selection with the next typed character.
+      expect(input.selectionStart).toBe(0)
+      expect(input.selectionEnd).toBe(1)
+    })
+
+    it('isRequired={false} still allows the field to go and stay empty', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={7} onChange={() => {}} isRequired={false} />)
+      const input = screen.getByRole('textbox')
+
+      await user.clear(input)
+      expect(input).toHaveValue('')
     })
   })
 })
