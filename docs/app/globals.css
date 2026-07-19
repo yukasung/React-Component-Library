@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* react-component-library ships classNames as plain strings in its
+   compiled dist bundle (no pre-built CSS) — Tailwind must scan that
+   bundle here too, the same way demo/index.css scans src/ in the
+   component library itself. */
+@source "../node_modules/react-component-library/dist";
+
+@custom-variant dark (&:is(.dark *));
