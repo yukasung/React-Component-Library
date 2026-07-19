@@ -1,0 +1,41 @@
+export const metadata = {
+  title: 'InputNumber',
+  description: 'Input สำหรับกรอกตัวเลข พร้อมปุ่มเพิ่ม/ลด, จำกัดค่า min/max, และการจัดรูปแบบทศนิยม',
+}
+
+# InputNumber
+
+InputNumber คือ input สำหรับกรอกตัวเลขโดยเฉพาะ ป้องกันไม่ให้ผู้ใช้กรอกข้อมูลที่ไม่ถูกต้องโดยไม่ตั้งใจ และจัดรูปแบบตัวเลขขณะแก้ไข ออกแบบ API ให้เป็นไปตามแนวทางของ React (value + onChange)
+
+เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมีเฉพาะ isRequired ที่ผ่านแล้ว
+
+## Import
+
+```tsx
+import { InputNumber } from '@your-scope/components'
+```
+
+## Properties
+
+| Property | Type |
+| --- | --- |
+| isRequired | boolean |
+
+### isRequired
+
+Type: boolean
+Default: true
+
+เมื่อเป็น true ฟิลด์นี้ห้ามว่างเปล่า — ค่าที่เป็น null จะแสดงเป็น 0 เสมอ และหากผู้ใช้ลบข้อความจนหมด (ระหว่างพิมพ์ ไม่ต้องรอจน blur) ฟิลด์จะกระโดดกลับเป็น 0 ทันทีพร้อมเลือกตัวเลขนั้นไว้ ให้พิมพ์ทับได้เลย
+
+ตั้งชื่อ prop เป็น isRequired โดยตั้งใจ แทนที่จะใช้ required แบบ native HTML
+
+#### Example
+
+```tsx
+{/* default: isRequired = true — ห้ามว่าง ไม่มีค่าจะแสดงเป็น "0" */}
+<InputNumber defaultValue={null} />
+
+{/* ปิด isRequired เพื่อให้เป็นฟิลด์ optional ปล่อยว่างได้ (commit เป็น null) */}
+<InputNumber isRequired={false} defaultValue={null} placeholder="ไม่บังคับกรอก" />
+```

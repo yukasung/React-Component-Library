@@ -1,0 +1,21 @@
+{
+  "name": "react-component-library-docs",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "next": "^15.5.20",
+    "nextra": "^4.6.1",
+    "nextra-theme-docs": "^4.6.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
+  }
+}
