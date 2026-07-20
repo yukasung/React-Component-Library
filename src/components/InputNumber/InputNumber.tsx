@@ -16,7 +16,7 @@ import {
 export interface InputNumberProps
   extends Omit<
     InputHTMLAttributes<HTMLInputElement>,
-    'value' | 'defaultValue' | 'onChange' | 'type' | 'min' | 'max' | 'step' | 'required'
+    'value' | 'defaultValue' | 'onChange' | 'type' | 'min' | 'max' | 'step' | 'required' | 'readOnly' | 'disabled'
   > {
   value?: number | null
   defaultValue?: number | null
@@ -33,6 +33,13 @@ export interface InputNumberProps
   // HTML/React convention (`required`) most of this component's other
   // boolean props otherwise follow — deliberate choice, see DEV-54.
   isRequired?: boolean
+  // Same rationale as isRequired above — matches Wijmo's `isReadOnly`
+  // naming rather than the native `readOnly` HTML/React convention.
+  isReadOnly?: boolean
+  // Same rationale as isRequired/isReadOnly above — matches Wijmo's
+  // `isDisabled` naming rather than the native `disabled` HTML/React
+  // convention.
+  isDisabled?: boolean
   hint?: string
 }
 
@@ -60,8 +67,8 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     max,
     step = 1,
     precision,
-    disabled = false,
-    readOnly = false,
+    isDisabled = false,
+    isReadOnly = false,
     isRequired = true,
     showSpinButtons = true,
     repeatButtons = true,
@@ -89,7 +96,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   const [draft, setDraft] = useSyncedState(formattedValue)
   const atMax = typeof max === 'number' && committedValue !== null && committedValue >= max
   const atMin = typeof min === 'number' && committedValue !== null && committedValue <= min
-  const spinButtonsDisabled = disabled || readOnly
+  const spinButtonsDisabled = isDisabled || isReadOnly
   const hintId = useId()
   const describedBy = [ariaDescribedBy, hint ? hintId : undefined].filter(Boolean).join(' ') || undefined
   const repeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -153,7 +160,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   }
 
   function commitDraft() {
-    if (readOnly) return
+    if (isReadOnly) return
     const parsed = parseDraft(draft)
     if (parsed === undefined || (isRequired && parsed === null)) {
       setDraft(formattedValue)
@@ -221,7 +228,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     // because the page scrolled past it is a common source of accidental
     // edits, so wheel stepping only applies once the user has deliberately
     // focused the field AND the consumer has opted in via handleWheel.
-    if (!handleWheel || !isFocused || disabled || readOnly) return
+    if (!handleWheel || !isFocused || isDisabled || isReadOnly) return
     event.preventDefault()
     stepBy(event.deltaY < 0 ? 1 : -1)
   }
@@ -241,13 +248,13 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       commitDraft()
     } else if (event.key === 'Escape') {
       setDraft(formattedValue)
-    } else if (event.key === 'ArrowUp' && !readOnly) {
+    } else if (event.key === 'ArrowUp' && !isReadOnly) {
       event.preventDefault()
       stepBy(1)
-    } else if (event.key === 'ArrowDown' && !readOnly) {
+    } else if (event.key === 'ArrowDown' && !isReadOnly) {
       event.preventDefault()
       stepBy(-1)
-    } else if (event.key === '-' && !readOnly) {
+    } else if (event.key === '-' && !isReadOnly) {
       event.preventDefault()
       // min >= 0 means negatives aren't allowed at all — block the key
       // entirely rather than letting it toggle and get clamped away later.
@@ -267,7 +274,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         const pos = hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1
         pendingSelectionRef.current = { start: pos, end: pos }
       }
-    } else if (event.key === '+' && !readOnly) {
+    } else if (event.key === '+' && !isReadOnly) {
       event.preventDefault()
       if (draft.startsWith('-')) {
         const el = event.currentTarget
@@ -276,7 +283,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         const pos = Math.max(0, cursorPos - 1)
         pendingSelectionRef.current = { start: pos, end: pos }
       }
-    } else if (event.key === '.' && !readOnly) {
+    } else if (event.key === '.' && !isReadOnly) {
       const dotIndex = draft.indexOf('.')
       if (dotIndex !== -1) {
         // Already has a decimal point — jump the cursor there instead of
@@ -314,8 +321,8 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           }}
           type="text"
           inputMode="decimal"
-          disabled={disabled}
-          readOnly={readOnly}
+          disabled={isDisabled}
+          readOnly={isReadOnly}
           required={isRequired}
           aria-describedby={describedBy}
           value={draft}

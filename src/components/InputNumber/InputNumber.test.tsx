@@ -275,7 +275,7 @@ describe('InputNumber', () => {
   })
 
   it('renders as a disabled input with disabled styling', () => {
-    render(<InputNumber value={5} disabled onChange={() => {}} />)
+    render(<InputNumber value={5} isDisabled onChange={() => {}} />)
     const input = screen.getByRole('textbox')
 
     expect(input).toBeDisabled()
@@ -285,7 +285,7 @@ describe('InputNumber', () => {
   it('prevents typing and never calls onChange while disabled', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} disabled onChange={onChange} />)
+    render(<InputNumber value={5} isDisabled onChange={onChange} />)
     const input = screen.getByRole('textbox')
 
     // user-event no-ops (or throws, depending on version) on a disabled
@@ -300,7 +300,7 @@ describe('InputNumber', () => {
   })
 
   it('renders as read-only, distinct from disabled, and stays focusable', () => {
-    render(<InputNumber value={5} readOnly onChange={() => {}} />)
+    render(<InputNumber value={5} isReadOnly onChange={() => {}} />)
     const input = screen.getByRole('textbox')
 
     expect(input).toHaveAttribute('readonly')
@@ -314,7 +314,7 @@ describe('InputNumber', () => {
   it('blocks typing and Arrow key stepping while read-only, and never calls onChange', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} readOnly onChange={onChange} />)
+    render(<InputNumber value={5} isReadOnly onChange={onChange} />)
     const input = screen.getByRole('textbox')
 
     await user.type(input, '9').catch(() => {})
@@ -408,11 +408,11 @@ describe('InputNumber', () => {
   })
 
   it('disables spin buttons when the field is disabled or read-only', () => {
-    const { rerender } = render(<InputNumber value={5} onChange={() => {}} disabled />)
+    const { rerender } = render(<InputNumber value={5} onChange={() => {}} isDisabled />)
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).toBeDisabled()
 
-    rerender(<InputNumber value={5} onChange={() => {}} readOnly />)
+    rerender(<InputNumber value={5} onChange={() => {}} isReadOnly />)
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).toBeDisabled()
   })
@@ -637,14 +637,14 @@ describe('InputNumber', () => {
     it('does nothing when enabled and focused but disabled or read-only', () => {
       const onChange = vi.fn()
       const { rerender } = render(
-        <InputNumber value={5} handleWheel disabled onChange={onChange} />,
+        <InputNumber value={5} handleWheel isDisabled onChange={onChange} />,
       )
       let input = screen.getByRole('textbox')
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
       expect(onChange).not.toHaveBeenCalled()
 
-      rerender(<InputNumber value={5} handleWheel readOnly onChange={onChange} />)
+      rerender(<InputNumber value={5} handleWheel isReadOnly onChange={onChange} />)
       input = screen.getByRole('textbox')
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
