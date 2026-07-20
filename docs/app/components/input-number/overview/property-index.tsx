@@ -1,7 +1,13 @@
 const properties = [
+  { name: 'value', href: '#value' },
+  { name: 'onChange', href: '#value' },
+  { name: 'placeholder', href: '#placeholder' },
   { name: 'isRequired', href: '#isrequired' },
   { name: 'min', href: '#min--max' },
   { name: 'max', href: '#min--max' },
+  { name: 'step', href: '#step' },
+  { name: 'isReadOnly', href: '#isreadonly' },
+  { name: 'isDisabled', href: '#isdisabled' },
 ]
 
 export function PropertySignature({ name, type }: { name: string; type: string }) {

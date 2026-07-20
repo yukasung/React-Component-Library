@@ -39,6 +39,7 @@ function Field({
 export function App() {
   const [defaultVal, setDefaultVal] = useState<number | null>(0)
   const [quantity, setQuantity] = useState<number | null>(1)
+  const [amount, setAmount] = useState<number | null>(null)
   const [optionalQty, setOptionalQty] = useState<number | null>(null)
   const [price, setPrice] = useState<number | null>(9.5)
   const [wheelQty, setWheelQty] = useState<number | null>(5)
@@ -79,15 +80,29 @@ export function App() {
             hint="Enter a whole number between 0 and 10"
           />
         </Field>
+
+        <Field
+          label="Amount (placeholder)"
+          htmlFor="amount"
+          note={`Committed value: ${amount === null ? 'null' : amount}`}
+        >
+          <InputNumber
+            id="amount"
+            value={amount}
+            onChange={setAmount}
+            isRequired={false}
+            placeholder="e.g. 100"
+          />
+        </Field>
       </Section>
 
       <Section title="States">
         <Field label="Quantity (disabled)" htmlFor="quantity-disabled">
-          <InputNumber id="quantity-disabled" value={5} onChange={() => {}} disabled />
+          <InputNumber id="quantity-disabled" value={5} onChange={() => {}} isDisabled />
         </Field>
 
         <Field label="Quantity (read-only)" htmlFor="quantity-readonly">
-          <InputNumber id="quantity-readonly" value={5} onChange={() => {}} readOnly />
+          <InputNumber id="quantity-readonly" value={5} onChange={() => {}} isReadOnly />
         </Field>
 
         <Field

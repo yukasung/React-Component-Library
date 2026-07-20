@@ -1,4 +1,4 @@
-import { DefaultDemo, IsRequiredDemo, MinMaxDemo } from './demo'
+import { DefaultDemo, DisabledDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, StepDemo, ValueDemo } from './demo'
 import { PropertyIndex, PropertySignature } from './property-index'
 
 export const metadata = {
@@ -10,7 +10,7 @@ export const metadata = {
 
 InputNumber คือ input สำหรับกรอกตัวเลขโดยเฉพาะ ป้องกันไม่ให้ผู้ใช้กรอกข้อมูลที่ไม่ถูกต้องโดยไม่ตั้งใจ และจัดรูปแบบตัวเลขขณะแก้ไข ออกแบบ API ให้เป็นไปตามแนวทางของ React (value + onChange)
 
-เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมี isRequired และ min / max ที่ผ่านแล้ว
+เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมี value, placeholder, isRequired, min / max, step, isReadOnly และ isDisabled ที่ผ่านแล้ว
 
 <DefaultDemo />
 
@@ -23,6 +23,50 @@ import { InputNumber } from '@your-scope/components'
 ## Properties
 
 <PropertyIndex />
+
+### value
+
+<PropertySignature name="value" type="number | null" />
+<PropertySignature name="onChange" type="(value: number | null) => void" />
+
+ค่าปัจจุบันของ control แบบ controlled — คู่กับ onChange เสมอ ถ้าไม่ระบุ value (ปล่อยให้เป็น undefined) component จะทำงานแบบ uncontrolled แทน โดยจัดการ state ภายในเอง เริ่มจาก defaultValue
+
+value คือ**ข้อความที่แยกวิเคราะห์แล้ว** (parsed) เป็น number หรือ null ล้วน ๆ เสมอ ไม่มี comma คั่นหลักพัน สัญลักษณ์สกุลเงิน หรืออักขระอื่นปนอยู่เด็ดขาด — ไม่ว่าจะพิมพ์อะไรเข้าไปในช่อง สุดท้าย value ที่ได้จะเป็นตัวเลขบริสุทธิ์เสมอ (เช่น 1234.56 ไม่ใช่ "1,234.56") ปัจจุบัน InputNumber ยังไม่มีการจัดรูปแบบการแสดงผลด้วย comma คั่นหลักพัน (เป็นคนละเรื่องกับ value — ดูเพิ่มเติมที่ property format ซึ่งยังไม่ผ่าน Reviewed)
+
+onChange ถูกเรียกเฉพาะตอนค่ามีการ commit จริง (blur, Enter, ปุ่ม spin, ปุ่มลูกศรบนคีย์บอร์ด) ไม่ใช่ทุกครั้งที่พิมพ์ — null ถือเป็นค่าที่ commit ได้ปกติ (ฟิลด์ว่างเปล่า) ต่างจาก draft ที่พิมพ์ไม่ครบ (เช่น "1." หรือ "-") ซึ่งจะไม่ถูกส่งเข้า onChange จนกว่าจะพิมพ์ให้เป็นตัวเลขที่สมบูรณ์
+
+#### Live Example
+
+<ValueDemo />
+
+#### Example
+
+```tsx
+{/* Controlled */}
+const [value, setValue] = useState<number | null>(10)
+<InputNumber value={value} onChange={setValue} />
+
+{/* Uncontrolled */}
+<InputNumber defaultValue={10} onChange={(value) => console.log(value)} />
+```
+
+### placeholder
+
+<PropertySignature name="placeholder" type="string" />
+
+ข้อความ hint ที่แสดงเมื่อฟิลด์ว่างเปล่า เป็น native HTML attribute ส่งผ่านตรงเข้า input ภายในโดยไม่มีการแปลงใด ๆ
+
+แสดงผลได้ก็ต่อเมื่อฟิลด์ว่างจริง ๆ (value เป็น null) เท่านั้น — ถ้าใช้คู่กับ isRequired (default: true) ฟิลด์จะไม่มีทางว่างเปล่าเลย เพราะ isRequired บังคับแสดงเป็น 0 เสมอ placeholder จึงไม่มีวันปรากฏ ต้องปิด isRequired ก่อนถึงจะเห็น placeholder จริง
+
+#### Live Example
+
+<PlaceholderDemo />
+
+#### Example
+
+```tsx
+<InputNumber isRequired={false} defaultValue={null} placeholder="ไม่บังคับกรอก" />
+```
 
 ### isRequired
 
@@ -63,4 +107,60 @@ import { InputNumber } from '@your-scope/components'
 
 ```tsx
 <InputNumber min={0} max={100} defaultValue={50} />
+```
+
+### step
+
+<PropertySignature name="step" type="number" />
+
+จำนวนที่เพิ่ม/ลดต่อการกดปุ่ม spin หนึ่งครั้ง หรือกดปุ่มลูกศรขึ้น/ลงบนคีย์บอร์ดหนึ่งครั้ง ค่าเริ่มต้น (default): 1
+
+ถ้า step มีทศนิยม (เช่น 0.1) และไม่ได้ระบุ precision ไว้เอง ระบบจะคำนวณจำนวนทศนิยมที่แสดงจาก step ให้อัตโนมัติ เพื่อไม่ให้เกิดปัญหาเศษทศนิยมเพี้ยนจากการคำนวณ floating point ซ้ำ ๆ (เช่น 0.1 บวกกันสามครั้งไม่ได้ 0.3 พอดีถ้าไม่จัดการ)
+
+step แยกออกจากการแสดง/ซ่อนปุ่ม spin อย่างชัดเจน — step ควบคุมแค่ "ขยับทีละเท่าไร" เท่านั้น การซ่อน/แสดงปุ่ม spin ควบคุมแยกผ่าน showSpinButtons (ยังไม่ผ่าน Reviewed) และปุ่มลูกศรบนคีย์บอร์ดยังคงขยับค่าได้เสมอไม่ว่าจะซ่อนปุ่ม spin หรือไม่
+
+#### Live Example
+
+<StepDemo />
+
+#### Example
+
+```tsx
+<InputNumber step={0.1} defaultValue={1} />
+```
+
+### isReadOnly
+
+<PropertySignature name="isReadOnly" type="boolean" />
+
+เมื่อเป็น true ผู้ใช้แก้ไขค่าไม่ได้ทั้งการพิมพ์ ปุ่ม spin และปุ่มลูกศรบนคีย์บอร์ด แต่ยังคง focus, เลือกข้อความ และคัดลอกค่าได้ตามปกติ — ต่างจาก isDisabled ที่ปิดกั้นการโต้ตอบทั้งหมดและแสดงผลจางลง isReadOnly จึงมีสไตล์ที่แยกจาก isDisabled โดยเฉพาะเพื่อไม่ให้ดูเหมือนใช้งานไม่ได้ ค่าเริ่มต้น (default): false
+
+ตั้งชื่อ prop เป็น isReadOnly โดยตั้งใจ แทนที่จะใช้ readOnly แบบ native HTML ค่าที่ส่งเข้าไปจะแปลงเป็น native readOnly attribute บน input ให้เองภายใน
+
+#### Live Example
+
+<ReadOnlyDemo />
+
+#### Example
+
+```tsx
+<InputNumber isReadOnly defaultValue={10} />
+```
+
+### isDisabled
+
+<PropertySignature name="isDisabled" type="boolean" />
+
+เมื่อเป็น true ปิดการใช้งานทั้งหมด — พิมพ์ไม่ได้ ปุ่ม spin และปุ่มลูกศรบนคีย์บอร์ดใช้ไม่ได้ ทั้งยัง focus ไม่ได้ด้วย (ต่างจาก isReadOnly ที่ยัง focus/เลือกข้อความได้) แสดงผลจางลงชัดเจน (opacity ต่ำ พื้นหลังเทา cursor เป็น not-allowed) เพื่อสื่อว่าใช้งานไม่ได้ ค่าเริ่มต้น (default): false
+
+ตั้งชื่อ prop เป็น isDisabled โดยตั้งใจ แทนที่จะใช้ disabled แบบ native HTML ค่าที่ส่งเข้าไปจะแปลงเป็น native disabled attribute บน input และปุ่ม spin ทั้งสองให้เองภายใน
+
+#### Live Example
+
+<DisabledDemo />
+
+#### Example
+
+```tsx
+<InputNumber isDisabled defaultValue={10} />
 ```
