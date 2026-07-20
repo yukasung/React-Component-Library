@@ -1,4 +1,4 @@
-import { DefaultDemo, DisabledDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, StepDemo, ValueDemo } from './demo'
+import { DefaultDemo, DisabledDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, RepeatButtonsDemo, ShowSpinButtonsDemo, StepDemo, ValueDemo } from './demo'
 import { PropertyIndex, PropertySignature } from './property-index'
 
 export const metadata = {
@@ -10,7 +10,7 @@ export const metadata = {
 
 InputNumber คือ input สำหรับกรอกตัวเลขโดยเฉพาะ ป้องกันไม่ให้ผู้ใช้กรอกข้อมูลที่ไม่ถูกต้องโดยไม่ตั้งใจ และจัดรูปแบบตัวเลขขณะแก้ไข ออกแบบ API ให้เป็นไปตามแนวทางของ React (value + onChange)
 
-เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมี value, placeholder, isRequired, min / max, step, isReadOnly และ isDisabled ที่ผ่านแล้ว
+เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมี value, placeholder, isRequired, min / max, step, showSpinButtons, repeatButtons, isReadOnly และ isDisabled ที่ผ่านแล้ว
 
 <DefaultDemo />
 
@@ -117,7 +117,7 @@ const [value, setValue] = useState<number | null>(10)
 
 ถ้า step มีทศนิยม (เช่น 0.1) และไม่ได้ระบุ precision ไว้เอง ระบบจะคำนวณจำนวนทศนิยมที่แสดงจาก step ให้อัตโนมัติ เพื่อไม่ให้เกิดปัญหาเศษทศนิยมเพี้ยนจากการคำนวณ floating point ซ้ำ ๆ (เช่น 0.1 บวกกันสามครั้งไม่ได้ 0.3 พอดีถ้าไม่จัดการ)
 
-step แยกออกจากการแสดง/ซ่อนปุ่ม spin อย่างชัดเจน — step ควบคุมแค่ "ขยับทีละเท่าไร" เท่านั้น การซ่อน/แสดงปุ่ม spin ควบคุมแยกผ่าน showSpinButtons (ยังไม่ผ่าน Reviewed) และปุ่มลูกศรบนคีย์บอร์ดยังคงขยับค่าได้เสมอไม่ว่าจะซ่อนปุ่ม spin หรือไม่
+step แยกออกจากการแสดง/ซ่อนปุ่ม spin อย่างชัดเจน — step ควบคุมแค่ "ขยับทีละเท่าไร" เท่านั้น การซ่อน/แสดงปุ่ม spin ควบคุมแยกผ่าน showSpinButtons และปุ่มลูกศรบนคีย์บอร์ดยังคงขยับค่าได้เสมอไม่ว่าจะซ่อนปุ่ม spin หรือไม่
 
 #### Live Example
 
@@ -127,6 +127,44 @@ step แยกออกจากการแสดง/ซ่อนปุ่ม s
 
 ```tsx
 <InputNumber step={0.1} defaultValue={1} />
+```
+
+### showSpinButtons
+
+<PropertySignature name="showSpinButtons" type="boolean" />
+
+กำหนดว่าจะแสดงปุ่มลูกศรขึ้น/ลง (spin buttons) ด้านขวาของฟิลด์หรือไม่ ค่าเริ่มต้น (default): true
+
+เมื่อเป็น false ปุ่ม spin จะไม่ถูก render เลย (ไม่ใช่แค่ซ่อนด้วย CSS) และช่องว่างด้านขวาที่เคยเผื่อไว้สำหรับปุ่มจะหายไปด้วย — ปุ่มลูกศรขึ้น/ลงบนคีย์บอร์ดยังคงขยับค่าได้ตามปกติไม่ว่าจะซ่อนปุ่ม spin หรือไม่ก็ตาม
+
+ตั้งชื่อ prop เป็น showSpinButtons (ไม่ใช่ showSpinner) และไม่ผูกกับค่า step ใด ๆ เป็นพิเศษ — ควบคุมแยกอิสระจากกันโดยสมบูรณ์
+
+#### Live Example
+
+<ShowSpinButtonsDemo />
+
+#### Example
+
+```tsx
+<InputNumber showSpinButtons={false} defaultValue={10} />
+```
+
+### repeatButtons
+
+<PropertySignature name="repeatButtons" type="boolean" />
+
+กำหนดว่ากดปุ่ม spin ค้างไว้แล้วให้เพิ่ม/ลดค่าซ้ำ ๆ ต่อเนื่องหรือไม่ ค่าเริ่มต้น (default): true
+
+เมื่อกดค้าง จะมีดีเลย์เล็กน้อยก่อนเริ่มขยับซ้ำ (กันการขยับโดยไม่ตั้งใจจากการคลิกสั้น ๆ) จากนั้นขยับต่อเนื่องเป็นจังหวะจนกว่าจะปล่อยเมาส์หรือค่าถึง min/max แล้วหยุดเอง — กดครั้งเดียวโดยไม่ค้างยังคงขยับ 1 step ตามปกติเสมอไม่ว่าตั้งค่านี้เป็นอะไร ไม่กระทบปุ่มลูกศรบนคีย์บอร์ด (ไม่มีการ repeat เมื่อกดค้างที่คีย์บอร์ด)
+
+#### Live Example
+
+<RepeatButtonsDemo />
+
+#### Example
+
+```tsx
+<InputNumber repeatButtons={false} defaultValue={10} />
 ```
 
 ### isReadOnly

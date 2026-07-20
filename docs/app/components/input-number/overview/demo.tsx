@@ -113,6 +113,34 @@ export function StepDemo() {
   )
 }
 
+export function ShowSpinButtonsDemo() {
+  const [shownValue, setShownValue] = useState<number | null>(10)
+  const [hiddenValue, setHiddenValue] = useState<number | null>(10)
+
+  return (
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
+      <div>
+        <label htmlFor="demo-spin-shown" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          showSpinButtons (default)
+        </label>
+        <InputNumber id="demo-spin-shown" value={shownValue} onChange={setShownValue} />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          Committed value: {formatCommitted(shownValue)}
+        </p>
+      </div>
+      <div>
+        <label htmlFor="demo-spin-hidden" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          showSpinButtons={'{false}'}
+        </label>
+        <InputNumber id="demo-spin-hidden" value={hiddenValue} onChange={setHiddenValue} showSpinButtons={false} />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          Committed value: {formatCommitted(hiddenValue)} — ไม่มีปุ่ม spin แต่ focus แล้วกดลูกศรขึ้น/ลงยังขยับค่าได้
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function ReadOnlyDemo() {
   const [editableValue, setEditableValue] = useState<number | null>(10)
   const [readOnlyValue, setReadOnlyValue] = useState<number | null>(10)
@@ -163,6 +191,34 @@ export function DisabledDemo() {
         <InputNumber id="demo-disabled" value={disabledValue} onChange={setDisabledValue} isDisabled />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           Committed value: {formatCommitted(disabledValue)} — ใช้งานไม่ได้เลย แม้แต่ focus
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export function RepeatButtonsDemo() {
+  const [repeatValue, setRepeatValue] = useState<number | null>(0)
+  const [singleValue, setSingleValue] = useState<number | null>(0)
+
+  return (
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
+      <div>
+        <label htmlFor="demo-repeat-on" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          repeatButtons (default)
+        </label>
+        <InputNumber id="demo-repeat-on" value={repeatValue} onChange={setRepeatValue} />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          Committed value: {formatCommitted(repeatValue)} — กดปุ่ม spin ค้างไว้ดู จะขยับซ้ำต่อเนื่อง
+        </p>
+      </div>
+      <div>
+        <label htmlFor="demo-repeat-off" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          repeatButtons={'{false}'}
+        </label>
+        <InputNumber id="demo-repeat-off" value={singleValue} onChange={setSingleValue} repeatButtons={false} />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          Committed value: {formatCommitted(singleValue)} — กดค้างไม่มีผล ต้องคลิกทีละครั้ง
         </p>
       </div>
     </div>
