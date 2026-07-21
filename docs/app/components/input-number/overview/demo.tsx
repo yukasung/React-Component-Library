@@ -29,6 +29,17 @@ function useLiveText(initialValue: number | null, format?: string) {
   const [liveText, setLiveText] = useState(formatCommitted(initialValue))
   const inputRef = useRef<HTMLInputElement>(null)
   const formatSpec = format ? parseNumericFormat(format) : undefined
+  // Spin-button clicks and Arrow-key presses commit straight through React
+  // state (stepBy -> commit -> onChange) without ever touching the native
+  // <input>'s own "input" event — the resync above only covers typing. This
+  // catches liveText up to the freshly committed value the moment it
+  // changes for any other reason, same "compare during render" pattern the
+  // library's own useSyncedState hook uses.
+  const previousValue = useRef(initialValue)
+  if (previousValue.current !== initialValue) {
+    previousValue.current = initialValue
+    setLiveText(formatCommitted(initialValue))
+  }
   function onInput() {
     requestAnimationFrame(() => {
       if (!inputRef.current) return
@@ -58,22 +69,13 @@ export function DefaultDemo() {
 
 export function ValueDemo() {
   const [value, setValue] = useState<number | null>(10)
-  const [onChangeCount, setOnChangeCount] = useState(0)
   const live = useLiveText(value)
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <InputNumber
-        value={value}
-        onChange={(next) => {
-          setValue(next)
-          setOnChangeCount((count) => count + 1)
-        }}
-        ref={live.inputRef} onInput={live.onInput}
-      />
+      <InputNumber value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-        The current value is {live.liveText} · onChange ถูกเรียกไปแล้ว {onChangeCount} ครั้ง —
-        ลองพิมพ์เลขหลายหลักดูโดยยังไม่กด Enter/blur เลขนี้จะไม่ขยับ
+        The current value is {live.liveText}
       </p>
     </div>
   )
@@ -87,8 +89,7 @@ export function PlaceholderDemo() {
     <div className="not-prose my-6 max-w-xs">
       <InputNumber isRequired={false} value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} placeholder="เช่น 100" />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-        The current value is {live.liveText} — ต้องปิด isRequired ก่อนถึงจะเห็น
-        placeholder เพราะฟิลด์ต้องว่างจริง ๆ
+        The current value is {live.liveText}
       </p>
     </div>
   )
@@ -97,8 +98,6 @@ export function PlaceholderDemo() {
 export function IsRequiredDemo() {
   const [requiredValue, setRequiredValue] = useState<number | null>(null)
   const [optionalValue, setOptionalValue] = useState<number | null>(null)
-  const liveRequired = useLiveText(requiredValue)
-  const liveOptional = useLiveText(optionalValue)
 
   return (
     <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
@@ -106,16 +105,7 @@ export function IsRequiredDemo() {
         <label htmlFor="demo-is-required" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           isRequired (default)
         </label>
-        <InputNumber
-          id="demo-is-required"
-          value={requiredValue}
-          onChange={setRequiredValue}
-          ref={liveRequired.inputRef} onInput={liveRequired.onInput}
-        />
-        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveRequired.liveText} — ลองลบตัวเลขจนหมดดู
-          จะกระโดดกลับเป็น 0 ทันที
-        </p>
+        <InputNumber id="demo-is-required" value={requiredValue} onChange={setRequiredValue} />
       </div>
       <div>
         <label htmlFor="demo-is-optional" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
@@ -125,14 +115,9 @@ export function IsRequiredDemo() {
           id="demo-is-optional"
           value={optionalValue}
           onChange={setOptionalValue}
-          ref={liveOptional.inputRef} onInput={liveOptional.onInput}
           isRequired={false}
           placeholder="ไม่บังคับกรอก"
         />
-        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveOptional.liveText} —
-          ลบจนหมดแล้วปล่อยว่างได้ตามปกติ
-        </p>
       </div>
     </div>
   )

@@ -56,6 +56,17 @@ function useLiveText(initialValue: number | null, format?: string) {
   const [liveText, setLiveText] = useState(formatCommitted(initialValue))
   const inputRef = useRef<HTMLInputElement>(null)
   const formatSpec = format ? parseNumericFormat(format) : undefined
+  // Spin-button clicks and Arrow-key presses commit straight through React
+  // state (stepBy -> commit -> onChange) without ever touching the native
+  // <input>'s own "input" event — the resync above only covers typing. This
+  // catches liveText up to the freshly committed value the moment it
+  // changes for any other reason, same "compare during render" pattern the
+  // library's own useSyncedState hook uses.
+  const previousValue = useRef(initialValue)
+  if (previousValue.current !== initialValue) {
+    previousValue.current = initialValue
+    setLiveText(formatCommitted(initialValue))
+  }
   function onInput() {
     requestAnimationFrame(() => {
       if (!inputRef.current) return

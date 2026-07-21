@@ -1,10 +1,9 @@
 const properties = [
   { name: 'value', href: '#value' },
-  { name: 'onChange', href: '#value' },
   { name: 'placeholder', href: '#placeholder' },
   { name: 'isRequired', href: '#isrequired' },
-  { name: 'min', href: '#min--max' },
-  { name: 'max', href: '#min--max' },
+  { name: 'min', href: '#min' },
+  { name: 'max', href: '#max' },
   { name: 'step', href: '#step' },
   { name: 'format', href: '#format' },
   { name: 'showSpinButtons', href: '#showspinbuttons' },

@@ -65,6 +65,8 @@ The docs site documents a property only once its corresponding Linear sub-issue 
 
 The published docs content (`docs/app/components/**/*.mdx`) must **not** reference or link to Wijmo anywhere — no mentions, no links to `developer.mescius.com`, no "matches Wijmo API" framing in user-facing text. Wijmo stays an internal-only reference (see above); it should not be visible to anyone reading the docs site.
 
+The published docs content must also **not** mention Linear or the Reviewed-status review process itself (e.g. "ผ่านสถานะ Reviewed บน Linear") — that's internal workflow, not something a docs reader needs to know. It's fine to say what's currently documented; just don't say why or via what process.
+
 ### Nextra patch
 
 `docs/patches/nextra-theme-docs+4.6.1.patch` (applied via `patch-package`, wired through a `postinstall` script in `docs/package.json`) fixes an upstream bug: `nextra-theme-docs`'s `Layout` component destructures `children` out of props before passing the rest to Zod validation, which throws under Zod ≥4.4.x (see [shuding/nextra#5008](https://github.com/shuding/nextra/issues/5008)). Keep the patch until upstream releases a fix.
