@@ -76,3 +76,275 @@ export function zeroDraftWithPrecision(precision?: number): string {
   const zeros = typeof precision === 'number' ? '0'.repeat(precision) : ''
   return `0.${zeros}`
 }
+
+// .NET-style standard numeric format string support (the `format` prop) —
+// e.g. "n2", "C", "P0". Spec: https://learn.microsoft.com/en-us/dotnet/standard/base-types/standard-numeric-format-strings
+export type NumericFormatSpecifier = 'C' | 'D' | 'E' | 'F' | 'G' | 'N' | 'P' | 'R' | 'X'
+
+export interface NumericFormatSpec {
+  specifier: NumericFormatSpecifier
+  // Undefined means "use the specifier's own default precision" (resolved
+  // per-specifier in formatWithSpec, matching .NET's per-type defaults).
+  precision: number | undefined
+  // Case of the format letter controls output case for E/G/X (e.g. "e" vs "E").
+  uppercase: boolean
+}
+
+const NUMERIC_FORMAT_PATTERN = /^([CDEFGNPRX])(\d{0,9})?$/i
+
+// A standard numeric format string is exactly one letter plus an optional
+// precision digit string — anything else (custom format strings) isn't
+// supported, matching this component's v1 scope.
+export function parseNumericFormat(format: string): NumericFormatSpec | undefined {
+  const match = NUMERIC_FORMAT_PATTERN.exec(format.trim())
+  if (!match) return undefined
+  const [, letter, digits] = match
+  return {
+    specifier: letter.toUpperCase() as NumericFormatSpecifier,
+    precision: digits ? Number(digits) : undefined,
+    uppercase: letter === letter.toUpperCase(),
+  }
+}
+
+function groupDigits(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+// Shared by N and (after prefixing/suffixing) C and P: integral + fractional
+// digits with group separators, e.g. 1234.5 -> "1,234.50".
+function formatGrouped(absValue: number, precision: number): string {
+  const [intPart, fracPart] = absValue.toFixed(precision).split('.')
+  const grouped = groupDigits(intPart)
+  return fracPart ? `${grouped}.${fracPart}` : grouped
+}
+
+function formatFixedSpec(value: number, precision: number): string {
+  return (value < 0 ? '-' : '') + Math.abs(value).toFixed(precision)
+}
+
+function formatNumberSpec(value: number, precision: number): string {
+  return (value < 0 ? '-' : '') + formatGrouped(Math.abs(value), precision)
+}
+
+// .NET's default CurrencyNegativePattern wraps negatives in parentheses
+// instead of a leading minus sign. We deliberately don't: the parens make a
+// negative currency draft's content characters (digits/dot) shift relative
+// to a positive one in a way live re-formatting-while-typing can't track a
+// cursor through cleanly (the leading "-" the user types has no counterpart
+// character in "(...)"). A leading "-", like every other specifier here,
+// keeps that math (and the mental model) consistent. Parentheses are still
+// accepted on parse (parseFormattedInput/stripFormatDecorations) in case a
+// value pasted from elsewhere uses them.
+function formatCurrencySpec(value: number, precision: number): string {
+  return (value < 0 ? '-$' : '$') + formatGrouped(Math.abs(value), precision)
+}
+
+// Percent multiplies by 100 before display, per the "P" spec.
+function formatPercentSpec(value: number, precision: number): string {
+  return (value < 0 ? '-' : '') + formatGrouped(Math.abs(value) * 100, precision) + '%'
+}
+
+function formatDecimalSpec(value: number, precision: number | undefined): string {
+  const intValue = Math.trunc(value)
+  const digits = Math.abs(intValue).toString()
+  const padded = typeof precision === 'number' ? digits.padStart(precision, '0') : digits
+  return (intValue < 0 ? '-' : '') + padded
+}
+
+// .NET pads the exponent to a minimum of 3 digits for "E" (2 for "G" — see
+// formatGeneralSpec) and always includes an explicit +/- sign.
+function toExponentialParts(value: number, mantissaDigits: number) {
+  const exp = value.toExponential(mantissaDigits)
+  const match = /^(-?\d(?:\.\d+)?)e([+-])(\d+)$/.exec(exp)
+  if (!match) return undefined
+  const [, mantissa, sign, exponentDigits] = match
+  return { mantissa, sign, exponentDigits }
+}
+
+function formatExponentialSpec(value: number, precision: number, uppercase: boolean): string {
+  const parts = toExponentialParts(value, precision)
+  if (!parts) return value.toExponential(precision)
+  const eChar = uppercase ? 'E' : 'e'
+  return `${parts.mantissa}${eChar}${parts.sign}${parts.exponentDigits.padStart(3, '0')}`
+}
+
+// Fixed-point or scientific, whichever the .NET "G" spec would pick: fixed
+// when the base-10 exponent is between -5 (exclusive) and the precision
+// (exclusive), scientific otherwise. Trailing zeros are trimmed either way.
+function formatGeneralSpec(value: number, precision: number | undefined, uppercase: boolean): string {
+  if (value === 0) return '0'
+  const significantDigits = precision && precision > 0 ? precision : 15
+  const exponent = Math.floor(Math.log10(Math.abs(value)))
+  if (exponent > -5 && exponent < significantDigits) {
+    const decimals = Math.max(0, significantDigits - 1 - exponent)
+    const fixed = value.toFixed(decimals)
+    return fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed
+  }
+  const parts = toExponentialParts(value, Math.max(0, significantDigits - 1))
+  if (!parts) return value.toExponential()
+  const mantissa = parts.mantissa.includes('.')
+    ? parts.mantissa.replace(/0+$/, '').replace(/\.$/, '')
+    : parts.mantissa
+  const eChar = uppercase ? 'E' : 'e'
+  return `${mantissa}${eChar}${parts.sign}${parts.exponentDigits.padStart(2, '0')}`
+}
+
+// Two's complement over 32 bits for negative values — there's no fixed
+// integral type width in JS to match .NET's per-type behavior against, so
+// Int32 width is the most broadly useful default.
+function formatHexSpec(value: number, precision: number | undefined, uppercase: boolean): string {
+  const intValue = Math.trunc(value)
+  const unsigned = intValue < 0 ? intValue >>> 0 : intValue
+  const hex = uppercase ? unsigned.toString(16).toUpperCase() : unsigned.toString(16)
+  return typeof precision === 'number' ? hex.padStart(precision, '0') : hex
+}
+
+// JS's default Number -> String conversion already produces the shortest
+// string that round-trips back to the same value, which is exactly what "R" asks for.
+function formatRoundTripSpec(value: number): string {
+  return String(value)
+}
+
+// The decimal-places count to use for clamping/rounding the underlying
+// value before display (via applyPrecision), as distinct from spec.precision
+// itself — for D and X that field means "minimum padding width", not
+// decimal places, so those always round to a whole number instead.
+export function resolveFormatPrecision(spec: NumericFormatSpec): number {
+  switch (spec.specifier) {
+    case 'D':
+    case 'X':
+      return 0
+    case 'E':
+      return spec.precision ?? 6
+    case 'G':
+      return spec.precision ?? 6
+    case 'R':
+      return 15
+    case 'P':
+      // Percent displays value*100, so its raw (pre-multiplication) value
+      // needs 2 more decimal places than the display precision to round to
+      // the same displayed digit — e.g. "p0" (0 display decimals) still
+      // needs the raw value rounded to 2 decimal places, since 0.005 rounds
+      // to a whole display percent (0.5%) but would vanish entirely at 0
+      // raw decimal places.
+      return (spec.precision ?? 2) + 2
+    default:
+      return spec.precision ?? 2
+  }
+}
+
+export function formatWithSpec(value: number, spec: NumericFormatSpec): string {
+  switch (spec.specifier) {
+    case 'C':
+      return formatCurrencySpec(value, spec.precision ?? 2)
+    case 'D':
+      return formatDecimalSpec(value, spec.precision)
+    case 'E':
+      return formatExponentialSpec(value, spec.precision ?? 6, spec.uppercase)
+    case 'F':
+      return formatFixedSpec(value, spec.precision ?? 2)
+    case 'G':
+      return formatGeneralSpec(value, spec.precision, spec.uppercase)
+    case 'N':
+      return formatNumberSpec(value, spec.precision ?? 2)
+    case 'P':
+      return formatPercentSpec(value, spec.precision ?? 2)
+    case 'R':
+      return formatRoundTripSpec(value)
+    case 'X':
+      return formatHexSpec(value, spec.precision, spec.uppercase)
+  }
+}
+
+// Characters formatWithSpec is allowed to have added for each specifier —
+// anything else left after unwrapping parens/removing these is genuine
+// invalid input (stray letters etc.), not decoration.
+const DECORATION_CHARS: Partial<Record<NumericFormatSpecifier, RegExp>> = {
+  C: /[$,\s]/g,
+  N: /[,\s]/g,
+  P: /[%,\s]/g,
+}
+
+const VALID_CONTENT_PATTERN = /^-?\d*\.?\d*$/
+
+// Strips a formatted display string back down to a plain numeric string
+// (digits, one leading "-", one ".") so it can be re-parsed — e.g.
+// "($1,234.56)" -> "-1234.56", "42.5 %" -> "42.5". Returns undefined if
+// anything other than digits/sign/decimal point and this specifier's own
+// decoration characters remain (i.e. genuinely invalid input like "abc").
+function stripFormatDecorations(raw: string, specifier: NumericFormatSpecifier): string | undefined {
+  const trimmed = raw.trim()
+  if (specifier === 'X') {
+    const hexOnly = trimmed.replace(/\s/g, '')
+    return /^-?[0-9a-fA-F]*$/.test(hexOnly) ? hexOnly : undefined
+  }
+  const parenNegative = /^\((.*)\)$/.exec(trimmed)
+  const unwrapped = parenNegative ? `-${parenNegative[1]}` : trimmed
+  const decorationPattern = DECORATION_CHARS[specifier]
+  const stripped = decorationPattern ? unwrapped.replace(decorationPattern, '') : unwrapped
+  return VALID_CONTENT_PATTERN.test(stripped) ? stripped : undefined
+}
+
+// Inverse of formatWithSpec: turns whatever the user has typed/pasted into a
+// formatted field back into the raw number it represents (e.g. a percent
+// field's displayed "42.5" means the underlying value is 0.425). `null`
+// means "empty, a valid cleared state"; `undefined` means unparseable —
+// callers use this the same way as parseDraft.
+export function parseFormattedInput(raw: string, spec: NumericFormatSpec): number | null | undefined {
+  const stripped = stripFormatDecorations(raw, spec.specifier)
+  if (stripped === undefined) return undefined
+  if (stripped === '' || stripped === '-') return null
+  const parsed = spec.specifier === 'X' ? parseInt(stripped, 16) : Number(stripped)
+  if (!Number.isFinite(parsed)) return undefined
+  return spec.specifier === 'P' ? parsed / 100 : parsed
+}
+
+// Live re-formatting while typing needs to know which characters in a
+// formatted string are "content" (digits/sign/decimal point) versus pure
+// decoration (currency symbol, group separators, "%", parentheses), so the
+// cursor can be repositioned after the decorations shift around.
+function countContentCharsBefore(text: string, index: number): number {
+  let count = 0
+  for (let i = 0; i < index && i < text.length; i++) {
+    if (/[0-9.-]/.test(text[i])) count++
+  }
+  return count
+}
+
+function indexAfterContentChars(text: string, contentCount: number): number {
+  if (contentCount <= 0) return 0
+  let seen = 0
+  for (let i = 0; i < text.length; i++) {
+    if (/[0-9.-]/.test(text[i])) {
+      seen++
+      if (seen === contentCount) return i + 1
+    }
+  }
+  return text.length
+}
+
+// Re-formats a draft live as the user types (not just on commit), preserving
+// cursor position relative to the surrounding digits rather than snapping to
+// the end. Returns the same shape as parseFormattedInput's success case plus
+// the text/cursor to display, or undefined if the raw content isn't
+// (yet) a parseable number — callers should leave the draft untouched
+// in that case rather than reject the keystroke outright.
+export function reformatDraftLive(
+  raw: string,
+  cursorIndex: number,
+  spec: NumericFormatSpec,
+): { text: string; cursorIndex: number } | undefined {
+  const stripped = stripFormatDecorations(raw, spec.specifier)
+  if (stripped === undefined) return undefined
+  if (stripped === '' || stripped === '-') return { text: stripped, cursorIndex: stripped.length }
+  const parsed = spec.specifier === 'X' ? parseInt(stripped, 16) : Number(stripped)
+  if (!Number.isFinite(parsed)) return undefined
+  // Formatting a partial decimal draft (e.g. "12.") would drop the trailing
+  // dot entirely (toFixed doesn't preserve in-progress decimal entry), so
+  // leave those as the bare digit string until they resolve to a full number.
+  if (stripped.endsWith('.')) return { text: stripped, cursorIndex: stripped.length }
+  const value = spec.specifier === 'P' ? parsed / 100 : parsed
+  const formatted = formatWithSpec(value, spec)
+  const contentBeforeCursor = countContentCharsBefore(raw, cursorIndex)
+  return { text: formatted, cursorIndex: indexAfterContentChars(formatted, contentBeforeCursor) }
+}

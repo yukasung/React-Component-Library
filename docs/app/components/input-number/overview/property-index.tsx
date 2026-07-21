@@ -6,8 +6,10 @@ const properties = [
   { name: 'min', href: '#min--max' },
   { name: 'max', href: '#min--max' },
   { name: 'step', href: '#step' },
+  { name: 'format', href: '#format' },
   { name: 'showSpinButtons', href: '#showspinbuttons' },
   { name: 'repeatButtons', href: '#repeatbuttons' },
+  { name: 'handleWheel', href: '#handlewheel' },
   { name: 'isReadOnly', href: '#isreadonly' },
   { name: 'isDisabled', href: '#isdisabled' },
 ]

@@ -3,8 +3,12 @@ import {
   applyPrecision,
   clamp,
   formatValue,
+  formatWithSpec,
   isValidDraft,
   parseDraft,
+  parseFormattedInput,
+  parseNumericFormat,
+  reformatDraftLive,
   resolvePrecision,
   roundToPrecision,
   stripSign,
@@ -209,5 +213,148 @@ describe('zeroDraftWithPrecision', () => {
 
   it('produces "0." with no trailing zeros when precision is undefined', () => {
     expect(zeroDraftWithPrecision(undefined)).toBe('0.')
+  })
+})
+
+describe('parseNumericFormat', () => {
+  it('parses a letter + precision digits, case-insensitively', () => {
+    expect(parseNumericFormat('n2')).toEqual({ specifier: 'N', precision: 2, uppercase: false })
+    expect(parseNumericFormat('N2')).toEqual({ specifier: 'N', precision: 2, uppercase: true })
+  })
+
+  it('parses a bare letter with no precision as undefined precision', () => {
+    expect(parseNumericFormat('C')).toEqual({ specifier: 'C', precision: undefined, uppercase: true })
+  })
+
+  it('accepts multi-digit precision', () => {
+    expect(parseNumericFormat('F12')).toEqual({ specifier: 'F', precision: 12, uppercase: true })
+  })
+
+  it('returns undefined for an unsupported specifier letter', () => {
+    expect(parseNumericFormat('Z')).toBeUndefined()
+  })
+
+  it('returns undefined for a custom (multi-letter) format string', () => {
+    expect(parseNumericFormat('n2x')).toBeUndefined()
+  })
+
+  it('returns undefined for an empty string', () => {
+    expect(parseNumericFormat('')).toBeUndefined()
+  })
+})
+
+describe('formatWithSpec', () => {
+  it('formats N with group separators and the given precision', () => {
+    expect(formatWithSpec(1234.567, { specifier: 'N', precision: 2, uppercase: false })).toBe('1,234.57')
+    expect(formatWithSpec(-1234.567, { specifier: 'N', precision: 2, uppercase: false })).toBe('-1,234.57')
+  })
+
+  it('defaults N precision to 2 when omitted', () => {
+    expect(formatWithSpec(1234.5, { specifier: 'N', precision: undefined, uppercase: false })).toBe('1,234.50')
+  })
+
+  it('formats C with a currency symbol and a leading minus for negatives', () => {
+    expect(formatWithSpec(1234.567, { specifier: 'C', precision: 2, uppercase: true })).toBe('$1,234.57')
+    expect(formatWithSpec(-1234.567, { specifier: 'C', precision: 2, uppercase: true })).toBe('-$1,234.57')
+  })
+
+  it('formats P by multiplying by 100 and appending a percent sign', () => {
+    expect(formatWithSpec(0.2468013, { specifier: 'P', precision: 2, uppercase: false })).toBe('24.68%')
+    expect(formatWithSpec(-0.39678, { specifier: 'P', precision: 1, uppercase: false })).toBe('-39.7%')
+  })
+
+  it('formats F as a plain fixed-point number with no grouping', () => {
+    expect(formatWithSpec(1234.567, { specifier: 'F', precision: 2, uppercase: false })).toBe('1234.57')
+  })
+
+  it('formats D as zero-padded integer digits, truncating any fraction', () => {
+    expect(formatWithSpec(1234, { specifier: 'D', precision: undefined, uppercase: true })).toBe('1234')
+    expect(formatWithSpec(-1234, { specifier: 'D', precision: 6, uppercase: true })).toBe('-001234')
+  })
+
+  it('formats E in scientific notation with a 3-digit exponent', () => {
+    expect(formatWithSpec(12345.6789, { specifier: 'E', precision: 6, uppercase: true })).toBe('1.234568E+004')
+    expect(formatWithSpec(-1052.0329112756, { specifier: 'E', precision: 2, uppercase: false })).toBe('-1.05e+003')
+  })
+
+  it('formats G as compact fixed-point for in-range magnitudes', () => {
+    expect(formatWithSpec(-123.456, { specifier: 'G', precision: undefined, uppercase: true })).toBe('-123.456')
+    expect(formatWithSpec(123.4546, { specifier: 'G', precision: 4, uppercase: true })).toBe('123.5')
+  })
+
+  it('formats G in scientific notation for very small/large magnitudes', () => {
+    expect(formatWithSpec(0.0000023, { specifier: 'G', precision: undefined, uppercase: true })).toBe('2.3E-06')
+  })
+
+  it('formats X as hexadecimal, uppercase or lowercase per specifier case', () => {
+    expect(formatWithSpec(255, { specifier: 'X', precision: undefined, uppercase: true })).toBe('FF')
+    expect(formatWithSpec(255, { specifier: 'X', precision: undefined, uppercase: false })).toBe('ff')
+    expect(formatWithSpec(255, { specifier: 'X', precision: 4, uppercase: true })).toBe('00FF')
+  })
+
+  it('formats R as the shortest round-trippable representation', () => {
+    expect(formatWithSpec(10761.937554, { specifier: 'R', precision: undefined, uppercase: true })).toBe(
+      '10761.937554',
+    )
+  })
+})
+
+describe('parseFormattedInput', () => {
+  it('strips currency symbol and group separators back to a plain number', () => {
+    expect(parseFormattedInput('$1,234.56', { specifier: 'C', precision: 2, uppercase: true })).toBe(1234.56)
+  })
+
+  it('reads parenthesized currency as negative', () => {
+    expect(parseFormattedInput('($123.46)', { specifier: 'C', precision: 2, uppercase: true })).toBe(-123.46)
+  })
+
+  it('divides percent input by 100', () => {
+    expect(parseFormattedInput('42.5 %', { specifier: 'P', precision: 1, uppercase: false })).toBe(0.425)
+  })
+
+  it('strips group separators for N', () => {
+    expect(parseFormattedInput('1,234.57', { specifier: 'N', precision: 2, uppercase: false })).toBe(1234.57)
+  })
+
+  it('parses hex digits back to a decimal number for X', () => {
+    expect(parseFormattedInput('FF', { specifier: 'X', precision: undefined, uppercase: true })).toBe(255)
+  })
+
+  it('treats an empty string as null', () => {
+    expect(parseFormattedInput('', { specifier: 'N', precision: 2, uppercase: false })).toBeNull()
+  })
+
+  it('returns undefined for unparseable content', () => {
+    expect(parseFormattedInput('abc', { specifier: 'N', precision: 2, uppercase: false })).toBeUndefined()
+  })
+})
+
+describe('reformatDraftLive', () => {
+  const n0: Parameters<typeof reformatDraftLive>[2] = { specifier: 'N', precision: 0, uppercase: false }
+
+  it('reformats accumulated digits with group separators as the user types', () => {
+    expect(reformatDraftLive('1', 1, n0)).toEqual({ text: '1', cursorIndex: 1 })
+    expect(reformatDraftLive('12', 2, n0)).toEqual({ text: '12', cursorIndex: 2 })
+    expect(reformatDraftLive('1234', 4, n0)).toEqual({ text: '1,234', cursorIndex: 5 })
+  })
+
+  it('keeps the cursor positioned after the same count of digits, not snapped to the end', () => {
+    // Cursor after the 3rd digit of "1234" (before the trailing "4") should
+    // land after the 3rd digit of "1,234" too (before the trailing "4"),
+    // not at the very end of the reformatted string.
+    expect(reformatDraftLive('1234', 3, n0)).toEqual({ text: '1,234', cursorIndex: 4 })
+  })
+
+  it('leaves an in-progress decimal point alone rather than dropping it', () => {
+    const n2: Parameters<typeof reformatDraftLive>[2] = { specifier: 'N', precision: 2, uppercase: false }
+    expect(reformatDraftLive('12.', 3, n2)).toEqual({ text: '12.', cursorIndex: 3 })
+  })
+
+  it('returns the bare "-" while a negative number is still being typed', () => {
+    expect(reformatDraftLive('-', 1, n0)).toEqual({ text: '-', cursorIndex: 1 })
+  })
+
+  it('returns undefined for content that is not (yet) a parseable number', () => {
+    expect(reformatDraftLive('abc', 3, n0)).toBeUndefined()
   })
 })

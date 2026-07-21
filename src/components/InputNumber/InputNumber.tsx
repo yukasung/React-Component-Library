@@ -5,8 +5,13 @@ import {
   applyPrecision,
   clamp,
   formatValue,
+  formatWithSpec,
   isValidDraft,
   parseDraft,
+  parseFormattedInput,
+  parseNumericFormat,
+  reformatDraftLive,
+  resolveFormatPrecision,
   resolvePrecision,
   stripSign,
   toggleSign,
@@ -25,6 +30,11 @@ export interface InputNumberProps
   max?: number
   step?: number
   precision?: number
+  // .NET-style standard numeric format string (e.g. "n2", "C", "P0") —
+  // see resolveFormatPrecision/formatWithSpec in src/lib/number.ts. When
+  // set, this supersedes `precision` entirely for both display and the
+  // decimal places used when clamping/rounding on commit.
+  format?: string
   showSpinButtons?: boolean
   repeatButtons?: boolean
   handleWheel?: boolean
@@ -41,32 +51,58 @@ export interface InputNumberProps
   // convention.
   isDisabled?: boolean
   hint?: string
+  // Wijmo-style two-way binding for the raw text shown in the control,
+  // distinct from `value` (which holds the parsed number). Setting `text`
+  // from outside overrides the displayed draft directly (no reformatting),
+  // exactly as if the user had typed it themselves. `onTextChange` fires
+  // whenever the displayed text changes for any internal reason (typing,
+  // commit reformat, spin, Escape, sign toggle) — but not as an echo of a
+  // `text` prop change you just set yourself, matching how external `value`
+  // changes don't echo back through `onChange`.
+  text?: string
+  onTextChange?: (text: string) => void
 }
 
 const REPEAT_INITIAL_DELAY_MS = 400
 const REPEAT_INTERVAL_MS = 80
 
-const baseClassName =
-  'h-11 w-full rounded-lg border border-gray-300 bg-transparent py-2 pl-3 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-blue-300 focus:outline-none focus:ring-3 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30'
+// The bordered "box" the user sees now lives on this wrapper, not the
+// <input> itself — the -/+ spin buttons sit inside it, flanking the input,
+// sharing one continuous border/rounded-corner/shadow (see the screenshot
+// this layout was built from). The input becomes a borderless, transparent
+// flex child; :focus-within (rather than the input's own :focus) puts the
+// ring on the whole wrapper when the input inside it is focused.
+const wrapperBaseClassName =
+  'flex items-stretch overflow-hidden rounded-lg border shadow-sm focus-within:border-blue-300 focus-within:ring-3 focus-within:ring-blue-500/20'
 
-const disabledClassName =
-  'disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-40 dark:disabled:border-gray-700 dark:disabled:bg-gray-800 dark:disabled:text-gray-400'
+function wrapperStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
+  if (isDisabled) {
+    return 'cursor-not-allowed border-gray-300 bg-gray-100 opacity-40 dark:border-gray-700 dark:bg-gray-800'
+  }
+  if (isReadOnly) {
+    return 'cursor-default border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'
+  }
+  return 'border-gray-300 bg-transparent dark:border-gray-700 dark:bg-gray-900'
+}
 
-const readOnlyClassName =
-  'read-only:cursor-default read-only:bg-gray-50 dark:read-only:bg-gray-800/60'
+const inputClassName =
+  'h-11 min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-right text-sm text-gray-800 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-white/90 dark:placeholder:text-white/30 dark:disabled:text-gray-400'
 
 const spinButtonClassName =
-  'flex h-1/2 w-6 items-center justify-center text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-500 dark:hover:text-gray-300 dark:disabled:text-gray-700'
+  'flex h-11 w-9 shrink-0 items-center justify-center border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:border-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:disabled:text-gray-700'
 
 export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(function InputNumber(
   {
     value,
     defaultValue = null,
     onChange,
+    text,
+    onTextChange,
     min,
     max,
     step = 1,
     precision,
+    format,
     isDisabled = false,
     isReadOnly = false,
     isRequired = true,
@@ -85,15 +121,52 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   const [internalValue, setInternalValue] = useState<number | null>(defaultValue)
   const [isFocused, setIsFocused] = useState(false)
   const committedValue = isControlled ? value : internalValue
-  const effectivePrecision = precision ?? resolvePrecision(step)
+  // `format`, when set, supersedes `precision` entirely — see the prop doc
+  // comment above. resolveFormatPrecision maps the format spec to the
+  // decimal-places count used for clamping/rounding on commit.
+  const formatSpec = format ? parseNumericFormat(format) : undefined
+  const effectivePrecision = formatSpec ? resolveFormatPrecision(formatSpec) : (precision ?? resolvePrecision(step))
   // Required fields never display as blank — a null committed value (e.g.
   // before the user's first interaction, or a controlled consumer passing
   // null anyway) still shows "0" rather than an empty field. The underlying
   // committed value itself isn't force-changed to 0 by this alone; it's a
   // display-only fallback that becomes real once the user commits.
   const displayValue = isRequired && committedValue === null ? 0 : committedValue
-  const formattedValue = formatValue(displayValue, effectivePrecision)
-  const [draft, setDraft] = useSyncedState(formattedValue)
+  function formatDisplay(next: number | null): string {
+    if (next === null) return ''
+    return formatSpec ? formatWithSpec(next, formatSpec) : formatValue(next, effectivePrecision)
+  }
+  function parseDraftValue(raw: string): number | null | undefined {
+    return formatSpec ? parseFormattedInput(raw, formatSpec) : parseDraft(raw)
+  }
+  const formattedValue = formatDisplay(displayValue)
+  // When `text` is controlled, it takes priority over the value-derived
+  // formattedValue as the thing useSyncedState resyncs `draft` to — this
+  // covers both the initial mount (draft starts as the given text, not a
+  // reformat of `value`) and every later render where `text` changes,
+  // including a render where both `value` and `text` change together
+  // (`text`, being the more literal, direct control over what's displayed,
+  // wins). Falls back to formattedValue once `text` goes back to
+  // uncontrolled (undefined). Doesn't call onTextChange itself — see
+  // updateDraft below — an external prop catching draft up to what the
+  // consumer just set shouldn't echo back as a change notification, same as
+  // an external `value` change doesn't echo back through `onChange`.
+  const [draft, setDraft] = useSyncedState(text !== undefined ? text : formattedValue)
+  // Routes every internally-originated draft change (typing, commit
+  // reformat, spin, Escape, sign toggle, ...) through onTextChange — see the
+  // prop doc comment. Every setDraft call below this point should go
+  // through updateDraft instead, except the external-text-resync above.
+  function updateDraft(next: string) {
+    if (next !== draft) onTextChange?.(next)
+    setDraft(next)
+  }
+  // aria-valuenow/aria-valuetext track what's currently on screen, not just
+  // the last committed value — a screen reader user editing this spinbutton
+  // expects the announced value to match what they're actively typing, the
+  // same way the visible text does. draftNumericValue is undefined for a
+  // draft that isn't (yet) a complete number (e.g. "-" or "1."); aria-valuenow
+  // is omitted in that case rather than showing a stale or misleading number.
+  const draftNumericValue = parseDraftValue(draft)
   const atMax = typeof max === 'number' && committedValue !== null && committedValue >= max
   const atMin = typeof min === 'number' && committedValue !== null && committedValue <= min
   const spinButtonsDisabled = isDisabled || isReadOnly
@@ -156,14 +229,14 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       if (!isControlled) setInternalValue(next)
       onChange?.(next)
     }
-    setDraft(formatValue(next, effectivePrecision))
+    updateDraft(formatDisplay(next))
   }
 
   function commitDraft() {
     if (isReadOnly) return
-    const parsed = parseDraft(draft)
+    const parsed = parseDraftValue(draft)
     if (parsed === undefined || (isRequired && parsed === null)) {
-      setDraft(formattedValue)
+      updateDraft(formattedValue)
       return
     }
     commit(
@@ -172,7 +245,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   }
 
   function stepBy(direction: 1 | -1) {
-    const base = parseDraft(draft) ?? committedValue ?? min ?? 0
+    const base = parseDraftValue(draft) ?? committedValue ?? min ?? 0
     const next = applyPrecision(clamp(base + direction * step, min, max), effectivePrecision, truncate)
     commit(next)
   }
@@ -208,19 +281,60 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     if (!hasRepeatedRef.current) stepBy(direction)
   }
 
+  // Applying a selection synchronously inside the change handler isn't
+  // reliably the last word: when the reformatted text equals the draft
+  // already on screen (e.g. a redundant trailing zero, or snapping an
+  // already-"0.00" field back to "0.00"), there's nothing for React to
+  // reconcile, and *something* in the browser's own post-input-event
+  // handling still collapses the selection back to the end shortly after —
+  // observed even though this same synchronous call reliably sticks when
+  // the text does change. Re-applying once more on a microtask (after that
+  // settles, before the user's next keystroke) covers both cases.
+  function applySelection(el: HTMLInputElement, start: number, end: number) {
+    el.setSelectionRange(start, end)
+    queueMicrotask(() => {
+      if (document.activeElement === el) el.setSelectionRange(start, end)
+    })
+  }
+
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const next = event.target.value
+    const el = event.target
+    const next = el.value
+    if (formatSpec) {
+      // format re-renders the draft with its own decorations (commas, "$",
+      // "%", ...) after every keystroke, not just on commit — reformatDraftLive
+      // strips those back to plain content, re-applies formatWithSpec, and
+      // maps the cursor to the same position relative to the surrounding
+      // digits so it doesn't jump to the end as decorations shift around.
+      const cursorIndex = el.selectionStart ?? next.length
+      const result = reformatDraftLive(next, cursorIndex, formatSpec)
+      if (!result) return
+      if (isRequired && result.text === '') {
+        // Same immediate-empty-block behavior as the unformatted path below,
+        // just snapping to this format's own "zero" representation (e.g.
+        // "$0.00" instead of a bare "0") and selecting all of it.
+        const zeroText = formatDisplay(0)
+        updateDraft(zeroText)
+        applySelection(el, 0, zeroText.length)
+        pendingSelectionRef.current = { start: 0, end: zeroText.length }
+        return
+      }
+      updateDraft(result.text)
+      applySelection(el, result.cursorIndex, result.cursorIndex)
+      pendingSelectionRef.current = { start: result.cursorIndex, end: result.cursorIndex }
+      return
+    }
     if (!isValidDraft(next)) return
     if (isRequired && next.trim() === '') {
       // Required fields can't sit empty even mid-edit — snap to "0"
       // immediately (not just on blur) and select it so the next keystroke
       // naturally overwrites it, matching Wijmo's live-blocking behavior
       // rather than allowing a blank flash until commit.
-      setDraft('0')
+      updateDraft('0')
       pendingSelectionRef.current = { start: 0, end: 1 }
       return
     }
-    setDraft(next)
+    updateDraft(next)
   }
 
   handleWheelRef.current = (event) => {
@@ -243,25 +357,47 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     return () => node.removeEventListener('wheel', listener)
   }, [])
 
+  // The -/+/. special-key branches below (sign toggle anywhere in the draft,
+  // jump-to-existing-dot, dot-on-empty) are all designed around a plain
+  // unformatted draft string. They're deliberately skipped when formatSpec
+  // is set — the decorations formatWithSpec adds (currency symbol, group
+  // separators, parens for negative currency, "%") don't have one universal
+  // position/meaning to special-case correctly across every specifier, so
+  // format falls through to plain native text editing plus the
+  // reformatDraftLive pass in handleChange instead.
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       commitDraft()
     } else if (event.key === 'Escape') {
-      setDraft(formattedValue)
+      updateDraft(formattedValue)
     } else if (event.key === 'ArrowUp' && !isReadOnly) {
       event.preventDefault()
       stepBy(1)
     } else if (event.key === 'ArrowDown' && !isReadOnly) {
       event.preventDefault()
       stepBy(-1)
-    } else if (event.key === '-' && !isReadOnly) {
+    } else if (event.key === 'Backspace' && !isReadOnly && formatSpec) {
+      // Deleting the decimal point itself (not just a digit) would merge
+      // the integer and fractional digit groups into one bigger integer
+      // once reformatted (e.g. "1,999.00" -> delete "." -> "199900" ->
+      // reformats to "$199,900.00") — a jarring, almost certainly
+      // unintended jump. A collapsed cursor sitting right after the dot
+      // instead just steps over it, same as the "." jump-to-dot handling
+      // below; a second Backspace from there deletes the actual digit.
+      const el = event.currentTarget
+      const cursor = el.selectionStart
+      if (cursor !== null && cursor === el.selectionEnd && draft[cursor - 1] === '.') {
+        event.preventDefault()
+        el.setSelectionRange(cursor - 1, cursor - 1)
+      }
+    } else if (event.key === '-' && !isReadOnly && !formatSpec) {
       event.preventDefault()
       // min >= 0 means negatives aren't allowed at all — block the key
       // entirely rather than letting it toggle and get clamped away later.
       if (typeof min === 'number' && min >= 0) return
       const el = event.currentTarget
       if (el.selectionStart !== el.selectionEnd) {
-        setDraft('-')
+        updateDraft('-')
         pendingSelectionRef.current = { start: 1, end: 1 }
       } else {
         // Setting `draft` via React state doesn't preserve cursor position
@@ -270,20 +406,20 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         // to the same digit it was next to before the sign was added/removed.
         const cursorPos = el.selectionStart ?? 0
         const hadSign = draft.startsWith('-')
-        setDraft(toggleSign(draft))
+        updateDraft(toggleSign(draft))
         const pos = hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1
         pendingSelectionRef.current = { start: pos, end: pos }
       }
-    } else if (event.key === '+' && !isReadOnly) {
+    } else if (event.key === '+' && !isReadOnly && !formatSpec) {
       event.preventDefault()
       if (draft.startsWith('-')) {
         const el = event.currentTarget
         const cursorPos = el.selectionStart ?? 0
-        setDraft(stripSign(draft))
+        updateDraft(stripSign(draft))
         const pos = Math.max(0, cursorPos - 1)
         pendingSelectionRef.current = { start: pos, end: pos }
       }
-    } else if (event.key === '.' && !isReadOnly) {
+    } else if (event.key === '.' && !isReadOnly && !formatSpec) {
       const dotIndex = draft.indexOf('.')
       if (dotIndex !== -1) {
         // Already has a decimal point — jump the cursor there instead of
@@ -300,18 +436,56 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         event.preventDefault()
       } else if (draft === '') {
         event.preventDefault()
-        setDraft(zeroDraftWithPrecision(effectivePrecision))
+        updateDraft(zeroDraftWithPrecision(effectivePrecision))
         pendingSelectionRef.current = { start: 2, end: 2 }
       }
       // else: no existing dot, precision allows decimals, draft non-empty —
       // this is an ordinary decimal point insertion, handled by the normal
       // handleChange -> isValidDraft path same as any other digit.
+    } else if (event.key === '.' && !isReadOnly && formatSpec) {
+      // format's own decimal point is a decoration character too, and
+      // formatWithSpec always includes it once any digits have been entered
+      // for a specifier with nonzero precision — so the same "jump to the
+      // existing dot instead of inserting a second one" rule applies here.
+      // Letting a second "." through would get rejected by reformatDraftLive
+      // as invalid (two decimal points), and that rejection's cursor
+      // side-effect (snapping to the end) would corrupt every keystroke
+      // typed after it.
+      const dotIndex = draft.indexOf('.')
+      event.preventDefault()
+      if (dotIndex !== -1) {
+        event.currentTarget.setSelectionRange(dotIndex + 1, dotIndex + 1)
+      }
+      // else: this format's precision is 0 (e.g. "p0", "D", "X") — no
+      // decimal point is ever meaningful, so the keystroke is swallowed.
     }
   }
 
   return (
     <>
-      <div className="relative">
+      <div
+        className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
+      >
+        {showSpinButtons && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Decrease value"
+            disabled={spinButtonsDisabled || atMin}
+            onMouseDown={(event) => {
+              event.preventDefault()
+              startRepeat(-1)
+            }}
+            onMouseUp={clearRepeat}
+            onMouseLeave={clearRepeat}
+            onClick={() => handleSpinClick(-1)}
+            className={`${spinButtonClassName} border-r`}
+          >
+            <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
+              <path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
         <input
           {...rest}
           ref={(node) => {
@@ -325,6 +499,17 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           readOnly={isReadOnly}
           required={isRequired}
           aria-describedby={describedBy}
+          // ARIA spinbutton pattern (https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/)
+          // — this control has increment/decrement affordances (spin
+          // buttons, Arrow keys), so it's announced as a spinbutton rather
+          // than a generic textbox. Tracks the live draft (see
+          // draftNumericValue above), not just the last committed value, so
+          // a screen reader announces whatever's currently on screen.
+          role="spinbutton"
+          aria-valuenow={typeof draftNumericValue === 'number' ? draftNumericValue : undefined}
+          aria-valuetext={draft === '' ? undefined : draft}
+          aria-valuemin={min}
+          aria-valuemax={max}
           value={draft}
           onChange={handleChange}
           onFocus={() => setIsFocused(true)}
@@ -333,47 +518,27 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
             commitDraft()
           }}
           onKeyDown={handleKeyDown}
-          className={`${baseClassName} ${showSpinButtons ? 'pr-8' : 'pr-3'} ${disabledClassName} ${readOnlyClassName} ${className ?? ''}`}
+          className={inputClassName}
         />
         {showSpinButtons && (
-          <div className="absolute inset-y-0 right-1 flex flex-col py-1">
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Increase value"
-              disabled={spinButtonsDisabled || atMax}
-              onMouseDown={(event) => {
-                event.preventDefault()
-                startRepeat(1)
-              }}
-              onMouseUp={clearRepeat}
-              onMouseLeave={clearRepeat}
-              onClick={() => handleSpinClick(1)}
-              className={spinButtonClassName}
-            >
-              <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
-                <path d="M2 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Decrease value"
-              disabled={spinButtonsDisabled || atMin}
-              onMouseDown={(event) => {
-                event.preventDefault()
-                startRepeat(-1)
-              }}
-              onMouseUp={clearRepeat}
-              onMouseLeave={clearRepeat}
-              onClick={() => handleSpinClick(-1)}
-              className={spinButtonClassName}
-            >
-              <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
-                <path d="M2 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          </div>
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Increase value"
+            disabled={spinButtonsDisabled || atMax}
+            onMouseDown={(event) => {
+              event.preventDefault()
+              startRepeat(1)
+            }}
+            onMouseUp={clearRepeat}
+            onMouseLeave={clearRepeat}
+            onClick={() => handleSpinClick(1)}
+            className={`${spinButtonClassName} border-l`}
+          >
+            <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
+              <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         )}
       </div>
       {hint && (

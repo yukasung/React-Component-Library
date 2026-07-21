@@ -1,4 +1,4 @@
-import { DefaultDemo, DisabledDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, RepeatButtonsDemo, ShowSpinButtonsDemo, StepDemo, ValueDemo } from './demo'
+import { DefaultDemo, DisabledDemo, FormatDemo, HandleWheelDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, RepeatButtonsDemo, ShowSpinButtonsDemo, StepDemo, ValueDemo } from './demo'
 import { PropertyIndex, PropertySignature } from './property-index'
 
 export const metadata = {
@@ -10,7 +10,7 @@ export const metadata = {
 
 InputNumber คือ input สำหรับกรอกตัวเลขโดยเฉพาะ ป้องกันไม่ให้ผู้ใช้กรอกข้อมูลที่ไม่ถูกต้องโดยไม่ตั้งใจ และจัดรูปแบบตัวเลขขณะแก้ไข ออกแบบ API ให้เป็นไปตามแนวทางของ React (value + onChange)
 
-เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมี value, placeholder, isRequired, min / max, step, showSpinButtons, repeatButtons, isReadOnly และ isDisabled ที่ผ่านแล้ว
+เอกสารหน้านี้จะทยอยเพิ่มเนื้อหาตามลำดับที่แต่ละ property ผ่านสถานะ Reviewed บน Linear เท่านั้น — ปัจจุบันมี value, placeholder, isRequired, min / max, step, format, showSpinButtons, repeatButtons, handleWheel, isReadOnly และ isDisabled ที่ผ่านแล้ว
 
 <DefaultDemo />
 
@@ -31,7 +31,7 @@ import { InputNumber } from '@your-scope/components'
 
 ค่าปัจจุบันของ control แบบ controlled — คู่กับ onChange เสมอ ถ้าไม่ระบุ value (ปล่อยให้เป็น undefined) component จะทำงานแบบ uncontrolled แทน โดยจัดการ state ภายในเอง เริ่มจาก defaultValue
 
-value คือ**ข้อความที่แยกวิเคราะห์แล้ว** (parsed) เป็น number หรือ null ล้วน ๆ เสมอ ไม่มี comma คั่นหลักพัน สัญลักษณ์สกุลเงิน หรืออักขระอื่นปนอยู่เด็ดขาด — ไม่ว่าจะพิมพ์อะไรเข้าไปในช่อง สุดท้าย value ที่ได้จะเป็นตัวเลขบริสุทธิ์เสมอ (เช่น 1234.56 ไม่ใช่ "1,234.56") ปัจจุบัน InputNumber ยังไม่มีการจัดรูปแบบการแสดงผลด้วย comma คั่นหลักพัน (เป็นคนละเรื่องกับ value — ดูเพิ่มเติมที่ property format ซึ่งยังไม่ผ่าน Reviewed)
+value คือ**ข้อความที่แยกวิเคราะห์แล้ว** (parsed) เป็น number หรือ null ล้วน ๆ เสมอ ไม่มี comma คั่นหลักพัน สัญลักษณ์สกุลเงิน หรืออักขระอื่นปนอยู่เด็ดขาด — ไม่ว่าจะพิมพ์อะไรเข้าไปในช่อง สุดท้าย value ที่ได้จะเป็นตัวเลขบริสุทธิ์เสมอ (เช่น 1234.56 ไม่ใช่ "1,234.56") การจัดรูปแบบการแสดงผลด้วย comma คั่นหลักพัน สัญลักษณ์สกุลเงิน ฯลฯ เป็นคนละเรื่องกับ value โดยสิ้นเชิง ควบคุมแยกผ่าน property format ด้านล่าง
 
 onChange ถูกเรียกเฉพาะตอนค่ามีการ commit จริง (blur, Enter, ปุ่ม spin, ปุ่มลูกศรบนคีย์บอร์ด) ไม่ใช่ทุกครั้งที่พิมพ์ — null ถือเป็นค่าที่ commit ได้ปกติ (ฟิลด์ว่างเปล่า) ต่างจาก draft ที่พิมพ์ไม่ครบ (เช่น "1." หรือ "-") ซึ่งจะไม่ถูกส่งเข้า onChange จนกว่าจะพิมพ์ให้เป็นตัวเลขที่สมบูรณ์
 
@@ -129,13 +129,54 @@ step แยกออกจากการแสดง/ซ่อนปุ่ม s
 <InputNumber step={0.1} defaultValue={1} />
 ```
 
+### format
+
+<PropertySignature name="format" type="string" />
+
+รูปแบบการแสดงผลตัวเลข เขียนแบบ .NET standard numeric format string คือตัวอักษร 1 ตัวบอกประเภท ตามด้วยตัวเลขจำนวนทศนิยม/ความกว้างที่เป็นตัวเลือก (เช่น "n2", "C", "p0") เมื่อระบุ format จะแทนที่ precision เดิมทั้งหมด ทั้งการแสดงผลและจำนวนทศนิยมที่ใช้ปัดค่าตอน commit
+
+รองรับครบทั้ง 9 ตัว:
+
+| ตัวอักษร | ความหมาย | ตัวอย่าง (ค่า 1234.5) |
+| --- | --- | --- |
+| N | ตัวเลขมี comma คั่นหลักพัน | 1,234.50 |
+| C | สกุลเงิน (นำหน้าด้วย $) | $1,234.50 |
+| P | เปอร์เซ็นต์ (คูณค่าด้วย 100 แล้วต่อท้ายด้วย %) | 123,450.00% |
+| F | ทศนิยมธรรมดา ไม่มี comma | 1234.50 |
+| D | จำนวนเต็ม (ตัดทศนิยมทิ้ง) เติม 0 ด้านหน้าได้ | 1234 |
+| E | สัญกรณ์วิทยาศาสตร์ | 1.234500E+003 |
+| G | เลือกรูปแบบกะทัดรัดที่สุดระหว่างทศนิยมกับวิทยาศาสตร์ให้เอง | 1234.5 |
+| X | เลขฐาน 16 (ตัดทศนิยมทิ้งก่อน) | 4D2 |
+| R | ค่าที่แปลงกลับเป็นตัวเลขเดิมได้เป๊ะที่สุด | 1234.5 |
+
+ตัวเลขที่ต่อจากตัวอักษร (เช่น "n2") กำหนดจำนวนทศนิยมที่แสดง — ยกเว้น D และ X ที่ความหมายเป็น "จำนวนหลักขั้นต่ำ เติม 0 ด้านหน้า" แทน ไม่ใช่ทศนิยม ถ้าไม่ระบุตัวเลขจะใช้ค่า default ของตัวอักษรนั้น (ส่วนใหญ่คือ 2 ตำแหน่ง) ตัวอักษรพิมพ์เล็ก/ใหญ่มีผลกับตัวพิมพ์ของผลลัพธ์ในบาง specifier (เช่น E/e, X/x) แต่ไม่มีผลกับความหมาย
+
+ค่าติดลบแสดงด้วยเครื่องหมายลบนำหน้าเสมอในทุก specifier รวมถึงสกุลเงิน (ไม่ใช้วงเล็บแบบ .NET default เพื่อให้คำนวณตำแหน่ง cursor ตอนพิมพ์ได้ถูกต้อง)
+
+การจัดรูปแบบเกิดขึ้น**ระหว่างพิมพ์จริง** ไม่ใช่แค่ตอน commit — พิมพ์ตัวเลขแล้วจะเห็น comma/สัญลักษณ์ปรากฏทันที ปุ่มลัดเครื่องหมายลบ/บวก (สลับ/ลบเครื่องหมาย) จะปิดใช้งานเมื่อ format ทำงานอยู่ เพราะรูปแบบตกแต่งของแต่ละ specifier ไม่มีตำแหน่งที่เป็นสากลพอจะรองรับได้ทุกกรณี ให้พิมพ์เครื่องหมายลบ/บวกตามปกติแทน ส่วนปุ่มจุดทศนิยมและ Backspace ยังทำงานตามปกติ (ปุ่มจุดทศนิยมกระโดดไปหลังจุดทศนิยมเดิมแทนการแทรกจุดที่สอง, Backspace ข้ามจุดทศนิยมแทนการลบทิ้งเมื่อ cursor อยู่ติดหลังจุด)
+
+#### Live Example
+
+<FormatDemo />
+
+#### Example
+
+```tsx
+<InputNumber format="n0" defaultValue={0} />
+<InputNumber format="n2" defaultValue={0} />
+<InputNumber format="c0" defaultValue={0} />
+<InputNumber format="c2" defaultValue={0} />
+<InputNumber format="p0" defaultValue={0} />
+<InputNumber format="p2" defaultValue={0} />
+```
+
 ### showSpinButtons
 
 <PropertySignature name="showSpinButtons" type="boolean" />
 
-กำหนดว่าจะแสดงปุ่มลูกศรขึ้น/ลง (spin buttons) ด้านขวาของฟิลด์หรือไม่ ค่าเริ่มต้น (default): true
+กำหนดว่าจะแสดงปุ่ม −/+ สำหรับเพิ่ม/ลดค่า (spin buttons) ขนาบสองข้างของฟิลด์หรือไม่ ค่าเริ่มต้น (default): true
 
-เมื่อเป็น false ปุ่ม spin จะไม่ถูก render เลย (ไม่ใช่แค่ซ่อนด้วย CSS) และช่องว่างด้านขวาที่เคยเผื่อไว้สำหรับปุ่มจะหายไปด้วย — ปุ่มลูกศรขึ้น/ลงบนคีย์บอร์ดยังคงขยับค่าได้ตามปกติไม่ว่าจะซ่อนปุ่ม spin หรือไม่ก็ตาม
+เมื่อเป็น false ปุ่ม spin จะไม่ถูก render เลย (ไม่ใช่แค่ซ่อนด้วย CSS) เหลือแค่กรอบของฟิลด์เพียงอย่างเดียว — ปุ่มลูกศรขึ้น/ลงบนคีย์บอร์ดยังคงขยับค่าได้ตามปกติไม่ว่าจะซ่อนปุ่ม spin หรือไม่ก็ตาม
 
 ตั้งชื่อ prop เป็น showSpinButtons (ไม่ใช่ showSpinner) และไม่ผูกกับค่า step ใด ๆ เป็นพิเศษ — ควบคุมแยกอิสระจากกันโดยสมบูรณ์
 
@@ -165,6 +206,24 @@ step แยกออกจากการแสดง/ซ่อนปุ่ม s
 
 ```tsx
 <InputNumber repeatButtons={false} defaultValue={10} />
+```
+
+### handleWheel
+
+<PropertySignature name="handleWheel" type="boolean" />
+
+กำหนดว่าจะให้เลื่อนล้อเมาส์ (mouse wheel) ตอน focus อยู่ที่ฟิลด์เพื่อเพิ่ม/ลดค่าตาม step ได้หรือไม่ ค่าเริ่มต้น (default): **false**
+
+ปิดโดย default โดยตั้งใจ (ต่างจากพฤติกรรมทั่วไปที่มักเปิดไว้) เพราะการเลื่อนล้อเมาส์เปลี่ยนค่าโดยไม่ตั้งใจเป็นปัญหาที่พบบ่อย เช่น เลื่อนหน้าเว็บผ่าน input ที่บังเอิญ focus ค้างอยู่ ต้องเปิดใช้งานเองผ่าน prop นี้ และทำงานเฉพาะตอนฟิลด์ focus อยู่เท่านั้น ไม่ทำงานถ้า isDisabled หรือ isReadOnly
+
+#### Live Example
+
+<HandleWheelDemo />
+
+#### Example
+
+```tsx
+<InputNumber handleWheel defaultValue={10} />
 ```
 
 ### isReadOnly
@@ -202,3 +261,18 @@ step แยกออกจากการแสดง/ซ่อนปุ่ม s
 ```tsx
 <InputNumber isDisabled defaultValue={10} />
 ```
+
+## Accessibility
+
+InputNumber ทำหน้าที่เป็น spinbutton (มีปุ่มเพิ่ม/ลดค่าและปุ่มลูกศรบนคีย์บอร์ด) จึงตั้ง role และ aria-value* attribute ให้เองอัตโนมัติตาม ARIA spinbutton pattern มาตรฐาน โดยไม่ต้องตั้งค่าอะไรเพิ่ม:
+
+- role เป็น spinbutton (แทน textbox ปกติ) — screen reader จะประกาศว่าเป็นปุ่มปรับค่า ไม่ใช่แค่ช่องพิมพ์ข้อความ
+- aria-valuenow คือค่าตัวเลขดิบปัจจุบัน (ไม่มี comma หรือสัญลักษณ์ใด ๆ)
+- aria-valuetext คือข้อความที่แสดงจริงในช่อง (รวม format ถ้ามี เช่น "$1,234.50") ให้ screen reader อ่านแบบเดียวกับที่ตาเห็น
+- aria-valuemin / aria-valuemax มาจาก min / max โดยตรงถ้ามีการตั้งค่าไว้
+
+aria-valuenow และ aria-valuetext อัปเดตตามสิ่งที่พิมพ์อยู่แบบสด ๆ ทันทีที่พิมพ์ (ไม่ต้องรอ blur/Enter) ตรงกับสิ่งที่แสดงบนหน้าจอเสมอ แม้จะยังไม่ commit เป็นค่าจริงก็ตาม — ต่างจาก value/onChange ที่ยังทำงานตาม commit model ตามปกติ (ดูหัวข้อ value) ถ้าสิ่งที่พิมพ์ยังไม่ใช่ตัวเลขที่สมบูรณ์ (เช่น พิมพ์แค่เครื่องหมายลบ) จะไม่ใส่ aria-valuenow ให้ชั่วคราวจนกว่าจะพิมพ์ต่อจนเป็นตัวเลขได้
+
+เมื่อยังไม่มีค่า (value เป็น null และไม่ได้บังคับ isRequired) จะไม่ใส่ aria-valuenow/aria-valuetext เลย ตรงตามที่ ARIA spec แนะนำสำหรับ spinbutton ที่ยังไม่มีค่า
+
+นอกจากนี้ prop hint (ข้อความคำอธิบายที่แสดงใต้ input) จะเชื่อมกับ input ผ่าน aria-describedby ให้อัตโนมัติเสมอ โดยสร้าง id ให้เองและ merge เข้ากับ aria-describedby ที่ส่งมาเองด้วย ถ้ามี
