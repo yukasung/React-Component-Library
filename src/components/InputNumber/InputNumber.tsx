@@ -642,12 +642,11 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           onChange={handleChange}
           onFocus={(event) => {
             setIsFocused(true)
-            // Formatted fields (currency, percent, ...) are usually edited
-            // as a whole value rather than character-by-character —
-            // selecting everything on focus lets the user just start
-            // typing to replace it, instead of having to select-all
-            // themselves first.
-            if (formatSpec) event.currentTarget.select()
+            // Numeric fields are usually edited as a whole value rather
+            // than character-by-character — selecting everything on focus
+            // lets the user just start typing to replace it, instead of
+            // having to select-all themselves first.
+            event.currentTarget.select()
           }}
           onBlur={() => {
             setIsFocused(false)

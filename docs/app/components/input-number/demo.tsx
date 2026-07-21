@@ -197,6 +197,51 @@ export function FormatDemo() {
   )
 }
 
+export function TruncateDemo() {
+  const [roundedValue, setRoundedValue] = useState<number | null>(0)
+  const [truncatedValue, setTruncatedValue] = useState<number | null>(0)
+  const liveRounded = useLiveText(roundedValue)
+  const liveTruncated = useLiveText(truncatedValue)
+
+  return (
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
+      <div>
+        <label htmlFor="demo-truncate-off" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          truncate={'{false}'} (default)
+        </label>
+        <InputNumber
+          id="demo-truncate-off"
+          value={roundedValue}
+          onChange={setRoundedValue}
+          ref={liveRounded.inputRef} onInput={liveRounded.onInput}
+          precision={1}
+          step={1}
+        />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          The current value is {liveRounded.liveText}
+        </p>
+      </div>
+      <div>
+        <label htmlFor="demo-truncate-on" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          truncate
+        </label>
+        <InputNumber
+          id="demo-truncate-on"
+          value={truncatedValue}
+          onChange={setTruncatedValue}
+          ref={liveTruncated.inputRef} onInput={liveTruncated.onInput}
+          precision={1}
+          step={1}
+          truncate
+        />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          The current value is {liveTruncated.liveText}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function ReadOnlyDemo() {
   const [editableValue, setEditableValue] = useState<number | null>(10)
   const [readOnlyValue, setReadOnlyValue] = useState<number | null>(10)
@@ -217,7 +262,7 @@ export function ReadOnlyDemo() {
           step={1}
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveEditable.liveText} — แก้ไขได้ตามปกติ
+          The current value is {liveEditable.liveText}
         </p>
       </div>
       <div>
@@ -233,8 +278,7 @@ export function ReadOnlyDemo() {
           isReadOnly
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveReadOnly.liveText} —
-          พิมพ์/spin/ลูกศรไม่ได้ แต่ focus และเลือกข้อความได้
+          The current value is {liveReadOnly.liveText}
         </p>
       </div>
     </div>
@@ -255,7 +299,7 @@ export function DisabledDemo() {
         </label>
         <InputNumber id="demo-enabled" value={enabledValue} onChange={setEnabledValue} ref={liveEnabled.inputRef} onInput={liveEnabled.onInput} step={1} />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveEnabled.liveText} — แก้ไขได้ตามปกติ
+          The current value is {liveEnabled.liveText}
         </p>
       </div>
       <div>
@@ -271,8 +315,7 @@ export function DisabledDemo() {
           isDisabled
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveDisabled.liveText} —
-          ใช้งานไม่ได้เลย แม้แต่ focus
+          The current value is {liveDisabled.liveText}
         </p>
       </div>
     </div>
@@ -293,8 +336,7 @@ export function RepeatButtonsDemo() {
         </label>
         <InputNumber id="demo-repeat-on" value={repeatValue} onChange={setRepeatValue} ref={liveRepeat.inputRef} onInput={liveRepeat.onInput} step={1} />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveRepeat.liveText} — กดปุ่ม spin ค้างไว้ดู
-          จะขยับซ้ำต่อเนื่อง
+          The current value is {liveRepeat.liveText}
         </p>
       </div>
       <div>
@@ -310,8 +352,7 @@ export function RepeatButtonsDemo() {
           repeatButtons={false}
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveSingle.liveText} — กดค้างไม่มีผล
-          ต้องคลิกทีละครั้ง
+          The current value is {liveSingle.liveText}
         </p>
       </div>
     </div>
@@ -332,7 +373,7 @@ export function HandleWheelDemo() {
         </label>
         <InputNumber id="demo-wheel-off" value={offValue} onChange={setOffValue} ref={liveOff.inputRef} onInput={liveOff.onInput} step={1} />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveOff.liveText} — focus แล้วเลื่อนล้อเมาส์ไม่มีผล
+          The current value is {liveOff.liveText}
         </p>
       </div>
       <div>
@@ -341,7 +382,7 @@ export function HandleWheelDemo() {
         </label>
         <InputNumber id="demo-wheel-on" value={onValue} onChange={setOnValue} ref={liveOn.inputRef} onInput={liveOn.onInput} step={1} handleWheel />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveOn.liveText} — focus ก่อน แล้วเลื่อนล้อเมาส์เพื่อขยับค่า
+          The current value is {liveOn.liveText}
         </p>
       </div>
     </div>

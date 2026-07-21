@@ -160,6 +160,43 @@ describe('InputNumber', () => {
     expect(ref.current).toBeInstanceOf(HTMLInputElement)
   })
 
+  describe('selects the whole value on focus', () => {
+    // Numeric fields are usually edited as a whole value rather than
+    // character-by-character — this applies universally (plain, step-
+    // enabled, and formatted fields alike), so typing right after
+    // focusing always replaces the value instead of editing into the
+    // middle of whatever was there before.
+    it('on a plain field with no format or step', () => {
+      render(<InputNumber value={1234.5} onChange={() => {}} />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+
+      expect(input.selectionStart).toBe(0)
+      expect(input.selectionEnd).toBe(input.value.length)
+    })
+
+    it('on a field with step (spin buttons) but no format', () => {
+      render(<InputNumber value={5} step={1} onChange={() => {}} />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+
+      expect(input.selectionStart).toBe(0)
+      expect(input.selectionEnd).toBe(input.value.length)
+    })
+
+    it('on a formatted field', () => {
+      render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+
+      expect(input.selectionStart).toBe(0)
+      expect(input.selectionEnd).toBe(input.value.length)
+    })
+  })
+
   it('blocks a keystroke that would push the typed value above max', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -1061,25 +1098,6 @@ describe('InputNumber', () => {
     it('displays the committed value formatted per the .NET-style spec', () => {
       render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
       expect(screen.getByRole('spinbutton')).toHaveValue('1,234.50')
-    })
-
-    it('selects the whole value on focus, so typing replaces it instead of editing individual characters', () => {
-      render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
-
-      input.focus()
-
-      expect(input.selectionStart).toBe(0)
-      expect(input.selectionEnd).toBe(input.value.length)
-    })
-
-    it('does not auto-select on focus when there is no format', () => {
-      render(<InputNumber value={1234.5} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
-
-      input.focus()
-
-      expect(input.selectionStart).toBe(input.selectionEnd)
     })
 
     it('applies currency formatting, wrapping negative values in parentheses', () => {

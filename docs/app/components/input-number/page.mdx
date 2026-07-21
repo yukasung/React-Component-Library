@@ -1,5 +1,5 @@
 import { Callout } from 'nextra/components'
-import { DefaultDemo, DisabledDemo, FormatDemo, HandleWheelDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, RepeatButtonsDemo, StepDemo, ValueDemo } from './demo'
+import { DefaultDemo, DisabledDemo, FormatDemo, HandleWheelDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, RepeatButtonsDemo, StepDemo, TruncateDemo, ValueDemo } from './demo'
 import { PropertyIndex, PropertySignature } from './property-index'
 
 export const metadata = {
@@ -148,7 +148,7 @@ const [value, setValue] = useState<number | null>(10)
 <Callout type="info">
   **Note**
 
-  ค่าติดลบแสดงด้วยเครื่องหมายลบนำหน้าเสมอ ยกเว้น "C" (สกุลเงิน) ที่ครอบด้วยวงเล็บแทน (เช่น -1234.5 แสดงเป็น "($1,234.50)") — การจัดรูปแบบเกิดขึ้นระหว่างพิมพ์จริง ไม่ใช่แค่ตอน commit
+  ค่าติดลบแสดงด้วยเครื่องหมายลบนำหน้าเสมอ ยกเว้น "C" (สกุลเงิน) ที่ครอบด้วยวงเล็บแทน (เช่น -1234.5 แสดงเป็น "($1,234.50)") — การจัดรูปแบบเกิดขึ้นระหว่างพิมพ์จริง
 </Callout>
 
 <FormatDemo />
@@ -162,11 +162,34 @@ const [value, setValue] = useState<number | null>(10)
 <InputNumber format="p2" defaultValue={0} />
 ```
 
+### truncate
+
+<PropertySignature name="truncate" type="boolean" />
+
+กำหนดว่าจะตัดทศนิยมส่วนเกินทิ้งแทนการปัดเศษหรือไม่ เมื่อค่าที่พิมพ์มีทศนิยมมากกว่าที่ระบุใน precision หรือ format
+
+ค่าเริ่มต้นของ property นี้คือ false (ปัดเศษตามปกติ)
+
+<Callout type="info">
+  **Note**
+
+  เช่น precision เป็น 1 แล้วพิมพ์ 2.999 — ถ้า truncate เป็น false (ปกติ) จะปัดเป็น 3.0 แต่ถ้า truncate เป็น true จะตัดทิ้งเหลือ 2.9 แทน
+</Callout>
+
+<TruncateDemo />
+
+```tsx
+<InputNumber precision={1} step={1} defaultValue={0} />
+<InputNumber precision={1} step={1} defaultValue={0} truncate />
+```
+
 ### repeatButtons
 
 <PropertySignature name="repeatButtons" type="boolean" />
 
-กำหนดว่ากดปุ่ม spin ค้างไว้แล้วให้เพิ่ม/ลดค่าซ้ำต่อเนื่องหรือไม่ ค่าเริ่มต้น (default): true
+กำหนดค่าที่ระบุว่าปุ่ม spinner ควรทำงานเป็นปุ่มทำซ้ำหรือไม่ โดยจะยิงค่าซ้ำต่อเนื่องตราบใดที่ยังกดปุ่มค้างไว้
+
+ค่าเริ่มต้นของ property นี้คือ true
 
 <Callout type="info">
   **Note**
@@ -177,7 +200,8 @@ const [value, setValue] = useState<number | null>(10)
 <RepeatButtonsDemo />
 
 ```tsx
-<InputNumber repeatButtons={false} defaultValue={10} />
+<InputNumber step={1} defaultValue={0} />
+<InputNumber step={1} defaultValue={0} repeatButtons={false} />
 ```
 
 ### handleWheel
@@ -195,7 +219,8 @@ const [value, setValue] = useState<number | null>(10)
 <HandleWheelDemo />
 
 ```tsx
-<InputNumber handleWheel defaultValue={10} />
+<InputNumber step={1} defaultValue={5} />
+<InputNumber step={1} defaultValue={5} handleWheel />
 ```
 
 ### isReadOnly
@@ -209,7 +234,8 @@ const [value, setValue] = useState<number | null>(10)
 <ReadOnlyDemo />
 
 ```tsx
-<InputNumber isReadOnly defaultValue={10} />
+<InputNumber step={1} defaultValue={10} />
+<InputNumber step={1} defaultValue={10} isReadOnly />
 ```
 
 ### isDisabled
@@ -223,22 +249,6 @@ const [value, setValue] = useState<number | null>(10)
 <DisabledDemo />
 
 ```tsx
-<InputNumber isDisabled defaultValue={10} />
+<InputNumber step={1} defaultValue={10} />
+<InputNumber step={1} defaultValue={10} isDisabled />
 ```
-
-## Accessibility
-
-InputNumber ทำหน้าที่เป็น spinbutton (มีปุ่มเพิ่ม/ลดค่าและปุ่มลูกศรบนคีย์บอร์ด) จึงตั้ง role และ aria-value* attribute ให้เองอัตโนมัติตาม ARIA spinbutton pattern มาตรฐาน โดยไม่ต้องตั้งค่าอะไรเพิ่ม:
-
-- role เป็น spinbutton (แทน textbox ปกติ) — screen reader จะประกาศว่าเป็นปุ่มปรับค่า ไม่ใช่แค่ช่องพิมพ์ข้อความ
-- aria-valuenow คือค่าตัวเลขดิบปัจจุบัน (ไม่มี comma หรือสัญลักษณ์ใด ๆ)
-- aria-valuetext คือข้อความที่แสดงจริงในช่อง (รวม format ถ้ามี เช่น "$1,234.50") ให้ screen reader อ่านแบบเดียวกับที่ตาเห็น
-- aria-valuemin / aria-valuemax มาจาก min / max โดยตรงถ้ามีการตั้งค่าไว้
-
-<Callout type="info">
-  **Note**
-
-  aria-valuenow และ aria-valuetext อัปเดตตามสิ่งที่พิมพ์อยู่แบบสด ๆ ทันทีที่พิมพ์ (ไม่ต้องรอ blur/Enter) ตรงกับสิ่งที่แสดงบนหน้าจอเสมอ แม้จะยังไม่ commit เป็นค่าจริงก็ตาม — ต่างจาก value/onChange ที่ยังทำงานตาม commit model ตามปกติ (ดูหัวข้อ value) ถ้าสิ่งที่พิมพ์ยังไม่ใช่ตัวเลขที่สมบูรณ์ (เช่น พิมพ์แค่เครื่องหมายลบ) จะไม่ใส่ aria-valuenow ให้ชั่วคราวจนกว่าจะพิมพ์ต่อจนเป็นตัวเลขได้ เมื่อยังไม่มีค่า (value เป็น null และไม่ได้บังคับ isRequired) จะไม่ใส่ aria-valuenow/aria-valuetext เลย ตรงตามที่ ARIA spec แนะนำสำหรับ spinbutton ที่ยังไม่มีค่า
-</Callout>
-
-นอกจากนี้ prop hint (ข้อความคำอธิบายที่แสดงใต้ input) จะเชื่อมกับ input ผ่าน aria-describedby ให้อัตโนมัติเสมอ โดยสร้าง id ให้เองและ merge เข้ากับ aria-describedby ที่ส่งมาเองด้วย ถ้ามี
