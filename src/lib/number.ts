@@ -110,6 +110,17 @@ function groupDigits(digits: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
+// -0 is a real, distinct JS value (Object.is(-0, -0) is true) but fails a
+// plain `< 0` check and silently loses its sign through toFixed()/
+// toExponential()/String() — without this, a live draft that parses to
+// exactly -0 (e.g. typing "-" right before an existing lone "0" digit,
+// such as "$0" -> "$-0") would snap back to looking positive/unsigned
+// until another digit is typed, even though the user's "-" is still
+// sitting right there in the draft.
+export function isNegative(value: number): boolean {
+  return value < 0 || Object.is(value, -0)
+}
+
 // Shared by N and (after prefixing/suffixing) C and P: integral + fractional
 // digits with group separators, e.g. 1234.5 -> "1,234.50".
 function formatGrouped(absValue: number, precision: number): string {
@@ -119,45 +130,49 @@ function formatGrouped(absValue: number, precision: number): string {
 }
 
 function formatFixedSpec(value: number, precision: number): string {
-  return (value < 0 ? '-' : '') + Math.abs(value).toFixed(precision)
+  return (isNegative(value) ? '-' : '') + Math.abs(value).toFixed(precision)
 }
 
 function formatNumberSpec(value: number, precision: number): string {
-  return (value < 0 ? '-' : '') + formatGrouped(Math.abs(value), precision)
+  return (isNegative(value) ? '-' : '') + formatGrouped(Math.abs(value), precision)
 }
 
-// .NET's default CurrencyNegativePattern wraps negatives in parentheses
-// instead of a leading minus sign. We deliberately don't: the parens make a
-// negative currency draft's content characters (digits/dot) shift relative
-// to a positive one in a way live re-formatting-while-typing can't track a
-// cursor through cleanly (the leading "-" the user types has no counterpart
-// character in "(...)"). A leading "-", like every other specifier here,
-// keeps that math (and the mental model) consistent. Parentheses are still
-// accepted on parse (parseFormattedInput/stripFormatDecorations) in case a
-// value pasted from elsewhere uses them.
+// .NET's default CurrencyNegativePattern for en-US wraps negatives in
+// parentheses instead of a leading minus sign (e.g. -123.46 -> "($123.46)")
+// — matched here for parity with Wijmo/.NET. The parens mean the "-" the
+// user types has no literal counterpart character in the formatted output,
+// which the live cursor-position math in reformatDraftLive accounts for
+// separately (see the `usesParens` branch there) by excluding the sign
+// from the "content characters" it tracks whenever this specifier is
+// negative, rather than assuming a 1:1 "-" character to follow.
 function formatCurrencySpec(value: number, precision: number): string {
-  return (value < 0 ? '-$' : '$') + formatGrouped(Math.abs(value), precision)
+  const grouped = formatGrouped(Math.abs(value), precision)
+  return isNegative(value) ? `($${grouped})` : `$${grouped}`
 }
 
 // Percent multiplies by 100 before display, per the "P" spec.
 function formatPercentSpec(value: number, precision: number): string {
-  return (value < 0 ? '-' : '') + formatGrouped(Math.abs(value) * 100, precision) + '%'
+  return (isNegative(value) ? '-' : '') + formatGrouped(Math.abs(value) * 100, precision) + '%'
 }
 
 function formatDecimalSpec(value: number, precision: number | undefined): string {
   const intValue = Math.trunc(value)
   const digits = Math.abs(intValue).toString()
   const padded = typeof precision === 'number' ? digits.padStart(precision, '0') : digits
-  return (intValue < 0 ? '-' : '') + padded
+  return (isNegative(intValue) ? '-' : '') + padded
 }
 
 // .NET pads the exponent to a minimum of 3 digits for "E" (2 for "G" — see
-// formatGeneralSpec) and always includes an explicit +/- sign.
+// formatGeneralSpec) and always includes an explicit +/- sign. Runs
+// toExponential() on the magnitude only (not the signed value) and
+// prepends the sign itself via isNegative() — value.toExponential() on its
+// own silently drops the sign for exactly -0 the same way toFixed() does.
 function toExponentialParts(value: number, mantissaDigits: number) {
-  const exp = value.toExponential(mantissaDigits)
-  const match = /^(-?\d(?:\.\d+)?)e([+-])(\d+)$/.exec(exp)
+  const exp = Math.abs(value).toExponential(mantissaDigits)
+  const match = /^(\d(?:\.\d+)?)e([+-])(\d+)$/.exec(exp)
   if (!match) return undefined
-  const [, mantissa, sign, exponentDigits] = match
+  const [, mantissaDigitsPart, sign, exponentDigits] = match
+  const mantissa = (isNegative(value) ? '-' : '') + mantissaDigitsPart
   return { mantissa, sign, exponentDigits }
 }
 
@@ -172,7 +187,7 @@ function formatExponentialSpec(value: number, precision: number, uppercase: bool
 // when the base-10 exponent is between -5 (exclusive) and the precision
 // (exclusive), scientific otherwise. Trailing zeros are trimmed either way.
 function formatGeneralSpec(value: number, precision: number | undefined, uppercase: boolean): string {
-  if (value === 0) return '0'
+  if (value === 0) return isNegative(value) ? '-0' : '0'
   const significantDigits = precision && precision > 0 ? precision : 15
   const exponent = Math.floor(Math.log10(Math.abs(value)))
   if (exponent > -5 && exponent < significantDigits) {
@@ -202,7 +217,7 @@ function formatHexSpec(value: number, precision: number | undefined, uppercase: 
 // JS's default Number -> String conversion already produces the shortest
 // string that round-trips back to the same value, which is exactly what "R" asks for.
 function formatRoundTripSpec(value: number): string {
-  return String(value)
+  return (isNegative(value) ? '-' : '') + String(Math.abs(value))
 }
 
 // The decimal-places count to use for clamping/rounding the underlying
@@ -300,22 +315,28 @@ export function parseFormattedInput(raw: string, spec: NumericFormatSpec): numbe
 }
 
 // Live re-formatting while typing needs to know which characters in a
-// formatted string are "content" (digits/sign/decimal point) versus pure
-// decoration (currency symbol, group separators, "%", parentheses), so the
-// cursor can be repositioned after the decorations shift around.
-function countContentCharsBefore(text: string, index: number): number {
+// formatted string are "content" (digits/decimal point, plus the sign —
+// except when the sign is instead represented by parentheses wrapping the
+// whole value, e.g. negative currency, in which case there's no literal
+// "-" character in the output to track and it's excluded from the count
+// too) versus pure decoration (currency symbol, group separators, "%",
+// the parens themselves), so the cursor can be repositioned after the
+// decorations shift around.
+function countContentCharsBefore(text: string, index: number, includeSign: boolean): number {
+  const pattern = includeSign ? /[0-9.-]/ : /[0-9.]/
   let count = 0
   for (let i = 0; i < index && i < text.length; i++) {
-    if (/[0-9.-]/.test(text[i])) count++
+    if (pattern.test(text[i])) count++
   }
   return count
 }
 
-function indexAfterContentChars(text: string, contentCount: number): number {
+function indexAfterContentChars(text: string, contentCount: number, includeSign: boolean): number {
   if (contentCount <= 0) return 0
+  const pattern = includeSign ? /[0-9.-]/ : /[0-9.]/
   let seen = 0
   for (let i = 0; i < text.length; i++) {
-    if (/[0-9.-]/.test(text[i])) {
+    if (pattern.test(text[i])) {
       seen++
       if (seen === contentCount) return i + 1
     }
@@ -345,6 +366,58 @@ export function reformatDraftLive(
   if (stripped.endsWith('.')) return { text: stripped, cursorIndex: stripped.length }
   const value = spec.specifier === 'P' ? parsed / 100 : parsed
   const formatted = formatWithSpec(value, spec)
-  const contentBeforeCursor = countContentCharsBefore(raw, cursorIndex)
-  return { text: formatted, cursorIndex: indexAfterContentChars(formatted, contentBeforeCursor) }
+  // Currency wraps negatives in parentheses (see formatCurrencySpec) instead
+  // of a leading "-", so there's no sign character in `formatted` to line up
+  // with the "-" the user typed in `raw` — exclude the sign from both counts
+  // in that case so the digit/dot positions still match up 1:1.
+  const usesParens = spec.specifier === 'C' && isNegative(value)
+  const contentBeforeCursor = countContentCharsBefore(raw, cursorIndex, !usesParens)
+  return { text: formatted, cursorIndex: indexAfterContentChars(formatted, contentBeforeCursor, !usesParens) }
+}
+
+// Shared by toggleFormattedSign/forcePositiveFormatted below: re-parses the
+// whole draft, applies `nextValue` to its underlying number, and reformats
+// from scratch, remapping the cursor by digit/dot position only — sign
+// decorations (a leading "-", currency parens, ...) never change how many
+// digits precede the cursor, only how those digits get wrapped, so the
+// sign itself is deliberately excluded from both counts (same reasoning as
+// the `usesParens` branch in reformatDraftLive above).
+function reformatSignedDraft(
+  draft: string,
+  cursorIndex: number,
+  spec: NumericFormatSpec,
+  nextValue: (parsed: number) => number,
+): { value: number; text: string; cursorIndex: number } | undefined {
+  const parsed = parseFormattedInput(draft, spec)
+  if (typeof parsed !== 'number') return undefined
+  const value = nextValue(parsed)
+  const text = formatWithSpec(value, spec)
+  const contentBeforeCursor = countContentCharsBefore(draft, cursorIndex, false)
+  return { value, text, cursorIndex: indexAfterContentChars(text, contentBeforeCursor, false) }
+}
+
+// Format-aware equivalent of toggleSign() for a plain draft — the -/+ key
+// handling under a format can't just flip a leading "-" character the way
+// the plain-draft path does, since decorations (parens for negative
+// currency, "$", "%", ...) restructure around the sign in a way a single-
+// character edit can't express regardless of where the cursor happens to
+// sit; this re-parses and reformats the whole value instead, so it works
+// from anywhere in the draft, not just right before the first digit.
+export function toggleFormattedSign(
+  draft: string,
+  cursorIndex: number,
+  spec: NumericFormatSpec,
+): { value: number; text: string; cursorIndex: number } | undefined {
+  return reformatSignedDraft(draft, cursorIndex, spec, (parsed) => -parsed)
+}
+
+// Format-aware equivalent of stripSign() — forces the value positive
+// rather than toggling it, matching how the "+" key only ever removes an
+// existing negative and never adds one.
+export function forcePositiveFormatted(
+  draft: string,
+  cursorIndex: number,
+  spec: NumericFormatSpec,
+): { value: number; text: string; cursorIndex: number } | undefined {
+  return reformatSignedDraft(draft, cursorIndex, spec, (parsed) => Math.abs(parsed))
 }

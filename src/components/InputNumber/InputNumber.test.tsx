@@ -1063,9 +1063,109 @@ describe('InputNumber', () => {
       expect(screen.getByRole('spinbutton')).toHaveValue('1,234.50')
     })
 
-    it('applies currency formatting, with a leading minus for negative values', () => {
+    it('applies currency formatting, wrapping negative values in parentheses', () => {
       render(<InputNumber value={-1234.5} onChange={() => {}} format="C2" />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('-$1,234.50')
+      expect(screen.getByRole('spinbutton')).toHaveValue('($1,234.50)')
+    })
+
+    it('wraps negative currency in parentheses live while typing, not just on commit', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={null} onChange={() => {}} isRequired={false} format="c0" />)
+      const input = screen.getByRole('spinbutton')
+
+      input.focus()
+      await user.keyboard('-1234')
+
+      expect(input).toHaveValue('($1,234)')
+    })
+
+    it('shows the parentheses immediately when typing "-" produces exactly -0, not just once another digit follows', async () => {
+      // Regression test: a "$0" field with the cursor right after "$"
+      // (before the "0") — typing "-" there inserts it between them,
+      // producing raw "$-0", which parses to the JS value -0. -0 fails a
+      // plain `< 0` check, so before the isNegative() fix this silently
+      // stayed "$0" instead of "($0)" until a second digit was typed.
+      const user = userEvent.setup()
+      render(<InputNumber value={0} onChange={() => {}} format="c0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      expect(input).toHaveValue('$0')
+
+      input.focus()
+      input.setSelectionRange(1, 1)
+      await user.keyboard('-')
+
+      expect(input).toHaveValue('($0)')
+    })
+
+    it('backspacing the closing paren of a negative currency value un-negates it', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber value={-5} onChange={onChange} format="c0" />)
+      const input = screen.getByRole('spinbutton')
+
+      input.focus()
+      await user.keyboard('{End}{Backspace}')
+
+      expect(input).toHaveValue('$5')
+
+      await user.keyboard('{Enter}')
+      expect(onChange).toHaveBeenLastCalledWith(5)
+    })
+
+    it('backspacing right after the opening paren of a negative currency value also un-negates it', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={-5} onChange={() => {}} format="c0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+      input.setSelectionRange(1, 1)
+      await user.keyboard('{Backspace}')
+
+      expect(input).toHaveValue('$5')
+    })
+
+    it('pressing "-" toggles the sign of a currency value from anywhere in the draft, not just before the first digit', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={1234.5} onChange={() => {}} format="c2" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      // Cursor placed after the decimal point, well past where a literal
+      // "-" character could ever be validly inserted.
+      input.focus()
+      input.setSelectionRange(input.value.length, input.value.length)
+      await user.keyboard('-')
+
+      expect(input).toHaveValue('($1,234.50)')
+    })
+
+    it('pressing "-" again toggles a negative currency value back to positive', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={-1234.5} onChange={() => {}} format="c2" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      expect(input).toHaveValue('($1,234.50)')
+
+      input.focus()
+      input.setSelectionRange(1, 1)
+      await user.keyboard('-')
+
+      expect(input).toHaveValue('$1,234.50')
+    })
+
+    it('pressing "-" toggles percent and plain-number formats from anywhere in the draft too', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(<InputNumber value={0.5} onChange={() => {}} format="p0" />)
+      let input = screen.getByRole('spinbutton') as HTMLInputElement
+      input.focus()
+      input.setSelectionRange(1, 1)
+      await user.keyboard('-')
+      expect(input).toHaveValue('-50%')
+
+      rerender(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
+      input = screen.getByRole('spinbutton') as HTMLInputElement
+      input.focus()
+      input.setSelectionRange(input.value.length, input.value.length)
+      await user.keyboard('-')
+      expect(input).toHaveValue('-1,234.50')
     })
 
     it('applies percent formatting (multiplies the value by 100 for display)', () => {

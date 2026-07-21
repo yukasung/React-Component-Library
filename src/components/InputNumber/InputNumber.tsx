@@ -4,6 +4,7 @@ import { useSyncedState } from '../../hooks/useSyncedState'
 import {
   applyPrecision,
   clamp,
+  forcePositiveFormatted,
   formatValue,
   formatWithSpec,
   isValidDraft,
@@ -14,6 +15,7 @@ import {
   resolveFormatPrecision,
   resolvePrecision,
   stripSign,
+  toggleFormattedSign,
   toggleSign,
   zeroDraftWithPrecision,
 } from '../../lib/number'
@@ -446,6 +448,32 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       event.preventDefault()
       stepBy(-1)
     } else if (event.key === 'Backspace' && !isReadOnly && formatSpec) {
+      const el = event.currentTarget
+      const cursor = el.selectionStart
+      // Negative currency wraps the whole value in parentheses instead of a
+      // leading "-" (see formatCurrencySpec) — there's no single sign
+      // character to delete, so Backspace-ing just one boundary paren would
+      // leave unbalanced, unparseable content that reformatDraftLive rejects
+      // outright, silently stranding the draft with no way to un-negate it.
+      // Deleting right after the opening "(" or right at the very end (after
+      // the closing ")") instead strips both parens together, restoring the
+      // positive form in one step — same "treat it as a unit" approach as
+      // the decimal-point handling right below.
+      if (
+        formatSpec.specifier === 'C' &&
+        cursor !== null &&
+        cursor === el.selectionEnd &&
+        draft.startsWith('(') &&
+        draft.endsWith(')') &&
+        (cursor === 1 || cursor === draft.length)
+      ) {
+        event.preventDefault()
+        const unwrapped = draft.slice(1, -1)
+        if (exceedsBounds(parseFormattedInput(unwrapped, formatSpec))) return
+        updateDraft(unwrapped)
+        setCursor(cursor === 1 ? 0 : unwrapped.length)
+        return
+      }
       // Deleting the decimal point itself (not just a digit) would merge
       // the integer and fractional digit groups into one bigger integer
       // once reformatted (e.g. "1,999.00" -> delete "." -> "199900" ->
@@ -453,13 +481,11 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       // unintended jump. A collapsed cursor sitting right after the dot
       // instead just steps over it, same as the "." jump-to-dot handling
       // below; a second Backspace from there deletes the actual digit.
-      const el = event.currentTarget
-      const cursor = el.selectionStart
       if (cursor !== null && cursor === el.selectionEnd && draft[cursor - 1] === '.') {
         event.preventDefault()
         el.setSelectionRange(cursor - 1, cursor - 1)
       }
-    } else if (event.key === '-' && !isReadOnly && !formatSpec) {
+    } else if (event.key === '-' && !isReadOnly) {
       event.preventDefault()
       // min >= 0 means negatives aren't allowed at all — block the key
       // entirely rather than letting it toggle and get clamped away later.
@@ -468,23 +494,52 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       if (el.selectionStart !== el.selectionEnd) {
         updateDraft('-')
         setCursor(1)
-      } else {
-        // Setting `draft` via React state doesn't preserve cursor position
-        // on its own (browsers tend to snap a programmatically-set value's
-        // cursor to the end) — shift it by one character so it stays next
-        // to the same digit it was next to before the sign was added/removed.
-        const cursorPos = el.selectionStart ?? 0
-        const hadSign = draft.startsWith('-')
-        const toggled = toggleSign(draft)
-        if (exceedsBounds(parseDraft(toggled))) return
-        updateDraft(toggled)
-        setCursor(hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1)
+        return
       }
-    } else if (event.key === '+' && !isReadOnly && !formatSpec) {
+      const cursorPos = el.selectionStart ?? 0
+      if (formatSpec) {
+        // Re-parses and reformats the whole value instead of flipping a
+        // single "-" character — under a format, decorations (currency
+        // parens, "$", "%", ...) mean there's no one universal cursor
+        // position a literal "-" keystroke could be inserted at, so this
+        // works as a toggle from anywhere in the draft instead, matching
+        // the plain (non-format) behavior below.
+        const result = toggleFormattedSign(draft, cursorPos, formatSpec)
+        if (!result) {
+          // Draft isn't (yet) a complete number to toggle — e.g. still
+          // empty. Start fresh with a bare "-" instead, same as the
+          // selected-text case above.
+          updateDraft('-')
+          setCursor(1)
+          return
+        }
+        if (exceedsBounds(result.value)) return
+        updateDraft(result.text)
+        setCursor(result.cursorIndex)
+        return
+      }
+      // Setting `draft` via React state doesn't preserve cursor position
+      // on its own (browsers tend to snap a programmatically-set value's
+      // cursor to the end) — shift it by one character so it stays next
+      // to the same digit it was next to before the sign was added/removed.
+      const hadSign = draft.startsWith('-')
+      const toggled = toggleSign(draft)
+      if (exceedsBounds(parseDraft(toggled))) return
+      updateDraft(toggled)
+      setCursor(hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1)
+    } else if (event.key === '+' && !isReadOnly) {
       event.preventDefault()
+      const el = event.currentTarget
+      const cursorPos = el.selectionStart ?? 0
+      if (formatSpec) {
+        const result = forcePositiveFormatted(draft, cursorPos, formatSpec)
+        if (!result) return
+        if (exceedsBounds(result.value)) return
+        updateDraft(result.text)
+        setCursor(result.cursorIndex)
+        return
+      }
       if (draft.startsWith('-')) {
-        const el = event.currentTarget
-        const cursorPos = el.selectionStart ?? 0
         const stripped = stripSign(draft)
         if (exceedsBounds(parseDraft(stripped))) return
         updateDraft(stripped)

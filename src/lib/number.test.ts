@@ -253,9 +253,9 @@ describe('formatWithSpec', () => {
     expect(formatWithSpec(1234.5, { specifier: 'N', precision: undefined, uppercase: false })).toBe('1,234.50')
   })
 
-  it('formats C with a currency symbol and a leading minus for negatives', () => {
+  it('formats C with a currency symbol, wrapping negatives in parentheses', () => {
     expect(formatWithSpec(1234.567, { specifier: 'C', precision: 2, uppercase: true })).toBe('$1,234.57')
-    expect(formatWithSpec(-1234.567, { specifier: 'C', precision: 2, uppercase: true })).toBe('-$1,234.57')
+    expect(formatWithSpec(-1234.567, { specifier: 'C', precision: 2, uppercase: true })).toBe('($1,234.57)')
   })
 
   it('formats P by multiplying by 100 and appending a percent sign', () => {
@@ -296,6 +296,25 @@ describe('formatWithSpec', () => {
     expect(formatWithSpec(10761.937554, { specifier: 'R', precision: undefined, uppercase: true })).toBe(
       '10761.937554',
     )
+  })
+
+  describe('negative zero (-0)', () => {
+    // -0 is a real, distinct JS value that live typing can produce mid-edit
+    // — e.g. typing "-" right before an existing lone "0" digit — but it
+    // fails a plain `value < 0` check and silently loses its sign through
+    // toFixed()/toExponential()/String(). Every specifier that shows a
+    // sign must still show it for -0, or the user's just-typed "-"
+    // appears to vanish until they type another digit.
+    it('keeps the sign for every specifier that has one', () => {
+      expect(formatWithSpec(-0, { specifier: 'N', precision: 0, uppercase: false })).toBe('-0')
+      expect(formatWithSpec(-0, { specifier: 'C', precision: 0, uppercase: false })).toBe('($0)')
+      expect(formatWithSpec(-0, { specifier: 'P', precision: 0, uppercase: false })).toBe('-0%')
+      expect(formatWithSpec(-0, { specifier: 'F', precision: 0, uppercase: false })).toBe('-0')
+      expect(formatWithSpec(-0, { specifier: 'D', precision: undefined, uppercase: false })).toBe('-0')
+      expect(formatWithSpec(-0, { specifier: 'E', precision: 0, uppercase: false })).toBe('-0e+000')
+      expect(formatWithSpec(-0, { specifier: 'G', precision: undefined, uppercase: false })).toBe('-0')
+      expect(formatWithSpec(-0, { specifier: 'R', precision: undefined, uppercase: false })).toBe('-0')
+    })
   })
 })
 
@@ -356,5 +375,31 @@ describe('reformatDraftLive', () => {
 
   it('returns undefined for content that is not (yet) a parseable number', () => {
     expect(reformatDraftLive('abc', 3, n0)).toBeUndefined()
+  })
+
+  describe('negative currency (parentheses, no leading "-" in the output)', () => {
+    const c0: Parameters<typeof reformatDraftLive>[2] = { specifier: 'C', precision: 0, uppercase: false }
+
+    it('wraps the digits in parentheses as they accumulate, cursor tracking right before the closing paren', () => {
+      expect(reformatDraftLive('-1', 2, c0)).toEqual({ text: '($1)', cursorIndex: 3 })
+      expect(reformatDraftLive('-12', 3, c0)).toEqual({ text: '($12)', cursorIndex: 4 })
+      expect(reformatDraftLive('-1234', 5, c0)).toEqual({ text: '($1,234)', cursorIndex: 7 })
+    })
+
+    it('keeps the cursor tracking the same digit position when inserting in the middle', () => {
+      // Cursor sits right after the "1" in the already-formatted "($1,234)"
+      // (index 3, between "1" and ","); typing "5" there natively inserts
+      // it at that position before this function ever runs.
+      expect(reformatDraftLive('($15,234)', 4, c0)).toEqual({ text: '($15,234)', cursorIndex: 4 })
+    })
+
+    it('rejects a lone unbalanced paren left behind by deleting just one boundary character', () => {
+      // Deleting the closing ")" off the end of "($5)" leaves "($5" — since
+      // there's no leading "-" character for the sign, the component itself
+      // (not this pure function) is responsible for special-casing Backspace
+      // on a boundary paren to strip both at once; on its own this is just
+      // invalid, unparseable content.
+      expect(reformatDraftLive('($5', 3, c0)).toBeUndefined()
+    })
   })
 })
