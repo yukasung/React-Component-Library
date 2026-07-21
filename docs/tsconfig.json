@@ -17,6 +17,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
+    "paths": {
+      "react-component-library": ["../src/index.ts"]
+    },
     "plugins": [
       {
         "name": "next"

@@ -59,7 +59,7 @@ export function DefaultDemo() {
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <InputNumber value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} showSpinButtons={false} format="C2" />
+      <InputNumber value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} format="C2" />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
         The current value is {live.liveText}
       </p>
@@ -73,7 +73,7 @@ export function ValueDemo() {
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <InputNumber value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} />
+      <InputNumber value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} step={1} />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
         The current value is {live.liveText}
       </p>
@@ -87,7 +87,7 @@ export function PlaceholderDemo() {
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <InputNumber isRequired={false} value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} placeholder="เช่น 100" />
+      <InputNumber isRequired={false} value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} placeholder="เช่น 100" step={1} />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
         The current value is {live.liveText}
       </p>
@@ -105,7 +105,7 @@ export function IsRequiredDemo() {
         <label htmlFor="demo-is-required" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           isRequired (default)
         </label>
-        <InputNumber id="demo-is-required" value={requiredValue} onChange={setRequiredValue} />
+        <InputNumber id="demo-is-required" value={requiredValue} onChange={setRequiredValue} step={1} />
       </div>
       <div>
         <label htmlFor="demo-is-optional" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
@@ -117,6 +117,7 @@ export function IsRequiredDemo() {
           onChange={setOptionalValue}
           isRequired={false}
           placeholder="ไม่บังคับกรอก"
+          step={1}
         />
       </div>
     </div>
@@ -129,26 +130,40 @@ export function MinMaxDemo() {
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <InputNumber min={0} max={100} value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} />
+      <InputNumber min={0} max={100} value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} step={1} />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-        The current value is {live.liveText} — min: 0, max: 100 (ลองกดปุ่ม spin
-        ค้างไปจนสุดขอบเขต)
+        The current value is {live.liveText} — min: 0, max: 100
       </p>
     </div>
   )
 }
 
 export function StepDemo() {
-  const [value, setValue] = useState<number | null>(1)
-  const live = useLiveText(value)
+  const [unsetValue, setUnsetValue] = useState<number | null>(1)
+  const [setValue2, setSetValue2] = useState<number | null>(1)
+  const liveUnset = useLiveText(unsetValue)
+  const liveSet = useLiveText(setValue2)
 
   return (
-    <div className="not-prose my-6 max-w-xs">
-      <InputNumber step={0.1} value={value} onChange={setValue} ref={live.inputRef} onInput={live.onInput} />
-      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-        The current value is {live.liveText} — step: 0.1 (ลองกดปุ่ม spin
-        ขึ้นหลาย ๆ ครั้ง ค่าจะไม่เพี้ยนจากปัญหา floating point)
-      </p>
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
+      <div>
+        <label htmlFor="demo-step-unset" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          step (default, ไม่ระบุ)
+        </label>
+        <InputNumber id="demo-step-unset" value={unsetValue} onChange={setUnsetValue} ref={liveUnset.inputRef} onInput={liveUnset.onInput} />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          The current value is {liveUnset.liveText}
+        </p>
+      </div>
+      <div>
+        <label htmlFor="demo-step-set" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          step={'{0.1}'}
+        </label>
+        <InputNumber id="demo-step-set" step={0.1} value={setValue2} onChange={setSetValue2} ref={liveSet.inputRef} onInput={liveSet.onInput} />
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          The current value is {liveSet.liveText}
+        </p>
+      </div>
     </div>
   )
 }
@@ -166,7 +181,6 @@ function FormatDemoRow({ format }: { format: (typeof FORMAT_DEMO_SPECS)[number] 
         value={value}
         onChange={setValue}
         format={format}
-        showSpinButtons={false}
         className="flex-1"
       />
     </div>
@@ -179,43 +193,6 @@ export function FormatDemo() {
       {FORMAT_DEMO_SPECS.map((format) => (
         <FormatDemoRow key={format} format={format} />
       ))}
-    </div>
-  )
-}
-
-export function ShowSpinButtonsDemo() {
-  const [shownValue, setShownValue] = useState<number | null>(10)
-  const [hiddenValue, setHiddenValue] = useState<number | null>(10)
-  const liveShown = useLiveText(shownValue)
-  const liveHidden = useLiveText(hiddenValue)
-
-  return (
-    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
-      <div>
-        <label htmlFor="demo-spin-shown" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
-          showSpinButtons (default)
-        </label>
-        <InputNumber id="demo-spin-shown" value={shownValue} onChange={setShownValue} ref={liveShown.inputRef} onInput={liveShown.onInput} />
-        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveShown.liveText}
-        </p>
-      </div>
-      <div>
-        <label htmlFor="demo-spin-hidden" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
-          showSpinButtons={'{false}'}
-        </label>
-        <InputNumber
-          id="demo-spin-hidden"
-          value={hiddenValue}
-          onChange={setHiddenValue}
-          ref={liveHidden.inputRef} onInput={liveHidden.onInput}
-          showSpinButtons={false}
-        />
-        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          The current value is {liveHidden.liveText} — ไม่มีปุ่ม spin แต่
-          focus แล้วกดลูกศรขึ้น/ลงยังขยับค่าได้
-        </p>
-      </div>
     </div>
   )
 }
@@ -237,6 +214,7 @@ export function ReadOnlyDemo() {
           value={editableValue}
           onChange={setEditableValue}
           ref={liveEditable.inputRef} onInput={liveEditable.onInput}
+          step={1}
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           The current value is {liveEditable.liveText} — แก้ไขได้ตามปกติ
@@ -251,6 +229,7 @@ export function ReadOnlyDemo() {
           value={readOnlyValue}
           onChange={setReadOnlyValue}
           ref={liveReadOnly.inputRef} onInput={liveReadOnly.onInput}
+          step={1}
           isReadOnly
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -274,7 +253,7 @@ export function DisabledDemo() {
         <label htmlFor="demo-enabled" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           isDisabled={'{false}'} (default)
         </label>
-        <InputNumber id="demo-enabled" value={enabledValue} onChange={setEnabledValue} ref={liveEnabled.inputRef} onInput={liveEnabled.onInput} />
+        <InputNumber id="demo-enabled" value={enabledValue} onChange={setEnabledValue} ref={liveEnabled.inputRef} onInput={liveEnabled.onInput} step={1} />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           The current value is {liveEnabled.liveText} — แก้ไขได้ตามปกติ
         </p>
@@ -288,6 +267,7 @@ export function DisabledDemo() {
           value={disabledValue}
           onChange={setDisabledValue}
           ref={liveDisabled.inputRef} onInput={liveDisabled.onInput}
+          step={1}
           isDisabled
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -311,7 +291,7 @@ export function RepeatButtonsDemo() {
         <label htmlFor="demo-repeat-on" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           repeatButtons (default)
         </label>
-        <InputNumber id="demo-repeat-on" value={repeatValue} onChange={setRepeatValue} ref={liveRepeat.inputRef} onInput={liveRepeat.onInput} />
+        <InputNumber id="demo-repeat-on" value={repeatValue} onChange={setRepeatValue} ref={liveRepeat.inputRef} onInput={liveRepeat.onInput} step={1} />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           The current value is {liveRepeat.liveText} — กดปุ่ม spin ค้างไว้ดู
           จะขยับซ้ำต่อเนื่อง
@@ -326,6 +306,7 @@ export function RepeatButtonsDemo() {
           value={singleValue}
           onChange={setSingleValue}
           ref={liveSingle.inputRef} onInput={liveSingle.onInput}
+          step={1}
           repeatButtons={false}
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -349,7 +330,7 @@ export function HandleWheelDemo() {
         <label htmlFor="demo-wheel-off" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           handleWheel (default)
         </label>
-        <InputNumber id="demo-wheel-off" value={offValue} onChange={setOffValue} ref={liveOff.inputRef} onInput={liveOff.onInput} />
+        <InputNumber id="demo-wheel-off" value={offValue} onChange={setOffValue} ref={liveOff.inputRef} onInput={liveOff.onInput} step={1} />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           The current value is {liveOff.liveText} — focus แล้วเลื่อนล้อเมาส์ไม่มีผล
         </p>
@@ -358,7 +339,7 @@ export function HandleWheelDemo() {
         <label htmlFor="demo-wheel-on" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           handleWheel={'{true}'}
         </label>
-        <InputNumber id="demo-wheel-on" value={onValue} onChange={setOnValue} ref={liveOn.inputRef} onInput={liveOn.onInput} handleWheel />
+        <InputNumber id="demo-wheel-on" value={onValue} onChange={setOnValue} ref={liveOn.inputRef} onInput={liveOn.onInput} step={1} handleWheel />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           The current value is {liveOn.liveText} — focus ก่อน แล้วเลื่อนล้อเมาส์เพื่อขยับค่า
         </p>

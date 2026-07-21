@@ -82,7 +82,7 @@ describe('InputNumber', () => {
   it('does not re-fire onChange on blur immediately after an Arrow key commit', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={1} onChange={onChange} />)
+    render(<InputNumber value={1} step={1} onChange={onChange} />)
     const input = screen.getByRole('spinbutton')
 
     input.focus()
@@ -160,7 +160,7 @@ describe('InputNumber', () => {
     expect(ref.current).toBeInstanceOf(HTMLInputElement)
   })
 
-  it('clamps a typed value above max down to max on commit', async () => {
+  it('blocks a keystroke that would push the typed value above max', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} max={10} onChange={onChange} isRequired={false} />)
@@ -168,30 +168,76 @@ describe('InputNumber', () => {
 
     await user.clear(input)
     await user.type(input, '99')
-    expect(input).toHaveValue('99')
+    // "9" is accepted (<= max); the second "9" would make it 99 (> max) and
+    // is rejected outright — it never reaches the screen even momentarily.
+    expect(input).toHaveValue('9')
 
     await user.tab()
 
-    expect(onChange).toHaveBeenCalledWith(10)
-    expect(input).toHaveValue('10')
+    expect(onChange).toHaveBeenCalledWith(9)
+    expect(input).toHaveValue('9')
   })
 
-  it('clamps a typed value below min up to min on commit', async () => {
+  it('blocks a keystroke that would push the typed value below min', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     // min is negative here (rather than 0) so the minus key isn't blocked
     // outright by the sign-toggle feature (DEV-51) — this test is about
-    // commit-time clamping, not about whether "-" is typeable at all.
-    render(<InputNumber value={5} min={-20} onChange={onChange} />)
+    // live min/max keystroke blocking, not about whether "-" is typeable.
+    // isRequired={false} so user.clear() actually empties the field with a
+    // full selection, rather than the required-field immediate-block snap
+    // (which leaves a collapsed cursor, not a selection — see DEV-54).
+    render(<InputNumber value={5} min={-20} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('spinbutton')
 
     await user.clear(input)
     await user.type(input, '-99')
+    // "-9" is accepted (>= min); the second "9" would make it -99 (< min)
+    // and is rejected outright.
+    expect(input).toHaveValue('-9')
 
     await user.tab()
 
-    expect(onChange).toHaveBeenCalledWith(-20)
-    expect(input).toHaveValue('-20')
+    expect(onChange).toHaveBeenCalledWith(-9)
+    expect(input).toHaveValue('-9')
+  })
+
+  it('allows typing any value within min/max normally', async () => {
+    const user = userEvent.setup()
+    render(<InputNumber value={5} min={0} max={100} onChange={() => {}} isRequired={false} />)
+    const input = screen.getByRole('spinbutton')
+
+    await user.clear(input)
+    await user.type(input, '42')
+
+    expect(input).toHaveValue('42')
+  })
+
+  it('does not block an in-progress draft that is not yet a complete number', async () => {
+    const user = userEvent.setup()
+    render(<InputNumber value={null} min={-10} max={10} onChange={() => {}} isRequired={false} />)
+    const input = screen.getByRole('spinbutton')
+
+    input.focus()
+    await user.keyboard('-')
+
+    // "-" alone isn't a parseable number yet, so it isn't rejected as
+    // "out of bounds" — only a keystroke that completes a real number
+    // outside min/max gets blocked.
+    expect(input).toHaveValue('-')
+  })
+
+  it('blocks a sign-toggle keystroke that would push the value out of bounds', () => {
+    render(<InputNumber value={5} min={-3} max={10} onChange={() => {}} />)
+    const input = screen.getByRole('spinbutton') as HTMLInputElement
+    input.focus()
+    input.setSelectionRange(1, 1)
+
+    fireEvent.keyDown(input, { key: '-' })
+
+    // Toggling "5" to "-5" would go below min (-3) — the toggle is rejected
+    // and the draft stays untouched.
+    expect(input).toHaveValue('5')
   })
 
   it('does not clamp an empty (null) commit even when min/max are set', async () => {
@@ -206,10 +252,10 @@ describe('InputNumber', () => {
     expect(onChange).toHaveBeenCalledWith(null)
   })
 
-  it('increments by the default step (1) on ArrowUp and commits immediately', async () => {
+  it('increments by step on ArrowUp and commits immediately', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} onChange={onChange} />)
+    render(<InputNumber value={5} step={1} onChange={onChange} />)
     const input = screen.getByRole('spinbutton')
 
     input.focus()
@@ -235,7 +281,7 @@ describe('InputNumber', () => {
   it('clamps ArrowUp/ArrowDown stepping at min/max', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={10} min={0} max={10} onChange={onChange} />)
+    render(<InputNumber value={10} min={0} max={10} step={1} onChange={onChange} />)
     const input = screen.getByRole('spinbutton')
 
     input.focus()
@@ -266,7 +312,7 @@ describe('InputNumber', () => {
   it('steps from the in-progress typed draft, not the last committed value', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} onChange={onChange} />)
+    render(<InputNumber value={5} step={1} onChange={onChange} />)
     const input = screen.getByRole('spinbutton')
 
     await user.clear(input)
@@ -379,10 +425,10 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('8')
   })
 
-  it('renders spin buttons by default and steps the value on click', async () => {
+  it('renders spin buttons when step is set and steps the value on click', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} onChange={onChange} />)
+    render(<InputNumber value={5} step={1} onChange={onChange} />)
 
     await user.click(screen.getByRole('button', { name: 'Increase value' }))
     expect(onChange).toHaveBeenCalledWith(6)
@@ -391,39 +437,39 @@ describe('InputNumber', () => {
     expect(onChange).toHaveBeenLastCalledWith(5)
   })
 
-  it('renders no spin buttons when showSpinButtons is false, but Arrow keys still work', async () => {
+  it('renders no spin buttons and ignores Arrow keys when step is not set', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} showSpinButtons={false} onChange={onChange} />)
+    render(<InputNumber value={5} onChange={onChange} />)
 
     expect(screen.queryByRole('button', { name: 'Increase value' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Decrease value' })).not.toBeInTheDocument()
 
     screen.getByRole('spinbutton').focus()
     await user.keyboard('{ArrowUp}')
-    expect(onChange).toHaveBeenCalledWith(6)
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('disables spin buttons at min/max boundaries', () => {
-    render(<InputNumber value={10} min={0} max={10} onChange={() => {}} />)
+    render(<InputNumber value={10} min={0} max={10} step={1} onChange={() => {}} />)
 
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).not.toBeDisabled()
   })
 
   it('disables spin buttons when the field is disabled or read-only', () => {
-    const { rerender } = render(<InputNumber value={5} onChange={() => {}} isDisabled />)
+    const { rerender } = render(<InputNumber value={5} step={1} onChange={() => {}} isDisabled />)
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).toBeDisabled()
 
-    rerender(<InputNumber value={5} onChange={() => {}} isReadOnly />)
+    rerender(<InputNumber value={5} step={1} onChange={() => {}} isReadOnly />)
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).toBeDisabled()
   })
 
   it('keeps focus on the input when clicking a spin button', async () => {
     const user = userEvent.setup()
-    render(<InputNumber value={5} onChange={() => {}} />)
+    render(<InputNumber value={5} step={1} onChange={() => {}} />)
     const input = screen.getByRole('spinbutton')
 
     input.focus()
@@ -534,7 +580,7 @@ describe('InputNumber', () => {
     it('repeats stepping while a spin button is held past the initial delay', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={5} onChange={onChange} />)
+      render(<InputNumber value={5} step={1} onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
@@ -556,7 +602,7 @@ describe('InputNumber', () => {
     it('a quick click released before the initial delay still steps exactly once', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={5} onChange={onChange} />)
+      render(<InputNumber value={5} step={1} onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
@@ -570,7 +616,7 @@ describe('InputNumber', () => {
     it('does not repeat when repeatButtons is false, even when held', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={5} repeatButtons={false} onChange={onChange} />)
+      render(<InputNumber value={5} step={1} repeatButtons={false} onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
@@ -587,7 +633,7 @@ describe('InputNumber', () => {
     it('stops repeating once the value reaches max while held', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={9} max={10} onChange={onChange} />)
+      render(<InputNumber value={9} max={10} step={1} onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
@@ -616,7 +662,7 @@ describe('InputNumber', () => {
 
     it('steps up on scroll-up and down on scroll-down when enabled and focused', () => {
       const onChange = vi.fn()
-      render(<InputNumber value={5} handleWheel onChange={onChange} />)
+      render(<InputNumber value={5} step={1} handleWheel onChange={onChange} />)
       const input = screen.getByRole('spinbutton')
 
       fireEvent.focus(input)
@@ -657,7 +703,7 @@ describe('InputNumber', () => {
 
     it('respects clamping at min/max', () => {
       const onChange = vi.fn()
-      render(<InputNumber value={10} min={0} max={10} handleWheel onChange={onChange} />)
+      render(<InputNumber value={10} min={0} max={10} step={1} handleWheel onChange={onChange} />)
       const input = screen.getByRole('spinbutton')
 
       fireEvent.focus(input)
@@ -1079,7 +1125,7 @@ describe('InputNumber', () => {
       expect(input).toHaveValue('10')
     })
 
-    it('still clamps to min/max on commit under a format', async () => {
+    it('blocks keystrokes that would exceed min/max, live, under a format', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={5} onChange={onChange} format="n0" min={0} max={10} />)
@@ -1088,8 +1134,8 @@ describe('InputNumber', () => {
       await user.clear(input)
       await user.type(input, '999{Enter}')
 
-      expect(onChange).toHaveBeenLastCalledWith(10)
-      expect(input).toHaveValue('10')
+      expect(onChange).toHaveBeenLastCalledWith(9)
+      expect(input).toHaveValue('9')
     })
   })
 
@@ -1240,8 +1286,8 @@ describe('InputNumber', () => {
 
     it('lets stepping and commit read off of an externally-set text value', async () => {
       const onChange = vi.fn()
-      const { rerender } = render(<InputNumber value={5} onChange={onChange} text="5" min={0} max={10} />)
-      rerender(<InputNumber value={5} onChange={onChange} text="7" min={0} max={10} />)
+      const { rerender } = render(<InputNumber value={5} onChange={onChange} text="5" step={1} min={0} max={10} />)
+      rerender(<InputNumber value={5} onChange={onChange} text="7" step={1} min={0} max={10} />)
       const input = screen.getByRole('spinbutton')
 
       input.focus()

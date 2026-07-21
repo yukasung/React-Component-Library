@@ -28,14 +28,19 @@ export interface InputNumberProps
   onChange?: (value: number | null) => void
   min?: number
   max?: number
-  step?: number
+  // The amount to add/subtract per spin-button click or Arrow key press —
+  // and, matching Wijmo, the sole thing that determines whether the spin
+  // buttons render at all. Unset (undefined/null) means there's no defined
+  // step amount, so there's nothing for the buttons (or Arrow keys, or
+  // handleWheel) to increment by — they're hidden/inert until a step is
+  // given. There's no separate visibility prop for this.
+  step?: number | null
   precision?: number
   // .NET-style standard numeric format string (e.g. "n2", "C", "P0") —
   // see resolveFormatPrecision/formatWithSpec in src/lib/number.ts. When
   // set, this supersedes `precision` entirely for both display and the
   // decimal places used when clamping/rounding on commit.
   format?: string
-  showSpinButtons?: boolean
   repeatButtons?: boolean
   handleWheel?: boolean
   truncate?: boolean
@@ -91,6 +96,48 @@ const inputClassName =
 const spinButtonClassName =
   'flex h-11 w-9 shrink-0 items-center justify-center border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:border-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:disabled:text-gray-700'
 
+// The increase/decrease buttons are identical apart from which edge they
+// border, their icon, and the callbacks they're wired to — pulled out so
+// the two usages below don't duplicate the mousedown/mouseup/click wiring.
+function SpinButton({
+  ariaLabel,
+  disabled,
+  onStart,
+  onEnd,
+  onClick,
+  borderSide,
+  path,
+}: {
+  ariaLabel: string
+  disabled: boolean
+  onStart: () => void
+  onEnd: () => void
+  onClick: () => void
+  borderSide: 'border-l' | 'border-r'
+  path: string
+}) {
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onMouseDown={(event) => {
+        event.preventDefault()
+        onStart()
+      }}
+      onMouseUp={onEnd}
+      onMouseLeave={onEnd}
+      onClick={onClick}
+      className={`${spinButtonClassName} ${borderSide}`}
+    >
+      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
+        <path d={path} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  )
+}
+
 export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(function InputNumber(
   {
     value,
@@ -100,13 +147,12 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     onTextChange,
     min,
     max,
-    step = 1,
+    step,
     precision,
     format,
     isDisabled = false,
     isReadOnly = false,
     isRequired = true,
-    showSpinButtons = true,
     repeatButtons = true,
     handleWheel = false,
     truncate = false,
@@ -125,7 +171,11 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   // comment above. resolveFormatPrecision maps the format spec to the
   // decimal-places count used for clamping/rounding on commit.
   const formatSpec = format ? parseNumericFormat(format) : undefined
-  const effectivePrecision = formatSpec ? resolveFormatPrecision(formatSpec) : (precision ?? resolvePrecision(step))
+  const effectivePrecision = formatSpec ? resolveFormatPrecision(formatSpec) : (precision ?? resolvePrecision(step ?? undefined))
+  // Matches Wijmo: step is the sole condition for the spinner (buttons,
+  // Arrow keys, handleWheel) — there's no separate visibility prop. No step
+  // means no defined increment amount, so there's nothing to step by.
+  const hasStep = typeof step === 'number'
   // Required fields never display as blank — a null committed value (e.g.
   // before the user's first interaction, or a controlled consumer passing
   // null anyway) still shows "0" rather than an empty field. The underlying
@@ -138,6 +188,21 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   }
   function parseDraftValue(raw: string): number | null | undefined {
     return formatSpec ? parseFormattedInput(raw, formatSpec) : parseDraft(raw)
+  }
+  // Live keystroke-level min/max enforcement — unlike clamping (which only
+  // happens at commit and silently rewrites the value), this rejects the
+  // keystroke outright so an out-of-range number can never appear on screen
+  // at all. Only applies once a keystroke produces a complete, parseable
+  // number; an in-progress draft like "-" or "1." isn't out of bounds yet,
+  // it just isn't a number yet, so it's left alone.
+  function exceedsBounds(parsedValue: number | null | undefined): boolean {
+    return typeof parsedValue === 'number' && clamp(parsedValue, min, max) !== parsedValue
+  }
+  // Shared by every commit path that adds/rounds a raw number (typed
+  // draft, spin/repeat step, Arrow key) — clamps to min/max, then rounds
+  // to effectivePrecision (or truncates, per the truncate prop).
+  function clampToPrecision(raw: number): number {
+    return applyPrecision(clamp(raw, min, max), effectivePrecision, truncate)
   }
   const formattedValue = formatDisplay(displayValue)
   // When `text` is controlled, it takes priority over the value-derived
@@ -194,6 +259,9 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   // state doesn't reliably control where the browser leaves the cursor, so
   // this makes it explicit. A collapsed cursor is `{ start: pos, end: pos }`.
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  function setCursor(pos: number) {
+    pendingSelectionRef.current = { start: pos, end: pos }
+  }
 
   useEffect(() => {
     if (pendingSelectionRef.current !== null && inputElementRef.current) {
@@ -239,19 +307,17 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       updateDraft(formattedValue)
       return
     }
-    commit(
-      parsed === null ? null : applyPrecision(clamp(parsed, min, max), effectivePrecision, truncate),
-    )
+    commit(parsed === null ? null : clampToPrecision(parsed))
   }
 
   function stepBy(direction: 1 | -1) {
+    if (!hasStep) return
     const base = parseDraftValue(draft) ?? committedValue ?? min ?? 0
-    const next = applyPrecision(clamp(base + direction * step, min, max), effectivePrecision, truncate)
-    commit(next)
+    commit(clampToPrecision(base + direction * (step ?? 0)))
   }
 
   function startRepeat(direction: 1 | -1) {
-    if (!repeatButtons) return
+    if (!repeatButtons || !hasStep) return
     hasRepeatedRef.current = false
     repeatTimeoutRef.current = setTimeout(() => {
       repeatIntervalRef.current = setInterval(() => {
@@ -262,7 +328,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         // every tick instead of progressing.
         const current = lastCommittedRef.current
         const base = current ?? min ?? 0
-        const next = applyPrecision(clamp(base + direction * step, min, max), effectivePrecision, truncate)
+        const next = clampToPrecision(base + direction * (step ?? 0))
         if (current !== null && next === current) {
           // Already clamped at the boundary — further ticks would be no-ops.
           clearRepeat()
@@ -319,9 +385,10 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         pendingSelectionRef.current = { start: 0, end: zeroText.length }
         return
       }
+      if (exceedsBounds(parseFormattedInput(result.text, formatSpec))) return
       updateDraft(result.text)
       applySelection(el, result.cursorIndex, result.cursorIndex)
-      pendingSelectionRef.current = { start: result.cursorIndex, end: result.cursorIndex }
+      setCursor(result.cursorIndex)
       return
     }
     if (!isValidDraft(next)) return
@@ -334,6 +401,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       pendingSelectionRef.current = { start: 0, end: 1 }
       return
     }
+    if (exceedsBounds(parseDraft(next))) return
     updateDraft(next)
   }
 
@@ -341,8 +409,9 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     // Opt-in and focus-gated: an unfocused field silently changing value
     // because the page scrolled past it is a common source of accidental
     // edits, so wheel stepping only applies once the user has deliberately
-    // focused the field AND the consumer has opted in via handleWheel.
-    if (!handleWheel || !isFocused || isDisabled || isReadOnly) return
+    // focused the field AND the consumer has opted in via handleWheel. Also
+    // requires a step (see stepBy) — nothing to increment by otherwise.
+    if (!handleWheel || !hasStep || !isFocused || isDisabled || isReadOnly) return
     event.preventDefault()
     stepBy(event.deltaY < 0 ? 1 : -1)
   }
@@ -370,10 +439,10 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       commitDraft()
     } else if (event.key === 'Escape') {
       updateDraft(formattedValue)
-    } else if (event.key === 'ArrowUp' && !isReadOnly) {
+    } else if (event.key === 'ArrowUp' && !isReadOnly && hasStep) {
       event.preventDefault()
       stepBy(1)
-    } else if (event.key === 'ArrowDown' && !isReadOnly) {
+    } else if (event.key === 'ArrowDown' && !isReadOnly && hasStep) {
       event.preventDefault()
       stepBy(-1)
     } else if (event.key === 'Backspace' && !isReadOnly && formatSpec) {
@@ -398,7 +467,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       const el = event.currentTarget
       if (el.selectionStart !== el.selectionEnd) {
         updateDraft('-')
-        pendingSelectionRef.current = { start: 1, end: 1 }
+        setCursor(1)
       } else {
         // Setting `draft` via React state doesn't preserve cursor position
         // on its own (browsers tend to snap a programmatically-set value's
@@ -406,18 +475,20 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         // to the same digit it was next to before the sign was added/removed.
         const cursorPos = el.selectionStart ?? 0
         const hadSign = draft.startsWith('-')
-        updateDraft(toggleSign(draft))
-        const pos = hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1
-        pendingSelectionRef.current = { start: pos, end: pos }
+        const toggled = toggleSign(draft)
+        if (exceedsBounds(parseDraft(toggled))) return
+        updateDraft(toggled)
+        setCursor(hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1)
       }
     } else if (event.key === '+' && !isReadOnly && !formatSpec) {
       event.preventDefault()
       if (draft.startsWith('-')) {
         const el = event.currentTarget
         const cursorPos = el.selectionStart ?? 0
-        updateDraft(stripSign(draft))
-        const pos = Math.max(0, cursorPos - 1)
-        pendingSelectionRef.current = { start: pos, end: pos }
+        const stripped = stripSign(draft)
+        if (exceedsBounds(parseDraft(stripped))) return
+        updateDraft(stripped)
+        setCursor(Math.max(0, cursorPos - 1))
       }
     } else if (event.key === '.' && !isReadOnly && !formatSpec) {
       const dotIndex = draft.indexOf('.')
@@ -437,7 +508,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       } else if (draft === '') {
         event.preventDefault()
         updateDraft(zeroDraftWithPrecision(effectivePrecision))
-        pendingSelectionRef.current = { start: 2, end: 2 }
+        setCursor(2)
       }
       // else: no existing dot, precision allows decimals, draft non-empty —
       // this is an ordinary decimal point insertion, handled by the normal
@@ -466,25 +537,16 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       <div
         className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
       >
-        {showSpinButtons && (
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Decrease value"
+        {hasStep && (
+          <SpinButton
+            ariaLabel="Decrease value"
             disabled={spinButtonsDisabled || atMin}
-            onMouseDown={(event) => {
-              event.preventDefault()
-              startRepeat(-1)
-            }}
-            onMouseUp={clearRepeat}
-            onMouseLeave={clearRepeat}
+            onStart={() => startRepeat(-1)}
+            onEnd={clearRepeat}
             onClick={() => handleSpinClick(-1)}
-            className={`${spinButtonClassName} border-r`}
-          >
-            <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
-              <path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+            borderSide="border-r"
+            path="M2 6h8"
+          />
         )}
         <input
           {...rest}
@@ -520,25 +582,16 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           onKeyDown={handleKeyDown}
           className={inputClassName}
         />
-        {showSpinButtons && (
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Increase value"
+        {hasStep && (
+          <SpinButton
+            ariaLabel="Increase value"
             disabled={spinButtonsDisabled || atMax}
-            onMouseDown={(event) => {
-              event.preventDefault()
-              startRepeat(1)
-            }}
-            onMouseUp={clearRepeat}
-            onMouseLeave={clearRepeat}
+            onStart={() => startRepeat(1)}
+            onEnd={clearRepeat}
             onClick={() => handleSpinClick(1)}
-            className={`${spinButtonClassName} border-l`}
-          >
-            <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
-              <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+            borderSide="border-l"
+            path="M6 2v8M2 6h8"
+          />
         )}
       </div>
       {hint && (

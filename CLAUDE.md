@@ -46,7 +46,11 @@ Pure parsing/formatting/clamping logic lives in `src/lib/number.ts` (`parseDraft
 
 ### Boolean prop naming: `is`-prefix vs. native
 
-Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `showSpinButtons`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight.
+Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight.
+
+### `step` is the sole condition for the spin buttons (matches Wijmo)
+
+There is no `showSpinButtons` prop. `step` (type `number | null`, default unset/`null`) is the *only* thing that determines whether the spin buttons, Arrow-key stepping, and `handleWheel` are active — matching Wijmo's actual behavior exactly (its `step` doc explicitly says the default `null` "hides the spinner buttons from the control"). No step means no defined increment amount, so there's nothing for any of those three interactions to step by; all three are gated on `typeof step === 'number'` (see `hasStep` in `InputNumber.tsx`). Any `InputNumber` usage that wants a visible spinner must pass an explicit `step`.
 
 Wijmo (`developer.mescius.com/wijmo`) is used as an API/UX reference only — never copy its source or add a runtime dependency on it. `references/tailadmin-react/` (gitignored) is a visual styling reference only, same rule applies.
 

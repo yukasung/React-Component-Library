@@ -120,6 +120,7 @@ export function App() {
             value={51000}
             onChange={setDefaultVal}
             format="n2"
+            step={1}
             ref={liveDefault.inputRef}
             onInput={liveDefault.onInput}
           />
@@ -140,6 +141,7 @@ export function App() {
             onInput={liveQuantity.onInput}
             min={0}
             max={10}
+            step={1}
             hint="Enter a whole number between 0 and 10"
           />
         </Field>
@@ -157,17 +159,18 @@ export function App() {
             onInput={liveAmount.onInput}
             isRequired={false}
             placeholder="e.g. 100"
+            step={1}
           />
         </Field>
       </Section>
 
       <Section title="States">
         <Field label="Quantity (disabled)" htmlFor="quantity-disabled">
-          <InputNumber id="quantity-disabled" value={5} onChange={() => {}} isDisabled />
+          <InputNumber id="quantity-disabled" value={5} onChange={() => {}} step={1} isDisabled />
         </Field>
 
         <Field label="Quantity (read-only)" htmlFor="quantity-readonly">
-          <InputNumber id="quantity-readonly" value={5} onChange={() => {}} isReadOnly />
+          <InputNumber id="quantity-readonly" value={5} onChange={() => {}} step={1} isReadOnly />
         </Field>
 
         <Field
@@ -183,6 +186,7 @@ export function App() {
             onInput={liveOptionalQty.onInput}
             isRequired={false}
             placeholder="Your age (optional)"
+            step={1}
           />
         </Field>
       </Section>
@@ -217,6 +221,7 @@ export function App() {
             onInput={liveTruncatedPrice.onInput}
             precision={1}
             truncate
+            step={1}
           />
         </Field>
 
@@ -232,6 +237,7 @@ export function App() {
             ref={liveSalary.inputRef}
             onInput={liveSalary.onInput}
             format="C2"
+            step={1}
           />
         </Field>
 
@@ -248,6 +254,7 @@ export function App() {
             onInput={liveDiscount.onInput}
             isRequired={false}
             format="p0"
+            step={0.01}
           />
         </Field>
       </Section>
@@ -264,6 +271,7 @@ export function App() {
             onChange={setWheelQty}
             ref={liveWheelQty.inputRef}
             onInput={liveWheelQty.onInput}
+            step={1}
             handleWheel
           />
         </Field>
