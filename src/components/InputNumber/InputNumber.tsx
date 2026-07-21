@@ -498,17 +498,28 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       }
       const cursorPos = el.selectionStart ?? 0
       if (formatSpec) {
+        // Toggling a zero value under Currency or Percent would produce
+        // "($0)"/"-0%" — a negative zero that's numerically meaningless
+        // (0 === -0) and, especially wrapped in parens, reads as a
+        // strange, unhelpful transitional state. Start fresh with a bare
+        // "-" instead, same as an empty draft: if the user commits
+        // without typing an actual digit after it, commitDraft's
+        // "-" -> null -> required-revert path already snaps it back to
+        // the formatted zero on blur/Enter.
+        const currentValue = parseFormattedInput(draft, formatSpec)
+        const isZero =
+          (formatSpec.specifier === 'C' || formatSpec.specifier === 'P') && currentValue === 0
         // Re-parses and reformats the whole value instead of flipping a
         // single "-" character — under a format, decorations (currency
         // parens, "$", "%", ...) mean there's no one universal cursor
         // position a literal "-" keystroke could be inserted at, so this
         // works as a toggle from anywhere in the draft instead, matching
         // the plain (non-format) behavior below.
-        const result = toggleFormattedSign(draft, cursorPos, formatSpec)
+        const result = isZero ? undefined : toggleFormattedSign(draft, cursorPos, formatSpec)
         if (!result) {
           // Draft isn't (yet) a complete number to toggle — e.g. still
-          // empty. Start fresh with a bare "-" instead, same as the
-          // selected-text case above.
+          // empty, or (for currency) exactly zero. Start fresh with a
+          // bare "-" instead, same as the selected-text case above.
           updateDraft('-')
           setCursor(1)
           return
@@ -629,7 +640,15 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           aria-valuemax={max}
           value={draft}
           onChange={handleChange}
-          onFocus={() => setIsFocused(true)}
+          onFocus={(event) => {
+            setIsFocused(true)
+            // Formatted fields (currency, percent, ...) are usually edited
+            // as a whole value rather than character-by-character —
+            // selecting everything on focus lets the user just start
+            // typing to replace it, instead of having to select-all
+            // themselves first.
+            if (formatSpec) event.currentTarget.select()
+          }}
           onBlur={() => {
             setIsFocused(false)
             commitDraft()

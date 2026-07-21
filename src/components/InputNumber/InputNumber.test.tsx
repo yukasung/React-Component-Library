@@ -1063,6 +1063,25 @@ describe('InputNumber', () => {
       expect(screen.getByRole('spinbutton')).toHaveValue('1,234.50')
     })
 
+    it('selects the whole value on focus, so typing replaces it instead of editing individual characters', () => {
+      render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+
+      expect(input.selectionStart).toBe(0)
+      expect(input.selectionEnd).toBe(input.value.length)
+    })
+
+    it('does not auto-select on focus when there is no format', () => {
+      render(<InputNumber value={1234.5} onChange={() => {}} />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+
+      expect(input.selectionStart).toBe(input.selectionEnd)
+    })
+
     it('applies currency formatting, wrapping negative values in parentheses', () => {
       render(<InputNumber value={-1234.5} onChange={() => {}} format="C2" />)
       expect(screen.getByRole('spinbutton')).toHaveValue('($1,234.50)')
@@ -1079,20 +1098,19 @@ describe('InputNumber', () => {
       expect(input).toHaveValue('($1,234)')
     })
 
-    it('shows the parentheses immediately when typing "-" produces exactly -0, not just once another digit follows', async () => {
-      // Regression test: a "$0" field with the cursor right after "$"
-      // (before the "0") — typing "-" there inserts it between them,
-      // producing raw "$-0", which parses to the JS value -0. -0 fails a
-      // plain `< 0` check, so before the isNegative() fix this silently
-      // stayed "$0" instead of "($0)" until a second digit was typed.
-      const user = userEvent.setup()
+    it('reformats a raw "-0" currency draft with parentheses, not just once another digit follows', () => {
+      // Regression test for the underlying reformatDraftLive/handleChange
+      // path specifically (not the "-" keydown toggle, which now has its
+      // own zero special-case — see above): -0 fails a plain `< 0` check
+      // and silently loses its sign through toFixed()/toExponential()/
+      // String(), so any raw input that parses to exactly -0 (e.g. a
+      // paste, or IME input, producing "$-0" directly) needs the
+      // isNegative() fix in formatCurrencySpec to still show parens.
       render(<InputNumber value={0} onChange={() => {}} format="c0" />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
       expect(input).toHaveValue('$0')
 
-      input.focus()
-      input.setSelectionRange(1, 1)
-      await user.keyboard('-')
+      fireEvent.change(input, { target: { value: '$-0', selectionStart: 2 } })
 
       expect(input).toHaveValue('($0)')
     })
@@ -1149,6 +1167,92 @@ describe('InputNumber', () => {
       await user.keyboard('-')
 
       expect(input).toHaveValue('$1,234.50')
+    })
+
+    it('pressing "-" on a zero currency value shows a bare "-" instead of "($0)"', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={0} onChange={() => {}} format="c0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      expect(input).toHaveValue('$0')
+
+      input.focus()
+      input.setSelectionRange(1, 1)
+      await user.keyboard('-')
+
+      // Toggling straight to "($0)" would be a numerically meaningless
+      // negative zero — start fresh instead, same as an empty draft.
+      expect(input).toHaveValue('-')
+    })
+
+    it('reverts a bare "-" left over from toggling a zero currency value back to "$0" on blur', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber value={0} onChange={onChange} format="c0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+      input.setSelectionRange(1, 1)
+      await user.keyboard('-')
+      expect(input).toHaveValue('-')
+
+      await user.tab()
+
+      expect(input).toHaveValue('$0')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('still goes negative if a digit is typed after "-" on a zero currency value', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={0} onChange={() => {}} format="c0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+      input.setSelectionRange(1, 1)
+      await user.keyboard('-5')
+
+      expect(input).toHaveValue('($5)')
+    })
+
+    it('pressing "-" on a zero percent value shows a bare "-" instead of "-0%"', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={0} onChange={() => {}} format="p0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      expect(input).toHaveValue('0%')
+
+      input.focus()
+      input.setSelectionRange(0, 0)
+      await user.keyboard('-')
+
+      expect(input).toHaveValue('-')
+    })
+
+    it('reverts a bare "-" left over from toggling a zero percent value back to "0%" on blur', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber value={0} onChange={onChange} format="p0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+      input.setSelectionRange(0, 0)
+      await user.keyboard('-')
+      expect(input).toHaveValue('-')
+
+      await user.tab()
+
+      expect(input).toHaveValue('0%')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('still goes negative if a digit is typed after "-" on a zero percent value', async () => {
+      const user = userEvent.setup()
+      render(<InputNumber value={0} onChange={() => {}} format="p0" />)
+      const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+      input.focus()
+      input.setSelectionRange(0, 0)
+      await user.keyboard('-25')
+
+      expect(input).toHaveValue('-25%')
     })
 
     it('pressing "-" toggles percent and plain-number formats from anywhere in the draft too', async () => {
