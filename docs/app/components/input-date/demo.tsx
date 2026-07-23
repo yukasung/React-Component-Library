@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { InputDate } from 'react-component-library'
+import { InputDate, formatDateValue } from 'react-component-library'
 
 function formatCommitted(value: Date | null) {
-  return value === null ? 'null' : value.toDateString()
+  return value === null ? 'null' : formatDateValue(value, 'Y-m-d')
 }
 
 export function DefaultDemo() {
@@ -12,7 +12,7 @@ export function DefaultDemo() {
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <InputDate value={value} onChange={setValue} />
+      <InputDate format="d/m/Y" value={value} onChange={setValue} />
       <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
         The current value is {formatCommitted(value)}
       </p>

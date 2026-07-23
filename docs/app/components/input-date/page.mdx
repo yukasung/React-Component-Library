@@ -69,6 +69,7 @@ const [value, setValue] = useState<Date | null>(new Date())
 <LocaleDemo />
 
 ```tsx
+<InputDate locale="en" defaultValue={new Date()} />
 <InputDate locale="th" defaultValue={new Date()} />
 ```
 
@@ -89,6 +90,7 @@ const [value, setValue] = useState<Date | null>(new Date())
 <IsRequiredDemo />
 
 ```tsx
+<InputDate defaultValue={new Date()} />
 <InputDate isRequired={false} defaultValue={null} placeholder="วันเกิด (ไม่บังคับ)" />
 ```
 
@@ -154,6 +156,8 @@ const [value, setValue] = useState<Date | null>(new Date())
 ```tsx
 <InputDate format="Y-m-d" defaultValue={new Date()} />
 <InputDate format="d/m/Y" defaultValue={new Date()} />
+<InputDate format="m/d/Y" defaultValue={new Date()} />
+<InputDate format="y-m-d" defaultValue={new Date()} />
 ```
 
 ### hint
@@ -196,6 +200,7 @@ const [text, setText] = useState('2026-07-22')
 <HandleWheelDemo />
 
 ```tsx
+<InputDate defaultValue={new Date()} />
 <InputDate defaultValue={new Date()} handleWheel />
 ```
 
@@ -221,6 +226,7 @@ const [isOpen, setIsOpen] = useState(false)
 <CloseOnSelectionDemo />
 
 ```tsx
+<InputDate defaultValue={new Date()} />
 <InputDate defaultValue={new Date()} closeOnSelection={false} />
 ```
 
@@ -233,6 +239,7 @@ const [isOpen, setIsOpen] = useState(false)
 <ShowDropdownButtonDemo />
 
 ```tsx
+<InputDate defaultValue={new Date()} />
 <InputDate defaultValue={new Date()} showDropdownButton={false} />
 ```
 
@@ -259,6 +266,7 @@ const [isOpen, setIsOpen] = useState(false)
 <ReadOnlyDemo />
 
 ```tsx
+<InputDate defaultValue={new Date()} />
 <InputDate defaultValue={new Date()} isReadOnly showDropdownButton={false} />
 ```
 
@@ -273,5 +281,6 @@ const [isOpen, setIsOpen] = useState(false)
 <DisabledDemo />
 
 ```tsx
+<InputDate defaultValue={new Date()} />
 <InputDate defaultValue={new Date()} isDisabled />
 ```

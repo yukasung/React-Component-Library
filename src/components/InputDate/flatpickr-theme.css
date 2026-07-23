@@ -70,6 +70,18 @@
   display: none;
 }
 
+/* arrowBottom isn't in the source at all (TailAdmin never flips above —
+   this component's own static-mode flip, added separately, is what
+   produces it). Hidden for the same reason the source hides arrowTop: no
+   pointer-triangle decoration in this design, and now that the popup sits
+   a real gap away from the input (not flush against it, see the
+   .arrowBottom positioning rule below), a triangle pointing at the input
+   would look disconnected/floating rather than connective. */
+.flatpickr-calendar.arrowBottom::before,
+.flatpickr-calendar.arrowBottom::after {
+  display: none;
+}
+
 /* Deviates from the source's `right: 0` — a real, verified layout fix, not
    a style tweak. TailAdmin's .flatpickr-wrapper wraps its actual full-width
    visible input, so `right: 0` flushes the popup's right edge to the
@@ -86,6 +98,43 @@
    under the input like the reference design. */
 .flatpickr-calendar.static {
   left: 0;
+}
+
+/* Neither the source nor flatpickr's own base CSS handles this — a real
+   gap, not a missed port. flatpickr's positionCalendar() (index.js) always
+   computes whether there's enough room below the input and toggles
+   arrowTop/arrowBottom accordingly, *even in static mode* — but it
+   explicitly returns early for `static: true` right before it would set
+   the `top`/`bottom` inline styles that make the flip actually happen
+   (`if (self.config.static) return;`), leaving static-mode positioning
+   entirely up to the theme's CSS. flatpickr's base CSS only styles the
+   decorative arrow triangle differently per class, never the calendar's
+   own position — so out of the box, `static: true` never flips above no
+   matter how little room is left below the input. This rule is what makes
+   the flip real: when flatpickr has already decided there's more room
+   above (arrowBottom present), anchor to the wrapper's own top edge
+   instead of its bottom.
+
+   The `+ 2.75rem` term is required, not decorative — .flatpickr-wrapper
+   (this rule's containing block) sits at the *bottom* edge of the visible
+   input row (InputDate.tsx's containerRef div is deliberately bottom-0/h-0
+   inside the same .relative box the visible row occupies, so the normal
+   below-the-input case can anchor with a plain `top: calc(100% + 2px)`).
+   `bottom: calc(100% + 2px)` alone would measure from that same
+   bottom-of-input anchor point, landing the popup's bottom edge just 2px
+   above the input's *bottom* — covering the entire input, not clearing it
+   (confirmed: this is exactly the overlap the un-adjusted version
+   produced). 2.75rem is InputDate's own fixed row height (`h-11` on both
+   the text input and the dropdown button in InputDate.tsx, kept in sync by
+   `items-stretch` on the row) — adding it shifts the anchor up by the
+   input's own height, so the popup's bottom edge clears the input's *top*
+   instead. If InputDate.tsx's row height class ever changes from h-11,
+   this value must change with it. */
+.flatpickr-calendar.static.arrowBottom {
+  top: auto;
+  bottom: calc(100% + 2.75rem + 2px);
+  margin-top: 0;
+  margin-bottom: 0.5rem;
 }
 
 .flatpickr-current-month {
