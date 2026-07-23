@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useId, useRef, useState } from 'react'
-import type { InputHTMLAttributes, KeyboardEvent } from 'react'
+import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
 import flatpickr from 'flatpickr'
 import 'flatpickr/dist/flatpickr.css'
 import { Thai } from 'flatpickr/dist/l10n/th.js'
@@ -13,8 +13,11 @@ import {
   isSameDay,
   parseDateDraft,
   startOfDay,
+  tokenizeDateMask,
   unshiftYearInDraft,
 } from '../../lib/date'
+import { applyDateMask, diffStrings, isLiteralCharAt } from '../../lib/dateMask'
+import { applySelection } from '../../lib/domSelection'
 
 // The offset added to a Gregorian year to display/accept Buddhist Era (พ.ศ.)
 // years — flatpickr has no built-in era concept at all, this is entirely
@@ -138,6 +141,14 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   const committedValue = isControlled ? value : internalValue
   const yearOffset = locale === 'th' ? BUDDHIST_ERA_OFFSET : 0
   const flatpickrLocale = locale === 'th' ? Thai : undefined
+  // Live-typing input mask (auto-inserts format separators, restricts each
+  // digit segment to its valid range) — undefined for formats using
+  // alphabetic name tokens (F/M/D/l), which opts every masking branch in
+  // handleChange/handleKeyDown out automatically, since typed round-trip
+  // through those tokens was already unsupported (see parseDateDraft's doc
+  // comment in date.ts). Cheap to recompute every render (format strings
+  // are ~10 chars), no useMemo needed.
+  const maskSegments = tokenizeDateMask(format)
   // Required fields never display as blank — matches Wijmo's stated "default
   // is current date," but this is display-only, mirroring InputNumber's
   // `displayValue = isRequired && committedValue === null ? 0 : committedValue`.
@@ -467,7 +478,31 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     instanceRef.current?.toggle()
   }
 
-  function handleChange(next: string) {
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const el = event.target
+    const rawNext = el.value
+    let next = rawNext
+    if (maskSegments) {
+      // Live-typing mask — see src/lib/dateMask.ts. diffStrings recovers the
+      // single edit region from the browser's own resulting value (works
+      // uniformly for a keystroke, Backspace/Delete, an overtyped selection,
+      // or a paste, without needing to know which one happened); applyDateMask
+      // then either accepts it (auto-inserting the next literal separator
+      // when a segment completes) or rejects it outright, restoring the
+      // draft/cursor to where the rejected edit started.
+      const edit = diffStrings(draft, rawNext)
+      const result = applyDateMask(maskSegments, draft, edit)
+      if (result === 'reject') {
+        applySelection(el, edit.start, edit.start)
+        return
+      }
+      next = result.draft
+      // Only correct the cursor when masking actually changed something
+      // (auto-inserted a separator, etc.) — when it didn't, the browser's
+      // own native cursor placement is already right, and calling
+      // setSelectionRange again would be redundant.
+      if (next !== rawNext) applySelection(el, result.cursor, result.cursor)
+    }
     if (isRequired && next.trim() === '') {
       // Required fields can't sit empty even mid-edit — snap immediately
       // (not just on blur) to today's formatted date and select it so the
@@ -482,6 +517,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    const el = event.currentTarget
     if (event.key === 'Enter') {
       commitDraft()
     } else if (event.key === 'Escape') {
@@ -492,6 +528,22 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     } else if (event.key === 'ArrowDown' && !isReadOnly) {
       event.preventDefault()
       stepBy(-1)
+    } else if (event.key === 'Backspace' && !isReadOnly && maskSegments) {
+      // Two-press skip-then-delete, mirroring InputNumber's own
+      // decimal-point-skip convention: stepping over a separator instead of
+      // deleting nothing lets the *next* Backspace delete the actual digit
+      // natively, rather than requiring bespoke "smart" deletion logic here.
+      const cursor = el.selectionStart
+      if (cursor !== null && cursor === el.selectionEnd && cursor > 0 && isLiteralCharAt(draft, cursor - 1, maskSegments)) {
+        event.preventDefault()
+        el.setSelectionRange(cursor - 1, cursor - 1)
+      }
+    } else if (event.key === 'Delete' && !isReadOnly && maskSegments) {
+      const cursor = el.selectionStart
+      if (cursor !== null && cursor === el.selectionEnd && isLiteralCharAt(draft, cursor, maskSegments)) {
+        event.preventDefault()
+        el.setSelectionRange(cursor + 1, cursor + 1)
+      }
     }
   }
 
@@ -540,7 +592,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
             aria-haspopup="dialog"
             aria-autocomplete="none"
             value={draft}
-            onChange={(event) => handleChange(event.target.value)}
+            onChange={handleChange}
             onFocus={(event) => {
               setIsFocused(true)
               // Dates are usually edited as a whole value rather than

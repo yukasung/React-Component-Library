@@ -10,6 +10,7 @@ import {
   isValidDate,
   parseDateDraft,
   startOfDay,
+  tokenizeDateMask,
   unshiftYearInDraft,
 } from './date'
 
@@ -247,5 +248,70 @@ describe('parseDateDraft with yearOffset', () => {
 
   it('treats empty input as null regardless of yearOffset', () => {
     expect(parseDateDraft('', 'Y-m-d', 543)).toBeNull()
+  })
+})
+
+describe('tokenizeDateMask', () => {
+  it('returns undefined for a format with an alphabetic name token', () => {
+    expect(tokenizeDateMask('F j, Y')).toBeUndefined()
+    expect(tokenizeDateMask('d M Y')).toBeUndefined()
+    expect(tokenizeDateMask('l, d/m/Y')).toBeUndefined()
+  })
+
+  it('produces the exact segment shape for "Y-m-d"', () => {
+    expect(tokenizeDateMask('Y-m-d')).toEqual([
+      { type: 'token', token: 'Y', width: 4 },
+      { type: 'literal', text: '-' },
+      { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
+      { type: 'literal', text: '-' },
+      { type: 'token', token: 'd', width: 2, min: 1, max: 31 },
+    ])
+  })
+
+  it('produces the exact segment shape for "d/m/Y"', () => {
+    expect(tokenizeDateMask('d/m/Y')).toEqual([
+      { type: 'token', token: 'd', width: 2, min: 1, max: 31 },
+      { type: 'literal', text: '/' },
+      { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
+      { type: 'literal', text: '/' },
+      { type: 'token', token: 'Y', width: 4 },
+    ])
+  })
+
+  it('produces the exact segment shape for "y-m-d" (2-digit year)', () => {
+    expect(tokenizeDateMask('y-m-d')).toEqual([
+      { type: 'token', token: 'y', width: 2 },
+      { type: 'literal', text: '-' },
+      { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
+      { type: 'literal', text: '-' },
+      { type: 'token', token: 'd', width: 2, min: 1, max: 31 },
+    ])
+  })
+
+  it('gives n/j the same width and range as m/d', () => {
+    expect(tokenizeDateMask('n/j/Y')).toEqual([
+      { type: 'token', token: 'n', width: 2, min: 1, max: 12 },
+      { type: 'literal', text: '/' },
+      { type: 'token', token: 'j', width: 2, min: 1, max: 31 },
+      { type: 'literal', text: '/' },
+      { type: 'token', token: 'Y', width: 4 },
+    ])
+  })
+
+  it('merges consecutive literal characters into one segment', () => {
+    expect(tokenizeDateMask('Y - m - d')).toEqual([
+      { type: 'token', token: 'Y', width: 4 },
+      { type: 'literal', text: ' - ' },
+      { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
+      { type: 'literal', text: ' - ' },
+      { type: 'token', token: 'd', width: 2, min: 1, max: 31 },
+    ])
+  })
+
+  it('treats an escaped token character as a literal', () => {
+    expect(tokenizeDateMask('Y\\Y')).toEqual([
+      { type: 'token', token: 'Y', width: 4 },
+      { type: 'literal', text: 'Y' },
+    ])
   })
 })

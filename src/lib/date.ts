@@ -251,3 +251,58 @@ export function unshiftYearInDraft(raw: string, format: string, yearOffset: numb
   const trimmed = raw.trim()
   return trimmed.slice(0, yearStart) + replacement + trimmed.slice(yearStart + rawYear.length)
 }
+
+// Segment shape for src/lib/dateMask.ts's live-typing masker — a `format`
+// string turned into an ordered list of fixed-width digit groups (with a
+// valid value range, where one applies) and literal separator runs.
+// `min`/`max` are absent for Y/y (any digit is valid at any of their
+// positions, only a width cap applies).
+export type DateMaskSegment =
+  | { type: 'token'; token: 'Y' | 'y' | 'm' | 'n' | 'd' | 'j'; width: number; min?: number; max?: number }
+  | { type: 'literal'; text: string }
+
+// Turns a format string into masking segments, or undefined if it contains
+// any non-numeric token (F/M/D/l/...) — masking is opt-out for those exactly
+// like typed round-trip parsing already is (see parseDateDraft's doc
+// comment); this walks the format the same way unshiftYearInDraft does
+// (char-by-char, `\`-escape aware, bail on any other letter) rather than
+// duplicating a second, subtly-different walk.
+//
+// n/j deliberately get the same width (2) and value range as m/d — masking
+// treats padded and unpadded tokens identically while a segment is actively
+// being typed (a single digit like day "4" completes and auto-advances
+// without the draft ever showing a padded "04"); the token's true unpadded
+// behavior only shows up post-commit, via the existing formatDateValue
+// reformat, unchanged by this. This mirrors NUMERIC_TOKEN_PATTERN above,
+// which already treats m/n and d/j identically for parsing.
+export function tokenizeDateMask(format: string): DateMaskSegment[] | undefined {
+  const segments: DateMaskSegment[] = []
+  let literal = ''
+  function flushLiteral() {
+    if (literal) segments.push({ type: 'literal', text: literal })
+    literal = ''
+  }
+  for (let i = 0; i < format.length; i++) {
+    if (format[i] === '\\') continue
+    const escaped = format[i - 1] === '\\'
+    const char = format[i]
+    if (!escaped && (char === 'Y' || char === 'y')) {
+      flushLiteral()
+      segments.push({ type: 'token', token: char, width: char === 'Y' ? 4 : 2 })
+    } else if (!escaped && (char === 'm' || char === 'n')) {
+      flushLiteral()
+      segments.push({ type: 'token', token: char, width: 2, min: 1, max: 12 })
+    } else if (!escaped && (char === 'd' || char === 'j')) {
+      flushLiteral()
+      segments.push({ type: 'token', token: char, width: 2, min: 1, max: 31 })
+    } else if (!escaped && /[A-Za-z]/.test(char)) {
+      // Any other alphabetic token — not supported for typed round-trip at
+      // all (see parseDateDraft's doc comment); bail out rather than guess.
+      return undefined
+    } else {
+      literal += char
+    }
+  }
+  flushLiteral()
+  return segments
+}

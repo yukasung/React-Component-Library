@@ -84,7 +84,12 @@ describe('InputDate', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, 'not a date')
+    // The live-typing mask (see the "typed-digit masking" describe block
+    // below) rejects non-digit characters for this numeric-only default
+    // format, so "not a date" would never actually land in the draft at
+    // all — an incomplete year is the realistic way to leave the field in
+    // an unparseable state under masking.
+    await user.type(input, '202')
     await user.tab()
 
     expect(onChange).not.toHaveBeenCalled()
@@ -621,6 +626,195 @@ describe('InputDate', () => {
       // Buddhist-Era-aware) should now show "..., 2570" for July 2027.
       const day = document.querySelector('.flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label*="2570"]')
       expect(day).not.toBeNull()
+    })
+  })
+
+  describe('typed-digit masking', () => {
+    function typeChar(input: HTMLInputElement, char: string) {
+      fireEvent.change(input, { target: { value: input.value + char } })
+    }
+
+    it('auto-inserts the separator after completing a 4-digit year', () => {
+      render(<InputDate defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      for (const digit of ['2', '0', '2', '6']) typeChar(input, digit)
+
+      expect(input).toHaveValue('2026-')
+      expect(input.selectionStart).toBe(5)
+    })
+
+    it('auto-advances a day leading digit 4-9 as a complete 1-digit value, past the trailing separator', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '4')
+
+      expect(input).toHaveValue('4/')
+      expect(input.selectionStart).toBe(2)
+    })
+
+    it('keeps a day leading digit 0-3 open, then completes on a valid 2nd digit', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '3')
+      expect(input).toHaveValue('3')
+      expect(input.selectionStart).toBe(1)
+
+      typeChar(input, '1')
+      expect(input).toHaveValue('31/')
+      expect(input.selectionStart).toBe(3)
+    })
+
+    it('rejects a 2nd day digit that would exceed 31, leaving the draft and cursor unchanged', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '3')
+      typeChar(input, '5')
+
+      expect(input).toHaveValue('3')
+      expect(input.selectionStart).toBe(1)
+    })
+
+    it('still commits correctly once a rejected digit is followed by a valid one', async () => {
+      const onChange = vi.fn()
+      render(<InputDate value={null} onChange={onChange} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '3')
+      typeChar(input, '5') // rejected
+      typeChar(input, '1') // "31" -- valid, auto-advances past "/"
+      for (const digit of ['0', '7', '2', '0', '2', '6']) typeChar(input, digit)
+      fireEvent.blur(input)
+
+      expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 31))
+    })
+
+    it('auto-advances a month leading digit 2-9 as a complete 1-digit value', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="m/d/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '2')
+
+      expect(input).toHaveValue('2/')
+      expect(input.selectionStart).toBe(2)
+    })
+
+    it('rejects a 2nd month digit that would exceed 12', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="m/d/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '1')
+      typeChar(input, '3')
+
+      expect(input).toHaveValue('1')
+      expect(input.selectionStart).toBe(1)
+    })
+
+    it('force-advances an explicit early separator on a not-yet-full segment', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      // "1" alone stays open (day 10-19 is still a possible continuation),
+      // unlike "4"-"9" which auto-advance immediately on their own.
+      typeChar(input, '1')
+      expect(input).toHaveValue('1')
+
+      typeChar(input, '/')
+      expect(input).toHaveValue('1/')
+      expect(input.selectionStart).toBe(2)
+    })
+
+    it('two-press Backspace steps over a separator before deleting the digit before it', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '4') // -> "4/"
+      expect(input).toHaveValue('4/')
+      input.setSelectionRange(2, 2)
+
+      fireEvent.keyDown(input, { key: 'Backspace' })
+      expect(input).toHaveValue('4/') // first press: value unchanged
+      expect(input.selectionStart).toBe(1)
+
+      fireEvent.keyDown(input, { key: 'Backspace' })
+      fireEvent.change(input, { target: { value: '/' } })
+      expect(input).toHaveValue('/')
+    })
+
+    it('Delete steps over a separator before deleting the digit after it', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      fireEvent.change(input, { target: { value: '31/07/2026' } })
+      input.setSelectionRange(2, 2) // right before the first "/"
+
+      fireEvent.keyDown(input, { key: 'Delete' })
+      expect(input).toHaveValue('31/07/2026') // first press: value unchanged
+      expect(input.selectionStart).toBe(3)
+
+      fireEvent.keyDown(input, { key: 'Delete' })
+      // Second press proceeds "natively" (no preventDefault) -- simulate
+      // what a real forward-delete of the "0" in "07" would produce.
+      fireEvent.change(input, { target: { value: '31/7/2026' } })
+      expect(input).toHaveValue('31/7/2026')
+    })
+
+    it('rebuilds a full date from a single-event paste', () => {
+      const onChange = vi.fn()
+      render(<InputDate value={null} onChange={onChange} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      fireEvent.change(input, { target: { value: '22/07/2026' } })
+      expect(input).toHaveValue('22/07/2026')
+    })
+
+    it('is a no-op for a format using alphabetic name tokens', async () => {
+      const user = userEvent.setup()
+      render(<InputDate defaultValue={null} isRequired={false} format="F j, Y" />)
+      const input = screen.getByRole('combobox')
+
+      await user.clear(input)
+      await user.type(input, 'not a real month 999')
+
+      expect(input).toHaveValue('not a real month 999')
+    })
+
+    it('feeds the masked (not raw) string to onTextChange', () => {
+      const onTextChange = vi.fn()
+      render(<InputDate defaultValue={null} isRequired={false} onTextChange={onTextChange} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '4') // day "4" auto-advances to "4/"
+
+      expect(onTextChange).toHaveBeenCalledWith('4/')
+    })
+
+    it('correctly masks a digit typed over the auto-selected today text on required-empty-snap', async () => {
+      const user = userEvent.setup()
+      render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      await user.clear(input) // isRequired (default) snaps to today's Y-m-d text, fully selected
+      // Typing over a full selection replaces it entirely, not appends --
+      // the whole selected text is "removed" in the same edit as "9" is
+      // inserted (falls to the strip-and-rebuild path since the removal
+      // spans every segment, not just the year's).
+      fireEvent.change(input, { target: { value: '9' } })
+
+      expect(input).toHaveValue('9')
+    })
+
+    it('masks a Buddhist Era year identically to a Gregorian one', () => {
+      render(<InputDate defaultValue={null} isRequired={false} locale="th" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      for (const digit of ['2', '5', '6', '9']) typeChar(input, digit)
+
+      expect(input).toHaveValue('2569-')
+      expect(input.selectionStart).toBe(5)
     })
   })
 

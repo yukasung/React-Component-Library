@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useId, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
 import { useSyncedState } from '../../hooks/useSyncedState'
+import { applySelection } from '../../lib/domSelection'
 import {
   applyPrecision,
   clamp,
@@ -347,22 +348,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     // stepped the value — the trailing click event (which always fires
     // after mouseup) shouldn't add one more step on top of that.
     if (!hasRepeatedRef.current) stepBy(direction)
-  }
-
-  // Applying a selection synchronously inside the change handler isn't
-  // reliably the last word: when the reformatted text equals the draft
-  // already on screen (e.g. a redundant trailing zero, or snapping an
-  // already-"0.00" field back to "0.00"), there's nothing for React to
-  // reconcile, and *something* in the browser's own post-input-event
-  // handling still collapses the selection back to the end shortly after —
-  // observed even though this same synchronous call reliably sticks when
-  // the text does change. Re-applying once more on a microtask (after that
-  // settles, before the user's next keystroke) covers both cases.
-  function applySelection(el: HTMLInputElement, start: number, end: number) {
-    el.setSelectionRange(start, end)
-    queueMicrotask(() => {
-      if (document.activeElement === el) el.setSelectionRange(start, end)
-    })
   }
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
