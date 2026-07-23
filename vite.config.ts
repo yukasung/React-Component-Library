@@ -15,6 +15,12 @@ export default defineConfig({
       entry: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
       formats: ['es'],
       fileName: 'index',
+      // InputDate imports flatpickr's CSS + our own theme override — Vite
+      // extracts that into a standalone asset since a bundled ESM library
+      // can't auto-inject a <style> tag. Named explicitly (rather than
+      // defaulting to fileName) to match the "./style.css" subpath already
+      // declared in package.json's "exports" map.
+      cssFileName: 'style',
     },
     rollupOptions: {
       external: ['react', 'react-dom', 'react/jsx-runtime'],

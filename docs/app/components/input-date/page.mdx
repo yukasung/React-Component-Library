@@ -1,0 +1,277 @@
+import { Callout } from 'nextra/components'
+import {
+  CloseOnSelectionDemo,
+  DefaultDemo,
+  DisabledDemo,
+  FormatDemo,
+  HandleWheelDemo,
+  HintDemo,
+  IsOpenDemo,
+  IsRequiredDemo,
+  LocaleDemo,
+  MinMaxDemo,
+  MonthCountDemo,
+  ReadOnlyDemo,
+  ShowDropdownButtonDemo,
+  TextDemo,
+  ValueDemo,
+} from './demo'
+import { PropertyIndex, PropertySignature } from './property-index'
+
+export const metadata = {
+  title: 'InputDate',
+  description: 'Input สำหรับกรอกวันที่ พร้อมปฏิทินแบบ dropdown, จำกัดช่วงวันที่ min/max, และการจัดรูปแบบ',
+}
+
+# InputDate
+
+InputDate คือ input ที่ให้ผู้ใช้กรอกวันที่ได้ทั้งการพิมพ์ข้อความโดยตรงและการเลือกจากปฏิทินแบบ dropdown ค่าที่กรอกสามารถจัดรูปแบบหรือจำกัดให้อยู่ในช่วงวันที่ที่กำหนดได้
+
+<DefaultDemo />
+
+## Import
+
+```tsx
+import { InputDate } from '@your-scope/components'
+```
+
+## Properties
+
+<PropertyIndex />
+
+### value
+
+<PropertySignature name="value" type="Date | null" />
+
+กำหนดค่าปัจจุบันของ control
+
+<ValueDemo />
+
+```tsx
+const [value, setValue] = useState<Date | null>(new Date())
+<InputDate value={value} onChange={setValue} />
+```
+
+<Callout type="info">
+  **Note**
+
+  ค่าจะถูกประมวลผล (parse, จำกัดช่วง, และยิง onChange) เฉพาะตอนออกจากฟิลด์ (blur), กด Enter, หรือเลือกวันจากปฏิทินเท่านั้น — ไม่ใช่ทุกครั้งที่พิมพ์ ทำให้พิมพ์ข้อความที่ยังไม่สมบูรณ์ได้โดยไม่ถูกบล็อกระหว่างทาง
+</Callout>
+
+### locale
+
+<PropertySignature name="locale" type="'en' | 'th'" />
+
+กำหนดภาษาและรูปแบบปีของ control พร้อมกันทั้งชื่อเดือน/ชื่อวันในปฏิทิน, ตัวเลขปีในช่องกรอก, และช่องเลื่อนปีในปฏิทิน — ครอบคลุมทั้งตัวช่องกรอกข้อความและปฏิทินแบบ dropdown
+
+ค่าเริ่มต้นของ property นี้คือ `"en"` (ชื่อเดือน/วันภาษาอังกฤษ, ปี ค.ศ.) ส่วน `"th"` จะเปลี่ยนเป็นชื่อเดือน/วันภาษาไทยและปี พ.ศ. (ค.ศ. + 543) ทั้งหมด
+
+<LocaleDemo />
+
+```tsx
+<InputDate locale="th" defaultValue={new Date()} />
+```
+
+<Callout type="info">
+  **Note**
+
+  format ที่ใช้ตัวอักษรชื่อเดือน/วัน (F, M, D, l) ยังมีข้อจำกัดเดิม — เหมาะสำหรับแสดงผลหรือเลือกจากปฏิทินเท่านั้น ไม่ว่าจะใช้ locale ใดก็ตาม (ดูรายละเอียดในหัวข้อ format ด้านล่าง)
+</Callout>
+
+### isRequired
+
+<PropertySignature name="isRequired" type="boolean" />
+
+กำหนดค่าที่ระบุว่าค่าของ control ต้องเป็นวันที่เสมอ หรือสามารถตั้งเป็น null ได้ (โดยการลบเนื้อหาในช่องออกทั้งหมด)
+
+ค่าเริ่มต้นของ property นี้คือ true
+
+<IsRequiredDemo />
+
+```tsx
+<InputDate isRequired={false} defaultValue={null} placeholder="วันเกิด (ไม่บังคับ)" />
+```
+
+### min
+
+<PropertySignature name="min" type="Date | null" />
+
+กำหนดวันที่ต่ำสุดที่ยอมรับได้ ทั้งในการพิมพ์ (จำกัดตอนออกจากฟิลด์) และในปฏิทิน (วันที่นอกช่วงจะถูกปิดการเลือก)
+
+<Callout type="info">
+  **Note**
+
+  ไม่ระบุหมายถึงไม่จำกัดวันที่ต่ำสุด
+</Callout>
+
+### max
+
+<PropertySignature name="max" type="Date | null" />
+
+กำหนดวันที่สูงสุดที่ยอมรับได้ ทั้งในการพิมพ์และในปฏิทิน เช่นเดียวกับ min
+
+<Callout type="info">
+  **Note**
+
+  ไม่ระบุหมายถึงไม่จำกัดวันที่สูงสุด
+</Callout>
+
+<MinMaxDemo />
+
+```tsx
+<InputDate min={new Date(2026, 6, 10)} max={new Date(2026, 6, 20)} defaultValue={new Date(2026, 6, 15)} />
+```
+
+### format
+
+<PropertySignature name="format" type="string" />
+
+รูปแบบการแสดงผลและพิมพ์วันที่ ใช้ชุดตัวอักษรกำหนดตำแหน่งวัน/เดือน/ปี ค่าเริ่มต้นคือ `"Y-m-d"`
+
+โทเค็นที่ใช้บ่อย:
+
+| โทเค็น | ความหมาย | ตัวอย่าง (22 กรกฎาคม 2026) |
+| :---: | --- | --- |
+| Y | ปี 4 หลัก | 2026 |
+| y | ปี 2 หลัก | 26 |
+| m | เดือน 2 หลัก (มี 0 นำหน้า) | 07 |
+| n | เดือน ไม่มี 0 นำหน้า | 7 |
+| d | วันที่ 2 หลัก (มี 0 นำหน้า) | 22 |
+| j | วันที่ ไม่มี 0 นำหน้า | 22 |
+| F | ชื่อเดือนเต็ม | July |
+| M | ชื่อเดือนย่อ | Jul |
+| l | ชื่อวันในสัปดาห์เต็ม | Wednesday |
+| D | ชื่อวันในสัปดาห์ย่อ | Wed |
+
+<Callout type="warning">
+  **Note**
+
+  โทเค็นที่เป็นชื่อ (F, M, D, l) เหมาะสำหรับแสดงผลหรือเลือกจากปฏิทินเท่านั้น — ระบบแยกวิเคราะห์ข้อความที่พิมพ์กลับเป็นวันที่ผ่านโทเค็นเหล่านี้ไม่ได้แม่นยำ หากต้องการให้ผู้ใช้พิมพ์วันที่เองได้อย่างถูกต้อง แนะนำให้ใช้ format ที่เป็นตัวเลขล้วน (Y, y, m, n, d, j) เท่านั้น
+</Callout>
+
+<FormatDemo />
+
+```tsx
+<InputDate format="Y-m-d" defaultValue={new Date()} />
+<InputDate format="d/m/Y" defaultValue={new Date()} />
+```
+
+### hint
+
+<PropertySignature name="hint" type="string" />
+
+ข้อความอธิบายเพิ่มเติมที่แสดงใต้ช่องกรอก
+
+<HintDemo />
+
+```tsx
+<InputDate hint="รูปแบบ: ปี-เดือน-วัน" defaultValue={new Date()} />
+```
+
+### text
+
+<PropertySignature name="text" type="string" />
+
+ค่าข้อความดิบที่แสดงอยู่ในช่องกรอกจริง ๆ แยกจาก value (ซึ่งเป็นวันที่ที่ประมวลผลแล้ว) ใช้คู่กับ onTextChange เพื่อควบคุมหรือสังเกตข้อความที่กำลังพิมพ์แบบสองทาง
+
+<TextDemo />
+
+```tsx
+const [text, setText] = useState('2026-07-22')
+<InputDate text={text} onTextChange={setText} value={value} onChange={setValue} />
+```
+
+### handleWheel
+
+<PropertySignature name="handleWheel" type="boolean" />
+
+กำหนดว่าจะให้เลื่อนล้อเมาส์ตอน focus อยู่ที่ฟิลด์เพื่อขยับวันที่ทีละ 1 วันได้หรือไม่ ค่าเริ่มต้น (default): false
+
+<Callout type="info">
+  **Note**
+
+  ทำงานเฉพาะตอนฟิลด์ focus อยู่เท่านั้น ไม่ทำงานถ้า isDisabled หรือ isReadOnly
+</Callout>
+
+<HandleWheelDemo />
+
+```tsx
+<InputDate defaultValue={new Date()} handleWheel />
+```
+
+### isOpen
+
+<PropertySignature name="isOpen" type="boolean" />
+
+ควบคุมสถานะเปิด/ปิดของปฏิทิน dropdown จากภายนอก ใช้คู่กับ onOpenChange
+
+<IsOpenDemo />
+
+```tsx
+const [isOpen, setIsOpen] = useState(false)
+<InputDate isOpen={isOpen} onOpenChange={setIsOpen} value={value} onChange={setValue} />
+```
+
+### closeOnSelection
+
+<PropertySignature name="closeOnSelection" type="boolean" />
+
+กำหนดว่าปฏิทินจะปิดอัตโนมัติหลังเลือกวันที่หรือไม่ ค่าเริ่มต้นของ property นี้คือ true
+
+<CloseOnSelectionDemo />
+
+```tsx
+<InputDate defaultValue={new Date()} closeOnSelection={false} />
+```
+
+### showDropdownButton
+
+<PropertySignature name="showDropdownButton" type="boolean" />
+
+กำหนดว่าจะแสดงปุ่มเปิดปฏิทินหรือไม่ ค่าเริ่มต้นของ property นี้คือ true
+
+<ShowDropdownButtonDemo />
+
+```tsx
+<InputDate defaultValue={new Date()} showDropdownButton={false} />
+```
+
+### monthCount
+
+<PropertySignature name="monthCount" type="number" />
+
+จำนวนเดือนที่แสดงพร้อมกันในปฏิทิน ค่าเริ่มต้นของ property นี้คือ 1
+
+<MonthCountDemo />
+
+```tsx
+<InputDate defaultValue={new Date()} monthCount={2} />
+```
+
+### isReadOnly
+
+<PropertySignature name="isReadOnly" type="boolean" />
+
+เมื่อเป็น true ผู้ใช้แก้ไขค่าไม่ได้ แต่ยังคง focus เลือกข้อความ และคัดลอกค่าได้ตามปกติ (มักใช้คู่กับ showDropdownButton={'{false}'})
+
+ค่าเริ่มต้น (default): false
+
+<ReadOnlyDemo />
+
+```tsx
+<InputDate defaultValue={new Date()} isReadOnly showDropdownButton={false} />
+```
+
+### isDisabled
+
+<PropertySignature name="isDisabled" type="boolean" />
+
+เมื่อเป็น true ปิดการใช้งานทั้งหมด พิมพ์, เปิดปฏิทิน, และ focus ไม่ได้ แสดงผลจางลงเพื่อสื่อว่าใช้งานไม่ได้
+
+ค่าเริ่มต้น (default): false
+
+<DisabledDemo />
+
+```tsx
+<InputDate defaultValue={new Date()} isDisabled />
+```
