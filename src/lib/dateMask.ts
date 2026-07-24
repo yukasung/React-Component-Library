@@ -126,9 +126,20 @@ function applyLiteralKeystroke(
   }
   const located = locateSegment(prevDraft, segments, edit.start)
   if (!located || located.digits.length === 0) return 'reject'
+  // A partial day/month whose typed digits aren't themselves a valid value
+  // (e.g. "0", a valid prefix of "01"-"09" but not a valid standalone
+  // month/day) can't be finalized by an early separator either — reject it
+  // so the user has to type the second digit, same rule the auto-advance
+  // timeout applies (see pendingAdvanceAtCursor). Range-less Y/y is exempt
+  // (any digits are "valid"), matching its existing force-advance behavior.
+  const { segment, digits } = located
+  if (segment.min !== undefined && segment.max !== undefined && digits.length < segment.width) {
+    const value = Number(digits)
+    if (value < segment.min || value > segment.max) return 'reject'
+  }
   const next = segments[located.index + 1]
   if (!next || next.type !== 'literal' || !next.text.startsWith(char)) return 'reject'
-  return applyAcceptedDigit(prevDraft, segments, located, { digits: located.digits, done: true })
+  return applyAcceptedDigit(prevDraft, segments, located, { digits, done: true })
 }
 
 // Fallback for a multi-character insert (paste, autofill, IME commit) —
@@ -226,6 +237,50 @@ function rebuildFromRawEdit(
 ): { draft: string; cursor: number } {
   const rawNext = prevDraft.slice(0, edit.start) + edit.inserted + prevDraft.slice(edit.start + edit.removedCount)
   return rebuildFromDigits(segments, rawNext.replace(/\D/g, ''))
+}
+
+// Finalizes the ambiguous day/month segment the cursor is *currently sitting
+// in* (finalize = force-advance it as-is, the same thing applyAcceptedDigit
+// does for an explicit early separator keystroke, just triggered without
+// one), or returns null when the cursor's segment isn't an ambiguous open
+// one. Drives InputDate's pending-advance timeout: after a short pause on an
+// ambiguous digit like day "1", auto-complete it — matching the common
+// native-date-input/masked-input pattern of pairing an explicit-separator
+// path with a timeout rather than requiring one or the other.
+//
+// Cursor-scoped on purpose, NOT a global "find the first open segment
+// anywhere" scan (which an earlier version was, and which was the bug): a
+// day force-advanced to a single digit — e.g. "3/" — stays a 1-digit,
+// "still technically open" segment forever, so a global scan keeps finding
+// *it* even after the user has typed past it into the month/year, and would
+// then schedule a spurious re-flush that yanks the cursor back to that old
+// day segment. Only the segment actually under the cursor is a candidate,
+// and only when the cursor sits right at the end of its single typed digit
+// (i.e. it was just typed and is waiting for a possible second digit).
+//
+// Returns null for Y/y even when open — they have no min/max, so
+// acceptDigit never leaves them in an "ambiguous, could stop here" state
+// (only a genuinely-incomplete one that must be typed out in full), and
+// there's nothing to auto-advance.
+export function pendingAdvanceAtCursor(
+  segments: DateMaskSegment[],
+  draft: string,
+  cursor: number,
+): { draft: string; cursor: number } | null {
+  const located = locateSegment(draft, segments, cursor)
+  if (!located) return null
+  const { segment, digits, digitsStart } = located
+  if (segment.min === undefined || segment.max === undefined) return null
+  if (digits.length === 0 || digits.length >= segment.width) return null
+  if (cursor !== digitsStart + digits.length) return null
+  // Only auto-advance a single digit that's itself a valid value. "0" (for a
+  // min-1 month/day) is a valid *prefix* of "01"-"09" but not a valid
+  // standalone value — finalizing it to a bare "0" would commit to a wrong
+  // date (flatpickr reads month "0" as December of the previous year), so it
+  // stays open, waiting for the second digit, instead of auto-advancing.
+  const value = Number(digits)
+  if (value < segment.min || value > segment.max) return null
+  return applyAcceptedDigit(draft, segments, located, { digits, done: true })
 }
 
 // Used by InputDate's Backspace/Delete handling to decide whether the

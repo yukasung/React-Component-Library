@@ -166,31 +166,54 @@ describe('InputNumber', () => {
     // enabled, and formatted fields alike), so typing right after
     // focusing always replaces the value instead of editing into the
     // middle of whatever was there before.
+    //
+    // selectAllOnFocus (src/lib/domSelection.ts) defers via a zero-delay
+    // setTimeout -- required for WebKit/Safari, where a synchronous
+    // .select() in the focus handler gets silently overwritten by the
+    // browser's own native click-cursor-positioning (confirmed
+    // empirically, not just reasoned about) -- so each test here advances
+    // fake timers past that delay before asserting.
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
     it('on a plain field with no format or step', () => {
+      vi.useFakeTimers()
       render(<InputNumber value={1234.5} onChange={() => {}} />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
 
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
 
       expect(input.selectionStart).toBe(0)
       expect(input.selectionEnd).toBe(input.value.length)
     })
 
     it('on a field with step (spin buttons) but no format', () => {
+      vi.useFakeTimers()
       render(<InputNumber value={5} step={1} onChange={() => {}} />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
 
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
 
       expect(input.selectionStart).toBe(0)
       expect(input.selectionEnd).toBe(input.value.length)
     })
 
     it('on a formatted field', () => {
+      vi.useFakeTimers()
       render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
 
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
 
       expect(input.selectionStart).toBe(0)
       expect(input.selectionEnd).toBe(input.value.length)
@@ -1153,7 +1176,21 @@ describe('InputNumber', () => {
       render(<InputNumber value={-5} onChange={() => {}} format="c0" />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
 
+      // selectAllOnFocus's select-everything-on-focus is deferred (see its
+      // own doc comment) -- fake timers must be active *before* .focus()
+      // schedules that setTimeout, so advancing them actually flushes it
+      // rather than controlling a separate, already-real timer. Flushing it
+      // here first, before this test's own explicit repositioning, matches
+      // the deterministic ordering a real synchronous focus+select used to
+      // guarantee (the explicit setSelectionRange below still wins, it just
+      // needs the deferred call to have already run so there's something
+      // to win against).
+      vi.useFakeTimers()
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+      vi.useRealTimers()
       input.setSelectionRange(1, 1)
       await user.keyboard('{Backspace}')
 
@@ -1167,7 +1204,12 @@ describe('InputNumber', () => {
 
       // Cursor placed after the decimal point, well past where a literal
       // "-" character could ever be validly inserted.
+      vi.useFakeTimers()
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+      vi.useRealTimers()
       input.setSelectionRange(input.value.length, input.value.length)
       await user.keyboard('-')
 
@@ -1180,7 +1222,12 @@ describe('InputNumber', () => {
       const input = screen.getByRole('spinbutton') as HTMLInputElement
       expect(input).toHaveValue('($1,234.50)')
 
+      vi.useFakeTimers()
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+      vi.useRealTimers()
       input.setSelectionRange(1, 1)
       await user.keyboard('-')
 
@@ -1277,14 +1324,24 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const { rerender } = render(<InputNumber value={0.5} onChange={() => {}} format="p0" />)
       let input = screen.getByRole('spinbutton') as HTMLInputElement
+      vi.useFakeTimers()
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+      vi.useRealTimers()
       input.setSelectionRange(1, 1)
       await user.keyboard('-')
       expect(input).toHaveValue('-50%')
 
       rerender(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
       input = screen.getByRole('spinbutton') as HTMLInputElement
+      vi.useFakeTimers()
       input.focus()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+      vi.useRealTimers()
       input.setSelectionRange(input.value.length, input.value.length)
       await user.keyboard('-')
       expect(input).toHaveValue('-1,234.50')

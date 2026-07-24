@@ -1,6 +1,6 @@
 import { createRef, StrictMode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputDate } from './InputDate'
 
@@ -150,13 +150,40 @@ describe('InputDate', () => {
   })
 
   it('selects the whole value on focus', () => {
+    // selectAllOnFocus (src/lib/domSelection.ts) defers via a zero-delay
+    // setTimeout -- required for WebKit/Safari, where a synchronous
+    // .select() in the focus handler gets silently overwritten by the
+    // browser's own native click-cursor-positioning (confirmed empirically,
+    // not just reasoned about) -- so the selection isn't applied until that
+    // timer fires.
+    vi.useFakeTimers()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
     const input = screen.getByRole('combobox') as HTMLInputElement
 
     input.focus()
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
 
     expect(input.selectionStart).toBe(0)
     expect(input.selectionEnd).toBe(input.value.length)
+    vi.useRealTimers()
+  })
+
+  it('does not select on focus if the field is blurred before the deferred timer fires', () => {
+    vi.useFakeTimers()
+    render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
+    const input = screen.getByRole('combobox') as HTMLInputElement
+
+    input.focus()
+    input.blur()
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
+
+    // No selection left behind on an unfocused field.
+    expect(input.selectionStart).toBe(input.selectionEnd)
+    vi.useRealTimers()
   })
 
   describe('min / max', () => {
@@ -727,6 +754,78 @@ describe('InputDate', () => {
       expect(input.selectionStart).toBe(2)
     })
 
+    it('places the cursor at the start of the next segment after a digit following an explicit separator', () => {
+      // Regression case: "3" (day, force-advanced via an explicit "/") then
+      // "2" (month, auto-advances on its own) — the "/" step's masked
+      // result happens to textually equal what the browser already typed,
+      // which previously caused the cursor correction for *that* step to
+      // be skipped. Harmless on its own, but left the DOM's cursor
+      // dependent on an assumption about the browser's own post-keystroke
+      // placement that isn't guaranteed to hold across engines.
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      typeChar(input, '3')
+      typeChar(input, '/')
+      typeChar(input, '2')
+
+      expect(input).toHaveValue('3/2/')
+      expect(input.selectionStart).toBe(4)
+    })
+
+    describe('unpadded tokens (n/j)', () => {
+      it('masks n/j identically to m/d while typing (no forced zero-padding)', () => {
+        render(<InputDate defaultValue={null} isRequired={false} format="j/n/Y" />)
+        const input = screen.getByRole('combobox') as HTMLInputElement
+
+        typeChar(input, '5') // day 4-9 auto-advances as a complete 1-digit value
+        expect(input).toHaveValue('5/')
+        typeChar(input, '7') // month 2-9 auto-advances the same way
+        expect(input).toHaveValue('5/7/')
+      })
+
+      it('requires an explicit separator to advance past an ambiguous leading digit, same as m/d', () => {
+        render(<InputDate defaultValue={null} isRequired={false} format="j/n/Y" />)
+        const input = screen.getByRole('combobox') as HTMLInputElement
+
+        // "1" is genuinely ambiguous (could become "1" or continue to
+        // "10"-"19") -- confirmed with the user that requiring an explicit
+        // "/" (rather than an auto-advance timeout) is the intended
+        // behavior here, matching the padded tokens exactly.
+        typeChar(input, '1')
+        expect(input).toHaveValue('1')
+
+        typeChar(input, '/')
+        expect(input).toHaveValue('1/')
+      })
+
+      it('combines two digits typed back-to-back into the same segment without an explicit separator', () => {
+        render(<InputDate defaultValue={null} isRequired={false} format="j/n/Y" />)
+        const input = screen.getByRole('combobox') as HTMLInputElement
+
+        // Without an explicit "/" in between, "1" then "7" forms day "17",
+        // not day "1" + month "7" -- this is what the explicit-separator
+        // requirement above exists to disambiguate.
+        typeChar(input, '1')
+        typeChar(input, '7')
+        expect(input).toHaveValue('17/')
+      })
+
+      it('commits and re-displays an unpadded value without leading zeros', async () => {
+        const onChange = vi.fn()
+        render(<InputDate value={null} onChange={onChange} isRequired={false} format="j/n/Y" />)
+        const input = screen.getByRole('combobox') as HTMLInputElement
+
+        typeChar(input, '5') // day, auto-advances
+        typeChar(input, '7') // month, auto-advances
+        for (const digit of ['2', '0', '2', '6']) typeChar(input, digit)
+        fireEvent.blur(input)
+
+        expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 5))
+        expect(input).toHaveValue('5/7/2026')
+      })
+    })
+
     it('two-press Backspace steps over a separator before deleting the digit before it', () => {
       render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
       const input = screen.getByRole('combobox') as HTMLInputElement
@@ -815,6 +914,134 @@ describe('InputDate', () => {
 
       expect(input).toHaveValue('2569-')
       expect(input.selectionStart).toBe(5)
+    })
+  })
+
+  describe('pending-advance timeout (ambiguous digits)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('auto-advances an ambiguous digit after the delay with no further typing', () => {
+      vi.useFakeTimers()
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      input.focus()
+
+      fireEvent.change(input, { target: { value: '1' } })
+      expect(input).toHaveValue('1') // still open, awaiting a possible 2nd digit
+
+      act(() => {
+        vi.advanceTimersByTime(1200)
+      })
+
+      expect(input).toHaveValue('1/')
+      expect(input.selectionStart).toBe(2)
+    })
+
+    it('a keystroke within the delay window cancels and reschedules it', () => {
+      vi.useFakeTimers()
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      input.focus()
+
+      fireEvent.change(input, { target: { value: '1' } })
+      act(() => {
+        vi.advanceTimersByTime(300) // well within the 1200ms window
+      })
+      fireEvent.change(input, { target: { value: '12' } }) // completes day as "12"
+
+      expect(input).toHaveValue('12/')
+
+      // The original timeout must not have survived to fire on top of this.
+      act(() => {
+        vi.advanceTimersByTime(1200)
+      })
+      expect(input).toHaveValue('12/')
+    })
+
+    it('does not apply to a not-yet-complete year segment', () => {
+      vi.useFakeTimers()
+      render(<InputDate defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      input.focus()
+
+      fireEvent.change(input, { target: { value: '202' } }) // 3 of 4 year digits
+      act(() => {
+        vi.advanceTimersByTime(1200)
+      })
+
+      // Year has no "ambiguous, could stop here" state -- still incomplete,
+      // untouched by the timeout.
+      expect(input).toHaveValue('202')
+    })
+
+    it('does not schedule an advance for a single-digit segment the cursor has already moved past', () => {
+      // Regression for the reported cursor-jump bug: with format j/n/Y,
+      // day "3" force-advanced (via its own timeout) to "3/", then month
+      // "3" auto-advances to "3/3/" with the cursor at 4 (in the year). The
+      // day "3" is still a 1-digit "open-looking" segment, but the cursor
+      // is past it -- an earlier global open-segment scan scheduled a
+      // spurious advance here that fired after the delay and yanked the
+      // cursor back to 2. It must stay at 4.
+      vi.useFakeTimers()
+      render(<InputDate defaultValue={null} isRequired={false} format="j/n/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      input.focus()
+
+      fireEvent.change(input, { target: { value: '3' } }) // day, ambiguous
+      act(() => {
+        vi.advanceTimersByTime(1200) // day auto-advances to "3/"
+      })
+      expect(input).toHaveValue('3/')
+
+      fireEvent.change(input, { target: { value: '3/3' } }) // month "3" auto-advances
+      expect(input).toHaveValue('3/3/')
+      expect(input.selectionStart).toBe(4)
+
+      act(() => {
+        vi.advanceTimersByTime(1200) // no stale timeout may fire and move the cursor
+      })
+      expect(input).toHaveValue('3/3/')
+      expect(input.selectionStart).toBe(4)
+    })
+
+    it('clears the pending timeout on blur so it cannot fire afterward', () => {
+      vi.useFakeTimers()
+      const onChange = vi.fn()
+      render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} isRequired={false} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      input.focus()
+
+      fireEvent.change(input, { target: { value: '1' } }) // ambiguous, schedules a pending advance
+      fireEvent.blur(input) // commitDraft() cancels it
+      const callsAfterBlur = onChange.mock.calls.length
+
+      act(() => {
+        vi.advanceTimersByTime(1200)
+      })
+
+      // The cancelled timeout must not still fire and mutate the
+      // already-blurred field's draft out from under it later.
+      expect(onChange.mock.calls.length).toBe(callsAfterBlur)
+    })
+
+    it('clears the pending timeout on Escape so it cannot fire afterward', () => {
+      vi.useFakeTimers()
+      render(<InputDate defaultValue={new Date(2026, 6, 15)} isRequired={false} format="d-m-Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      input.focus()
+
+      fireEvent.change(input, { target: { value: '1' } }) // ambiguous day digit, schedules a pending advance
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input).toHaveValue('15-07-2026') // reverted to the formatted committed value
+
+      act(() => {
+        vi.advanceTimersByTime(1200)
+      })
+
+      // The cancelled timeout must not overwrite the just-reverted draft.
+      expect(input).toHaveValue('15-07-2026')
     })
   })
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { tokenizeDateMask } from './date'
-import { applyDateMask, diffStrings, isLiteralCharAt } from './dateMask'
+import { applyDateMask, diffStrings, isLiteralCharAt, pendingAdvanceAtCursor } from './dateMask'
 
 describe('diffStrings', () => {
   it('finds a single character inserted at the end', () => {
@@ -62,6 +62,21 @@ describe('applyDateMask', () => {
   it('keeps a month leading digit 0-1 open, awaiting a possible 2nd digit', () => {
     const edit = diffStrings('', '1')
     expect(applyDateMask(mdy, '', edit)).toEqual({ draft: '1', cursor: 1 })
+  })
+
+  it('keeps a leading "0" open (valid prefix of 01-09, not a valid standalone month)', () => {
+    const edit = diffStrings('', '0')
+    expect(applyDateMask(mdy, '', edit)).toEqual({ draft: '0', cursor: 1 })
+  })
+
+  it('completes a leading-zero month once the 2nd digit arrives', () => {
+    const edit = diffStrings('0', '05')
+    expect(applyDateMask(mdy, '0', edit)).toEqual({ draft: '05/', cursor: 3 })
+  })
+
+  it('rejects an explicit separator after a bare "0" (0 is not a valid standalone month)', () => {
+    const edit = diffStrings('0', '0/')
+    expect(applyDateMask(mdy, '0', edit)).toBe('reject')
   })
 
   it('completes a 2-digit month when the combined value is valid', () => {
@@ -165,6 +180,68 @@ describe('applyDateMask', () => {
     // segment alone.
     const edit = { start: 0, removedCount: 10, inserted: '9' }
     expect(applyDateMask(ymd, '2026-07-23', edit)).toEqual({ draft: '9', cursor: 1 })
+  })
+})
+
+describe('pendingAdvanceAtCursor', () => {
+  const dmy = tokenizeDateMask('d/m/Y')!
+  const jny = tokenizeDateMask('j/n/Y')!
+  const ymd = tokenizeDateMask('Y-m-d')!
+
+  it('finalizes the open day segment the cursor sits in, auto-inserting the trailing separator', () => {
+    expect(pendingAdvanceAtCursor(dmy, '1', 1)).toEqual({ draft: '1/', cursor: 2 })
+  })
+
+  it('finalizes an open month segment the cursor sits in, not just the first segment', () => {
+    // "31/1" with the cursor right after the month's single "1".
+    expect(pendingAdvanceAtCursor(dmy, '31/1', 4)).toEqual({ draft: '31/1/', cursor: 5 })
+  })
+
+  it('returns null for an open segment the cursor has already moved PAST (the core bug)', () => {
+    // Day "3" force-advanced to "3/", month "3" then auto-advanced to
+    // "3/3/", cursor now at 4 (in the year). The day "3" is still a 1-digit
+    // "open-looking" segment, but the cursor isn't in it -- must NOT
+    // schedule an advance that would drag the cursor back to position 2.
+    expect(pendingAdvanceAtCursor(jny, '3/3/', 4)).toBeNull()
+  })
+
+  it('returns null when the cursor sits in an already-complete (2-digit) segment', () => {
+    expect(pendingAdvanceAtCursor(dmy, '31/12/2026', 2)).toBeNull()
+  })
+
+  it('returns null for a bare "0" -- not a valid standalone month, must not auto-advance to an invalid "0"', () => {
+    const mdy = tokenizeDateMask('m/d/Y')!
+    expect(pendingAdvanceAtCursor(mdy, '0', 1)).toBeNull()
+  })
+
+  it('auto-advances "0" once it becomes a valid 2-digit month prefix... i.e. still null at 1 digit, advances only when valid', () => {
+    // "1" is a valid standalone month (January), so it does auto-advance,
+    // unlike "0".
+    const mdy = tokenizeDateMask('m/d/Y')!
+    expect(pendingAdvanceAtCursor(mdy, '1', 1)).toEqual({ draft: '1/', cursor: 2 })
+  })
+
+  it('returns null when the cursor is not at the end of the open segment digits', () => {
+    // Cursor at position 0, before the "1" -- not the "just typed, waiting
+    // for a possible 2nd digit" state, so no auto-advance.
+    expect(pendingAdvanceAtCursor(dmy, '1', 0)).toBeNull()
+  })
+
+  it('returns null for an empty draft', () => {
+    expect(pendingAdvanceAtCursor(dmy, '', 0)).toBeNull()
+  })
+
+  it('returns null for a not-yet-complete Y segment -- year is never "ambiguous", only incomplete', () => {
+    expect(pendingAdvanceAtCursor(ymd, '202', 3)).toBeNull()
+  })
+
+  it('returns null for a not-yet-complete y (2-digit year) segment', () => {
+    const y2md = tokenizeDateMask('y-m-d')!
+    expect(pendingAdvanceAtCursor(y2md, '2', 1)).toBeNull()
+  })
+
+  it('works identically for unpadded j/n tokens (same width/range as d/m)', () => {
+    expect(pendingAdvanceAtCursor(jny, '1', 1)).toEqual({ draft: '1/', cursor: 2 })
   })
 })
 

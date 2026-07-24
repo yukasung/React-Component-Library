@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useId, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
 import { useSyncedState } from '../../hooks/useSyncedState'
-import { applySelection } from '../../lib/domSelection'
+import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
 import {
   applyPrecision,
   clamp,
@@ -630,8 +630,10 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
             // Numeric fields are usually edited as a whole value rather
             // than character-by-character — selecting everything on focus
             // lets the user just start typing to replace it, instead of
-            // having to select-all themselves first.
-            event.currentTarget.select()
+            // having to select-all themselves first. Deferred (see
+            // selectAllOnFocus's own doc comment) — a synchronous
+            // .select() here doesn't reliably work in WebKit/Safari.
+            selectAllOnFocus(event.currentTarget)
           }}
           onBlur={() => {
             setIsFocused(false)

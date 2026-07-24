@@ -98,10 +98,20 @@ export function MinMaxDemo() {
   )
 }
 
-const FORMAT_DEMO_TOKENS = ['Y-m-d', 'd/m/Y', 'm/d/Y', 'y-m-d'] as const
+const FORMAT_DEMO_ROWS = [
+  { format: 'Y-m-d', defaultValue: new Date(2026, 6, 22) },
+  { format: 'd/m/Y', defaultValue: new Date(2026, 6, 22) },
+  { format: 'm/d/Y', defaultValue: new Date(2026, 6, 22) },
+  { format: 'y-m-d', defaultValue: new Date(2026, 6, 22) },
+  // day=5/month=7 (both single-digit) so j/n's "no leading zero" behavior is
+  // actually visible -- "22" wouldn't show any difference from d's padded
+  // "22", unlike the other rows above.
+  { format: 'j/n/Y', defaultValue: new Date(2026, 6, 5) },
+  { format: 'n/j/Y', defaultValue: new Date(2026, 6, 5) },
+] as const
 
-function FormatDemoRow({ format }: { format: (typeof FORMAT_DEMO_TOKENS)[number] }) {
-  const [value, setValue] = useState<Date | null>(new Date(2026, 6, 22))
+function FormatDemoRow({ format, defaultValue }: { format: string; defaultValue: Date }) {
+  const [value, setValue] = useState<Date | null>(defaultValue)
 
   return (
     <div className="flex items-center gap-3">
@@ -114,8 +124,8 @@ function FormatDemoRow({ format }: { format: (typeof FORMAT_DEMO_TOKENS)[number]
 export function FormatDemo() {
   return (
     <div className="not-prose my-6 flex max-w-xs flex-col gap-3">
-      {FORMAT_DEMO_TOKENS.map((format) => (
-        <FormatDemoRow key={format} format={format} />
+      {FORMAT_DEMO_ROWS.map(({ format, defaultValue }) => (
+        <FormatDemoRow key={format} format={format} defaultValue={defaultValue} />
       ))}
     </div>
   )

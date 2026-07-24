@@ -15,3 +15,21 @@ export function applySelection(el: HTMLInputElement, start: number, end: number)
     if (document.activeElement === el) el.setSelectionRange(start, end)
   })
 }
+
+// Calling .select() synchronously inside a focus handler doesn't reliably
+// select anything in WebKit/Safari specifically, when focus was triggered
+// by a real click: confirmed empirically (via Playwright's WebKit engine,
+// not just reasoned about) that a real click's own native cursor
+// positioning runs *after* the focus event fires there, silently
+// overwriting a synchronous .select() call — the field is left with a
+// collapsed cursor at the click position instead of a full selection.
+// Chromium doesn't have this ordering issue (a synchronous call sticks
+// there), but deferring with a zero-delay setTimeout works consistently on
+// both, since it always runs after whatever native positioning the click
+// does. Shared by InputNumber and InputDate's "select the whole value on
+// focus" behavior, both of which hit this the same way.
+export function selectAllOnFocus(el: HTMLInputElement): void {
+  setTimeout(() => {
+    if (document.activeElement === el) el.select()
+  }, 0)
+}
