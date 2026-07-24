@@ -1,6 +1,7 @@
 import { Callout } from 'nextra/components'
 import {
   CloseOnSelectionDemo,
+  DateRangeDemo,
   DefaultDemo,
   DisabledDemo,
   FormatDemo,
@@ -122,6 +123,20 @@ const [value, setValue] = useState<Date | null>(new Date())
 
 ```tsx
 <InputDate min={new Date(2026, 6, 10)} max={new Date(2026, 6, 20)} defaultValue={new Date(2026, 6, 15)} />
+```
+
+#### ช่วงวันที่ (วันเริ่มต้น / วันสิ้นสุด)
+
+min และ max รับค่าเป็น state ได้ จึงผูก InputDate สองตัวให้เป็นช่วงวันที่ได้โดยตรง — ตั้ง max ของช่องเริ่มต้นให้เท่ากับค่าของช่องสิ้นสุด และตั้ง min ของช่องสิ้นสุดให้เท่ากับค่าของช่องเริ่มต้น ขอบเขตจะอัปเดตตามกันทันทีเมื่ออีกฝั่งเปลี่ยน ทั้งตอนพิมพ์และในปฏิทิน
+
+<DateRangeDemo />
+
+```tsx
+const [start, setStart] = useState<Date | null>(null)
+const [end, setEnd] = useState<Date | null>(null)
+
+<InputDate value={start} onChange={setStart} max={end} />
+<InputDate value={end} onChange={setEnd} min={start} />
 ```
 
 ### format

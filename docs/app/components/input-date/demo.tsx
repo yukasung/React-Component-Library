@@ -98,6 +98,28 @@ export function MinMaxDemo() {
   )
 }
 
+export function DateRangeDemo() {
+  const [start, setStart] = useState<Date | null>(new Date(2026, 6, 10))
+  const [end, setEnd] = useState<Date | null>(new Date(2026, 6, 20))
+
+  return (
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
+      <div>
+        <label htmlFor="demo-range-start" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          วันเริ่มต้น (max = วันสิ้นสุด)
+        </label>
+        <InputDate id="demo-range-start" value={start} onChange={setStart} max={end} isRequired={false} />
+      </div>
+      <div>
+        <label htmlFor="demo-range-end" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          วันสิ้นสุด (min = วันเริ่มต้น)
+        </label>
+        <InputDate id="demo-range-end" value={end} onChange={setEnd} min={start} isRequired={false} />
+      </div>
+    </div>
+  )
+}
+
 const FORMAT_DEMO_ROWS = [
   { format: 'Y-m-d', defaultValue: new Date(2026, 6, 22) },
   { format: 'd/m/Y', defaultValue: new Date(2026, 6, 22) },
