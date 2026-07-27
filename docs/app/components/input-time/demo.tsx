@@ -246,20 +246,16 @@ export function HandleWheelDemo() {
   )
 }
 
-export function IsOpenDemo() {
+export function OnOpenChangeDemo() {
   const [isOpen, setIsOpen] = useState(false)
   const [value, setValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        className="mb-3 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-      >
-        {isOpen ? 'ปิดรายการเวลา' : 'เปิดรายการเวลา'}
-      </button>
-      <InputTime value={value} onChange={setValue} isOpen={isOpen} onOpenChange={setIsOpen} step={30} />
+      <InputTime value={value} onChange={setValue} onOpenChange={setIsOpen} step={30} />
+      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+        ตอนนี้รายการเวลา{isOpen ? 'เปิดอยู่' : 'ปิดอยู่'}
+      </p>
     </div>
   )
 }

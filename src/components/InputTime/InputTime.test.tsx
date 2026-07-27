@@ -487,12 +487,17 @@ describe('InputTime', () => {
       expect(screen.queryByRole('listbox')).toBeNull()
     })
 
-    it('opens when the controlled isOpen prop becomes true', () => {
-      const { rerender } = render(<InputTime defaultValue={at(9)} isOpen={false} onOpenChange={() => {}} />)
-      expect(screen.queryByRole('listbox')).toBeNull()
+    it('reports every open and close through onOpenChange exactly once', async () => {
+      const user = userEvent.setup()
+      const onOpenChange = vi.fn()
+      render(<InputTime defaultValue={at(9)} onOpenChange={onOpenChange} min={at(9)} max={at(10)} step={30} />)
 
-      rerender(<InputTime defaultValue={at(9)} isOpen onOpenChange={() => {}} />)
-      expect(screen.getByRole('listbox')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      await user.click(screen.getByRole('option', { name: '09:30' }))
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      await user.keyboard('{Escape}')
+
+      expect(onOpenChange.mock.calls.map(([open]) => open)).toEqual([true, false, true, false])
     })
 
     it('calls onOpenChange when the dropdown button toggles the list', async () => {

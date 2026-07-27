@@ -9,8 +9,9 @@ export interface UseTimeDropdownOptions {
   // isn't one of the listed times. Where the highlight starts from each
   // time the list opens.
   selectedIndex: number
-  // Controlled open state; undefined leaves the hook to own it.
-  isOpen: boolean | undefined
+  // Fired whenever the list opens or closes. The open state itself is owned
+  // here, not by the consumer — the component exposes the notification but
+  // not control over it.
   onOpenChange: (isOpen: boolean) => void
 }
 
@@ -41,14 +42,12 @@ export interface UseTimeDropdownResult {
 export function useTimeDropdown({
   itemCount,
   selectedIndex,
-  isOpen,
   onOpenChange,
 }: UseTimeDropdownOptions): UseTimeDropdownResult {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
-  const [internalOpen, setInternalOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
   const [storedIndex, setHighlightedIndex] = useState(selectedIndex)
-  const resolvedOpen = isOpen ?? internalOpen
   // Clamped on read rather than corrected by an effect: a shrinking list (a
   // narrower min/max, or a coarser step) can strand the stored index past
   // the end, and fixing that with state-that-fixes-state costs an extra
@@ -67,31 +66,29 @@ export function useTimeDropdown({
   // object every render anyway, so memoizing them buys no stability and
   // only adds dep arrays to keep correct.
   function setOpen(next: boolean) {
-    // Internal state is tracked even while `isOpen` is controlling the
-    // popup, so handing control back (isOpen -> undefined) doesn't snap
-    // the list to a state the consumer never saw.
-    setInternalOpen(next)
-    if (next !== resolvedOpen) onOpenChangeRef.current(next)
+    if (next === isOpen) return
+    setIsOpen(next)
+    onOpenChangeRef.current(next)
   }
 
   const open = () => setOpen(true)
   const close = () => setOpen(false)
-  const toggle = () => setOpen(!resolvedOpen)
+  const toggle = () => setOpen(!isOpen)
   closeRef.current = close
 
   // Opening always starts from the current value rather than from wherever
   // the highlight was left last time — reopening a list to find it pointing
   // at an entry the user rejected earlier is disorienting.
   useEffect(() => {
-    if (resolvedOpen) setHighlightedIndex(selectedIndex)
+    if (isOpen) setHighlightedIndex(selectedIndex)
     // selectedIndex deliberately excluded: this is "reset on open", not
     // "follow the value while open" (the latter would fight Arrow-key
     // navigation, which moves the highlight without committing).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedOpen])
+  }, [isOpen])
 
   useEffect(() => {
-    if (!resolvedOpen) return
+    if (!isOpen) return
     function handlePointerDown(event: MouseEvent) {
       if (rootRef.current?.contains(event.target as Node)) return
       closeRef.current()
@@ -101,21 +98,21 @@ export function useTimeDropdown({
     // started inside the list but ended outside it counting as a click-away.
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [resolvedOpen])
+  }, [isOpen])
 
   // Scrolls the highlighted entry into view by setting scrollTop directly
   // rather than calling scrollIntoView: the latter scrolls the whole page
   // to reach the popup in some browsers, and isn't implemented in jsdom at
   // all, which would make every test touching the list throw.
   useEffect(() => {
-    if (!resolvedOpen) return
+    if (!isOpen) return
     const list = listRef.current
     const item = list?.children[highlightedIndex] as HTMLElement | undefined
     if (!list || !item) return
     const itemBottom = item.offsetTop + item.offsetHeight
     if (item.offsetTop < list.scrollTop) list.scrollTop = item.offsetTop
     else if (itemBottom > list.scrollTop + list.clientHeight) list.scrollTop = itemBottom - list.clientHeight
-  }, [resolvedOpen, highlightedIndex])
+  }, [isOpen, highlightedIndex])
 
   function moveHighlight(direction: 1 | -1) {
     setHighlightedIndex((current) => {
@@ -127,7 +124,7 @@ export function useTimeDropdown({
   }
 
   return {
-    isOpen: resolvedOpen,
+    isOpen,
     rootRef,
     listRef,
     open,
