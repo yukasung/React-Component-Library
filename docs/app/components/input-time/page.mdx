@@ -12,7 +12,6 @@ import {
   MaxDropdownHeightDemo,
   MinMaxDemo,
   NoStepDemo,
-  OnOpenChangeDemo,
   ReadOnlyDemo,
   ShowDropdownButtonDemo,
   StepDemo,
@@ -261,25 +260,6 @@ const [text, setText] = useState('09:30')
 ```tsx
 <InputTime defaultValue={new Date()} />
 <InputTime defaultValue={new Date()} handleWheel />
-```
-
-### onOpenChange
-
-<PropertySignature name="onOpenChange" type="(isOpen: boolean) => void" />
-
-เรียกทุกครั้งที่รายการเวลาเปิดหรือปิด ไม่ว่าจะจากปุ่ม, การคลิกนอกช่อง, การเลือกเวลา หรือปุ่ม Escape
-
-<Callout type="info">
-  **Note**
-
-  เป็นการ**แจ้งสถานะ**อย่างเดียว — สถานะเปิด/ปิดเป็นของตัว control เอง ไม่มี property สำหรับสั่งเปิด/ปิดจากภายนอก
-</Callout>
-
-<OnOpenChangeDemo />
-
-```tsx
-const [isOpen, setIsOpen] = useState(false)
-<InputTime onOpenChange={setIsOpen} value={value} onChange={setValue} />
 ```
 
 ### closeOnSelection

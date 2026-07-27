@@ -77,10 +77,6 @@ export interface InputTimeProps
   // Steps through the dropdown's entries per wheel notch; opt-in and
   // focus-gated, same convention as InputNumber/InputDate.
   handleWheel?: boolean
-  // Fired whenever the dropdown opens or closes, by user action of any kind.
-  // Notification only — the open state itself belongs to the control, and
-  // there's deliberately no prop to drive it from outside.
-  onOpenChange?: (isOpen: boolean) => void
   closeOnSelection?: boolean
   showDropdownButton?: boolean
   // Height cap (px) for the scrollable list. A real necessity rather than a
@@ -151,7 +147,6 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     isEditable = true,
     hint,
     handleWheel = false,
-    onOpenChange,
     closeOnSelection = true,
     showDropdownButton = true,
     maxDropdownHeight = 200,
@@ -229,7 +224,6 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   const dropdown = useTimeDropdown({
     itemCount: times.length,
     selectedIndex: nearestTimeIndex(times, displayMinutes),
-    onOpenChange: (open) => onOpenChange?.(open),
   })
   // An empty list and "no dropdown" are the same state — see `times`.
   const hasDropdown = times.length > 0

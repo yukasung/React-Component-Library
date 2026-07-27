@@ -9,10 +9,6 @@ export interface UseTimeDropdownOptions {
   // isn't one of the listed times. Where the highlight starts from each
   // time the list opens.
   selectedIndex: number
-  // Fired whenever the list opens or closes. The open state itself is owned
-  // here, not by the consumer — the component exposes the notification but
-  // not control over it.
-  onOpenChange: (isOpen: boolean) => void
 }
 
 export interface UseTimeDropdownResult {
@@ -39,11 +35,7 @@ export interface UseTimeDropdownResult {
 // DOM. This popup is ordinary React-rendered markup, so there's no
 // DOM-ownership escape hatch here and no imperative instance to keep in
 // sync; the hook only owns the state the markup renders from.
-export function useTimeDropdown({
-  itemCount,
-  selectedIndex,
-  onOpenChange,
-}: UseTimeDropdownOptions): UseTimeDropdownResult {
+export function useTimeDropdown({ itemCount, selectedIndex }: UseTimeDropdownOptions): UseTimeDropdownResult {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -54,27 +46,13 @@ export function useTimeDropdown({
   // render pass and gives the same value two writers.
   const highlightedIndex = Math.min(storedIndex, itemCount - 1)
 
-  // Kept latest-in-a-ref so the document-level listener below can be bound
-  // once per open instead of re-bound on every render.
-  const onOpenChangeRef = useRef(onOpenChange)
-  onOpenChangeRef.current = onOpenChange
-  // Same reason: the listener closes over `close` but is bound once per open.
-  const closeRef = useRef<() => void>(() => {})
-
   // Plain functions, not useCallback — nothing consumes these as a
   // dependency or across a memo boundary, and the hook returns a fresh
   // object every render anyway, so memoizing them buys no stability and
   // only adds dep arrays to keep correct.
-  function setOpen(next: boolean) {
-    if (next === isOpen) return
-    setIsOpen(next)
-    onOpenChangeRef.current(next)
-  }
-
-  const open = () => setOpen(true)
-  const close = () => setOpen(false)
-  const toggle = () => setOpen(!isOpen)
-  closeRef.current = close
+  const open = () => setIsOpen(true)
+  const close = () => setIsOpen(false)
+  const toggle = () => setIsOpen((current) => !current)
 
   // Opening always starts from the current value rather than from wherever
   // the highlight was left last time — reopening a list to find it pointing
@@ -91,7 +69,9 @@ export function useTimeDropdown({
     if (!isOpen) return
     function handlePointerDown(event: MouseEvent) {
       if (rootRef.current?.contains(event.target as Node)) return
-      closeRef.current()
+      // setIsOpen is a stable useState setter, so this listener needs no
+      // latest-in-a-ref indirection to stay correct across renders.
+      setIsOpen(false)
     }
     // mousedown rather than click: closing on the way down matches how
     // native selects and the calendar popup behave, and avoids a click that

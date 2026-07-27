@@ -205,20 +205,6 @@ export function HandleWheelDemo() {
   )
 }
 
-export function OnOpenChangeDemo() {
-  const [value, setValue] = useState<Date | null>(new Date())
-  const [isOpen, setIsOpen] = useState(false)
-
-  return (
-    <div className="not-prose my-6 max-w-xs">
-      <InputDate value={value} onChange={setValue} onOpenChange={setIsOpen} />
-      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-        ตอนนี้ปฏิทิน{isOpen ? 'เปิดอยู่' : 'ปิดอยู่'}
-      </p>
-    </div>
-  )
-}
-
 export function CloseOnSelectionDemo() {
   const [closesValue, setClosesValue] = useState<Date | null>(new Date())
   const [staysValue, setStaysValue] = useState<Date | null>(new Date())

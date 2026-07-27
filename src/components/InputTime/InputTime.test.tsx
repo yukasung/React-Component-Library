@@ -487,29 +487,24 @@ describe('InputTime', () => {
       expect(screen.queryByRole('listbox')).toBeNull()
     })
 
-    it('reports every open and close through onOpenChange exactly once', async () => {
+    it('tracks the list state on aria-expanded through every way it opens and closes', async () => {
       const user = userEvent.setup()
-      const onOpenChange = vi.fn()
-      render(<InputTime defaultValue={at(9)} onOpenChange={onOpenChange} min={at(9)} max={at(10)} step={30} />)
+      render(<InputTime defaultValue={at(9)} min={at(9)} max={at(10)} step={30} />)
+      const input = screen.getByRole('combobox')
+      const button = screen.getByRole('button', { name: 'Toggle time list' })
+      expect(input).toHaveAttribute('aria-expanded', 'false')
 
-      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      await user.click(button)
+      expect(input).toHaveAttribute('aria-expanded', 'true')
+
       await user.click(screen.getByRole('option', { name: '09:30' }))
-      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      expect(input).toHaveAttribute('aria-expanded', 'false')
+
+      await user.click(button)
+      expect(input).toHaveAttribute('aria-expanded', 'true')
+
       await user.keyboard('{Escape}')
-
-      expect(onOpenChange.mock.calls.map(([open]) => open)).toEqual([true, false, true, false])
-    })
-
-    it('calls onOpenChange when the dropdown button toggles the list', async () => {
-      const user = userEvent.setup()
-      const onOpenChange = vi.fn()
-      render(<InputTime defaultValue={at(9)} onOpenChange={onOpenChange} />)
-
-      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
-      expect(onOpenChange).toHaveBeenLastCalledWith(true)
-
-      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
-      expect(onOpenChange).toHaveBeenLastCalledWith(false)
+      expect(input).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('marks the entry matching the value as selected', async () => {

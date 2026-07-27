@@ -418,7 +418,7 @@ describe('InputDate', () => {
     })
   })
 
-  describe('onOpenChange / monthCount', () => {
+  describe('calendar popup state / monthCount', () => {
     it('tracks the popup state on aria-expanded as the user opens and closes it', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
@@ -431,19 +431,6 @@ describe('InputDate', () => {
 
       await user.click(button)
       expect(input).toHaveAttribute('aria-expanded', 'false')
-    })
-
-    it('calls onOpenChange when the dropdown button toggles the popup', async () => {
-      const user = userEvent.setup()
-      const onOpenChange = vi.fn()
-      render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} onOpenChange={onOpenChange} />)
-      const button = screen.getByRole('button', { name: 'Toggle calendar' })
-
-      await user.click(button)
-      expect(onOpenChange).toHaveBeenCalledWith(true)
-
-      await user.click(button)
-      expect(onOpenChange).toHaveBeenCalledWith(false)
     })
 
     it('renders multiple months when monthCount is set', async () => {

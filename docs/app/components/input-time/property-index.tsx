@@ -13,7 +13,6 @@ const properties = [
   { name: 'hint', href: '#hint' },
   { name: 'text', href: '#text' },
   { name: 'handleWheel', href: '#handlewheel' },
-  { name: 'onOpenChange', href: '#onopenchange' },
   { name: 'closeOnSelection', href: '#closeonselection' },
   { name: 'showDropdownButton', href: '#showdropdownbutton' },
   { name: 'maxDropdownHeight', href: '#maxdropdownheight' },

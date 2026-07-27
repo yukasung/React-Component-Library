@@ -11,7 +11,6 @@ import {
   LocaleDemo,
   MinMaxDemo,
   MonthCountDemo,
-  OnOpenChangeDemo,
   ReadOnlyDemo,
   ShowDropdownButtonDemo,
   TextDemo,
@@ -219,25 +218,6 @@ const [text, setText] = useState('2026-07-22')
 ```tsx
 <InputDate defaultValue={new Date()} />
 <InputDate defaultValue={new Date()} handleWheel />
-```
-
-### onOpenChange
-
-<PropertySignature name="onOpenChange" type="(isOpen: boolean) => void" />
-
-เรียกทุกครั้งที่ปฏิทินเปิดหรือปิด ไม่ว่าจะจากปุ่ม, การคลิกนอกช่อง หรือการเลือกวันที่
-
-<Callout type="info">
-  **Note**
-
-  เป็นการ**แจ้งสถานะ**อย่างเดียว — สถานะเปิด/ปิดเป็นของตัว control เอง ไม่มี property สำหรับสั่งเปิด/ปิดจากภายนอก (เช่นเดียวกับ InputTime)
-</Callout>
-
-<OnOpenChangeDemo />
-
-```tsx
-const [isOpen, setIsOpen] = useState(false)
-<InputDate onOpenChange={setIsOpen} value={value} onChange={setValue} />
 ```
 
 ### closeOnSelection

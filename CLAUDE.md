@@ -48,11 +48,13 @@ Pure parsing/formatting/clamping logic lives in `src/lib/number.ts` (`parseDraft
 
 Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight. `InputTime`'s `isEditable` (mirroring Wijmo's own `isEditable`) belongs to the exception set too.
 
-### Dropdown open state is never a prop
+### Dropdown open state never leaves the component
 
-Neither `InputDate` nor `InputTime` has an `isOpen`. Their dropdown's open state belongs to the control; `onOpenChange` reports every open and close (button, click-away, selection, Escape) and nothing drives it from outside.
+Neither `InputDate` nor `InputTime` exposes its dropdown's open state at all — no `isOpen` to drive it, and no `onOpenChange` to observe it. The only outward trace is `aria-expanded` on the input.
 
-This is deliberately **narrower than Wijmo**, whose `isDroppedDown` is settable — so it is not a parity gap to be closed. Both components had a controlled `isOpen` at one point and it was removed on review; don't reintroduce one on the grounds that the reference API has it, or that a consumer could want it. If a real use case turns up, that's a decision to make deliberately, for both components at once.
+This is deliberately **narrower than Wijmo**, which has both halves (`isDroppedDown` as a settable property, `isDroppedDownChanged`/`isDroppedDownChanging` as events) — so neither absence is a parity gap to be closed. Both props existed at one point and were removed on review, in that order. Don't reintroduce either on the grounds that the reference API has it, that the sibling component has it, or that a consumer could plausibly want it. If a real use case turns up, that's a decision to make deliberately, for both components at once.
+
+Note this is the one place the library breaks its own "Wijmo event → `on*` prop" mapping (`valueChanged` → `onChange`, `textChanged` → `onTextChange`) — deliberately, and only here.
 
 ### `step` is the sole condition for the spin buttons / time dropdown (matches Wijmo)
 

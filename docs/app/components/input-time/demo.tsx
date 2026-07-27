@@ -246,20 +246,6 @@ export function HandleWheelDemo() {
   )
 }
 
-export function OnOpenChangeDemo() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [value, setValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))
-
-  return (
-    <div className="not-prose my-6 max-w-xs">
-      <InputTime value={value} onChange={setValue} onOpenChange={setIsOpen} step={30} />
-      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-        ตอนนี้รายการเวลา{isOpen ? 'เปิดอยู่' : 'ปิดอยู่'}
-      </p>
-    </div>
-  )
-}
-
 export function CloseOnSelectionDemo() {
   const [closingValue, setClosingValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))
   const [stayingValue, setStayingValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))

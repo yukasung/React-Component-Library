@@ -54,11 +54,6 @@ export interface InputDateProps
   // Day-step per wheel notch, opt-in + focus-gated, same convention as
   // InputNumber's handleWheel.
   handleWheel?: boolean
-  // Fired whenever the calendar popup opens or closes, by user action of any
-  // kind. Notification only — the open state itself belongs to the control,
-  // and there's deliberately no prop to drive it from outside (same as
-  // InputTime).
-  onOpenChange?: (isOpen: boolean) => void
   closeOnSelection?: boolean
   showDropdownButton?: boolean
   monthCount?: number
@@ -107,7 +102,6 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     isRequired = true,
     hint,
     handleWheel = false,
-    onOpenChange,
     closeOnSelection = true,
     showDropdownButton = true,
     monthCount = 1,
@@ -227,10 +221,9 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     yearOffset,
     committedValue,
     onPick: commit,
-    onOpenChange: (open) => {
-      setIsOpenState(open)
-      onOpenChange?.(open)
-    },
+    // Internal only — the popup's open state never leaves the component;
+    // this just keeps aria-expanded in step with it.
+    onOpenChange: setIsOpenState,
   })
 
   function handleToggleDropdown() {
