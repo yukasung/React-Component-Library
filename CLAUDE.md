@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `Grid`) styled with Tailwind CSS v4. Ships as an ESM package built from `src/` into `dist/`. React and Tailwind CSS are peer dependencies, not bundled.
+Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `InputTime`, `Grid`) styled with Tailwind CSS v4. Ships as an ESM package built from `src/` into `dist/`. React and Tailwind CSS are peer dependencies, not bundled.
 
 The repo contains **two independent npm projects**:
 - **Root** (`package.json`) — the component library itself, plus a `demo/` playground app.
@@ -46,13 +46,32 @@ Pure parsing/formatting/clamping logic lives in `src/lib/number.ts` (`parseDraft
 
 ### Boolean prop naming: `is`-prefix vs. native
 
-Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight. `InputDate`'s `isOpen`/`onOpenChange` (controlled calendar-dropdown open state) extends this same exception set, mirroring Wijmo's `isDroppedDown`.
+Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight. `InputDate`'s `isOpen`/`onOpenChange` (controlled calendar-dropdown open state) extends this same exception set, mirroring Wijmo's `isDroppedDown`, as do `InputTime`'s `isOpen`/`onOpenChange` and its `isEditable` (mirroring Wijmo's own `isEditable`).
 
-### `step` is the sole condition for the spin buttons (matches Wijmo)
+### `step` is the sole condition for the spin buttons / time dropdown (matches Wijmo)
 
 There is no `showSpinButtons` prop. `step` (type `number | null`, default unset/`null`) is the *only* thing that determines whether the spin buttons, Arrow-key stepping, and `handleWheel` are active — matching Wijmo's actual behavior exactly (its `step` doc explicitly says the default `null` "hides the spinner buttons from the control"). No step means no defined increment amount, so there's nothing for any of those three interactions to step by; all three are gated on `typeof step === 'number'` (see `hasStep` in `InputNumber.tsx`). Any `InputNumber` usage that wants a visible spinner must pass an explicit `step`.
 
-Wijmo (`developer.mescius.com/wijmo`) is used as an API/UX reference only — never copy its source or add a runtime dependency on it. `references/tailadmin-react/` (gitignored) is a visual styling reference only — never copy its source or add a runtime dependency on it, **with one deliberate, scoped exception**: `InputDate`'s calendar dropdown is permitted to depend on and adapt `references/tailadmin-react/src/components/form/date-picker.tsx`, specifically via a real runtime dependency on `flatpickr` (an MIT-licensed third-party calendar library, listed in `dependencies` and bundled into `dist/index.js`, unlike React/Tailwind which stay external peer dependencies). This exception applies only to `InputDate`'s calendar popup — every other component, and every other use of `references/tailadmin-react/`, still follows the general visual-reference-only rule with no runtime dependency.
+`InputTime` applies the same rule to its own dropdown: `step` there is the number of *minutes* between entries in the time list, and is likewise the only thing that decides whether the list, the dropdown button, Arrow-key stepping and `handleWheel` exist at all (`hasStep`/`hasDropdown` in `InputTime.tsx`). The only difference is the default — `15`, matching Wijmo's `InputTime`, versus `InputNumber`'s `null`. Note `InputTime`'s Arrow keys move through the *generated list*, not by raw minute arithmetic, so an off-grid value snaps onto the list rather than carrying its remainder forever (`stepThroughTimes` in `src/lib/time.ts`).
+
+Wijmo (`developer.mescius.com/wijmo`) is used as an API/UX reference only — never copy its source or add a runtime dependency on it. `references/tailadmin-react/` (gitignored) is a visual styling reference only — never copy its source or add a runtime dependency on it, **with one deliberate, scoped exception**: `InputDate`'s calendar dropdown is permitted to depend on and adapt `references/tailadmin-react/src/components/form/date-picker.tsx`, specifically via a real runtime dependency on `flatpickr` (an MIT-licensed third-party calendar library, listed in `dependencies` and bundled into `dist/index.js`, unlike React/Tailwind which stay external peer dependencies). This exception applies only to `InputDate`'s calendar popup — every other component, and every other use of `references/tailadmin-react/`, still follows the general visual-reference-only rule with no runtime dependency. In particular `InputTime` does **not** use flatpickr (see below), and adding a second component to this exception would need its own decision, not an assumption that "the library already depends on flatpickr anyway".
+
+### `InputTime` deliberately does not use flatpickr
+
+flatpickr has a time-picker mode (`noCalendar: true, enableTime: true`), and it is *not* what this component wants, for two independent reasons:
+
+1. **Wrong UX.** Wijmo's `InputTime` derives from its `ComboBox`: its dropdown is a *list* of times generated from `min`/`max`/`step` (09:00, 09:30, 10:00, …), not a pair of hour/minute spinners. A list is also what makes `step` meaningful at all.
+2. **Its parser cannot round-trip AM/PM.** Confirmed by reading `node_modules/flatpickr/dist/esm/utils/{formatting,dates}.js` directly: `tokenRegex.K` is the **empty string**, and `createDateParser` guards each token with `if (tokenRegex[token] && !escaped)`, so the `K` token is skipped entirely when parsing and `"2:30 PM"` silently parses as 02:30. This is the same limitation already documented for `F`/`M`/`D`/`l` in `parseDateDraft`'s doc comment — harmless for date formats nobody types, fatal for the single most common time format.
+
+So `src/lib/time.ts` implements formatting and parsing from scratch, and the dropdown is ordinary React-rendered markup (`InputTime.tsx` plus `useTimeDropdown.ts`). It deliberately keeps flatpickr's *token vocabulary* (`H`, `h`, `G`, `i`, `K`) so consumers learn one set of format strings across `InputDate` and `InputTime`. Because the popup is React's own, none of the DOM-ownership escape-hatch machinery below applies to it.
+
+Internally all time logic runs on **minutes of day** (0–1439) rather than `Date` objects; the component composes the result back onto a `Date`, preserving the year/month/day of the existing value so an `InputDate` and an `InputTime` can edit two halves of one `Date`. Seconds and Thai locale are both out of scope for the current version (a format naming an unsupported token falls back to `'H:i'`).
+
+### The live-typing mask is shared, not per-component
+
+`src/lib/inputMask.ts` (formerly `dateMask.ts`) holds the whole masking engine — `applyInputMask`, `pendingAdvanceAtCursor`, `isLiteralCharAt`, `diffStrings`, the `MaskSegment` type and the `AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS` timeout. It is deliberately **token-agnostic**: every rule it applies comes from a segment's `{ width, min, max }`, never from knowing whether that segment is a month or an hour. Each component supplies its own tokenizer instead — `tokenizeDateMask` in `src/lib/date.ts`, `timeMaskSegments` in `src/lib/time.ts` — and both return the same `MaskSegment[]`.
+
+The one segment kind that isn't a digit group is `{ type: 'ampm' }` (the `K` token): a single `a`/`p` keystroke writes the whole "AM"/"PM" designator and completes the segment, and typing `a`/`p` again overwrites it rather than being rejected, since flipping an existing designator is the natural way to correct that field.
 
 ### `InputDate` + flatpickr: DOM-ownership escape hatch (required, not optional)
 

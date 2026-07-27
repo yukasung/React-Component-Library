@@ -1,0 +1,349 @@
+import { Callout } from 'nextra/components'
+import {
+  CloseOnSelectionDemo,
+  DateTimeDemo,
+  DefaultDemo,
+  DisabledDemo,
+  FormatDemo,
+  HandleWheelDemo,
+  HintDemo,
+  IsEditableDemo,
+  IsOpenDemo,
+  IsRequiredDemo,
+  MaxDropdownHeightDemo,
+  MinMaxDemo,
+  NoStepDemo,
+  ReadOnlyDemo,
+  ShowDropdownButtonDemo,
+  StepDemo,
+  TextDemo,
+  TimeRangeDemo,
+  ValueDemo,
+} from './demo'
+import { PropertyIndex, PropertySignature } from './property-index'
+
+export const metadata = {
+  title: 'InputTime',
+  description: 'Input สำหรับกรอกเวลา พร้อมรายการเวลาแบบ dropdown, จำกัดช่วงเวลา min/max, และการจัดรูปแบบ',
+}
+
+# InputTime
+
+InputTime คือ input ที่ให้ผู้ใช้กรอกเวลาได้ทั้งการพิมพ์ข้อความโดยตรงและการเลือกจากรายการเวลาแบบ dropdown ซึ่งสร้างขึ้นอัตโนมัติตามช่วงเวลาและระยะห่างที่กำหนด (min/max/step)
+
+<DefaultDemo />
+
+## Import
+
+```tsx
+import { InputTime } from '@your-scope/components'
+```
+
+## Properties
+
+<PropertyIndex />
+
+### value
+
+<PropertySignature name="value" type="Date | null" />
+
+กำหนดค่าปัจจุบันของ control
+
+<ValueDemo />
+
+```tsx
+const [value, setValue] = useState<Date | null>(new Date())
+<InputTime value={value} onChange={setValue} />
+```
+
+<Callout type="info">
+  **Note**
+
+  ค่าจะถูกประมวลผล (parse, จำกัดช่วง, และยิง onChange) เฉพาะตอนออกจากฟิลด์ (blur), กด Enter, เลือกจากรายการ, กดปุ่มลูกศร หรือเลื่อนล้อเมาส์เท่านั้น — ไม่ใช่ทุกครั้งที่พิมพ์ ทำให้พิมพ์ข้อความที่ยังไม่สมบูรณ์ได้โดยไม่ถูกบล็อกระหว่างทาง
+</Callout>
+
+#### ส่วนวันที่ของ value
+
+value เป็น `Date` เต็ม แต่ control นี้อ่านและเขียนเฉพาะ**ส่วนเวลา**เท่านั้น เมื่อมีการเปลี่ยนเวลา ส่วนปี/เดือน/วันของค่าเดิมจะถูกเก็บไว้ตามเดิม (ถ้าค่าเดิมเป็น null จะใช้วันที่ของวันนี้) จึงใช้ InputDate กับ InputTime คู่กันเพื่อประกอบเป็น `Date` ก้อนเดียวได้
+
+วินาทีและมิลลิวินาทีจะถูกตัดออกเสมอ — control นี้ทำงานที่ระดับความละเอียดเป็นนาที
+
+<DateTimeDemo />
+
+### isRequired
+
+<PropertySignature name="isRequired" type="boolean" />
+
+กำหนดค่าที่ระบุว่าค่าของ control ต้องเป็นเวลาเสมอ หรือสามารถตั้งเป็น null ได้ (โดยการลบเนื้อหาในช่องออกทั้งหมด)
+
+ค่าเริ่มต้นของ property นี้คือ true
+
+<IsRequiredDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} />
+<InputTime isRequired={false} defaultValue={null} placeholder="เวลานัดหมาย (ไม่บังคับ)" />
+```
+
+### min
+
+<PropertySignature name="min" type="Date | null" />
+
+กำหนดเวลาต่ำสุดที่ยอมรับได้ มีผลทั้งกับรายการใน dropdown (จะไม่แสดงเวลาที่อยู่นอกช่วง) และกับการพิมพ์ (จำกัดค่าตอนออกจากฟิลด์)
+
+<Callout type="info">
+  **Note**
+
+  อ่านเฉพาะส่วนเวลาของ Date ที่ส่งเข้ามาเท่านั้น ส่วนวันที่จะถูกละเว้น และไม่ระบุหมายถึงไม่จำกัดเวลาต่ำสุด (เริ่มที่ 00:00)
+</Callout>
+
+### max
+
+<PropertySignature name="max" type="Date | null" />
+
+กำหนดเวลาสูงสุดที่ยอมรับได้ ทำงานเช่นเดียวกับ min
+
+<MinMaxDemo />
+
+```tsx
+<InputTime
+  min={new Date(2026, 6, 22, 9, 0)}
+  max={new Date(2026, 6, 22, 17, 0)}
+  step={30}
+  defaultValue={new Date(2026, 6, 22, 12, 0)}
+/>
+```
+
+<Callout type="warning">
+  **Note**
+
+  ยังไม่รองรับช่วงที่ข้ามเที่ยงคืน (min มากกว่า max เช่น 22:00–02:00)
+</Callout>
+
+#### ช่วงเวลา (เวลาเริ่ม / เวลาสิ้นสุด)
+
+min และ max รับค่าเป็น state ได้ จึงผูก InputTime สองตัวให้เป็นช่วงเวลาได้โดยตรง — ตั้ง max ของช่องเริ่มต้นให้เท่ากับค่าของช่องสิ้นสุด และตั้ง min ของช่องสิ้นสุดให้เท่ากับค่าของช่องเริ่มต้น รายการใน dropdown ของทั้งสองฝั่งจะปรับตามกันทันที
+
+<TimeRangeDemo />
+
+```tsx
+const [start, setStart] = useState<Date | null>(null)
+const [end, setEnd] = useState<Date | null>(null)
+
+<InputTime value={start} onChange={setStart} max={end} />
+<InputTime value={end} onChange={setEnd} min={start} />
+```
+
+### step
+
+<PropertySignature name="step" type="number | null" />
+
+จำนวนนาทีระหว่างแต่ละรายการใน dropdown ค่าเริ่มต้นของ property นี้คือ 15 นาที
+
+<StepDemo />
+
+```tsx
+<InputTime step={5} defaultValue={new Date()} />
+<InputTime step={15} defaultValue={new Date()} />
+<InputTime step={30} defaultValue={new Date()} />
+<InputTime step={60} defaultValue={new Date()} />
+```
+
+step ยังเป็นเงื่อนไข**เดียว**ที่กำหนดว่าจะมี dropdown หรือไม่ด้วย — ตั้งเป็น `null` (หรือค่าที่ไม่เป็นบวก) หมายถึงไม่มีระยะห่างที่นิยามไว้ จึงไม่มีรายการให้แสดง ปุ่มเปิดรายการจะถูกซ่อน และปุ่มลูกศร/ล้อเมาส์จะไม่ทำงาน เหลือเป็นช่องกรอกเวลาด้วยการพิมพ์อย่างเดียว
+
+<NoStepDemo />
+
+```tsx
+<InputTime step={null} defaultValue={new Date()} />
+```
+
+<Callout type="info">
+  **Note**
+
+  ปุ่มลูกศรขึ้น/ลงจะเลื่อนไป**รายการถัดไป/ก่อนหน้าในรายการ** ไม่ใช่การบวกลบนาทีดิบ ๆ ดังนั้นค่าที่ไม่ตรงกับรายการใด (เช่น 09:07 เมื่อ step เป็น 15) จะถูกดึงเข้าหารายการที่ใกล้ที่สุดในทิศทางที่กด
+
+  ขณะที่รายการเปิดอยู่ ลูกศรจะใช้เลื่อนตำแหน่งที่ไฮไลต์ในรายการแทน (ลง = เวลาถัดไป) แล้วกด Enter เพื่อยืนยัน
+</Callout>
+
+### format
+
+<PropertySignature name="format" type="string" />
+
+รูปแบบการแสดงผลและพิมพ์เวลา ใช้ชุดตัวอักษรกำหนดตำแหน่งชั่วโมง/นาที ค่าเริ่มต้นคือ `"H:i"`
+
+โทเค็นที่รองรับ:
+
+| โทเค็น | ความหมาย | ตัวอย่าง (14:30 น.) |
+| :---: | --- | --- |
+| H | ชั่วโมงแบบ 24 ชั่วโมง (มี 0 นำหน้า) | 14 |
+| h | ชั่วโมงแบบ 12 ชั่วโมง ไม่มี 0 นำหน้า | 2 |
+| G | ชั่วโมงแบบ 12 ชั่วโมง มี 0 นำหน้า | 02 |
+| i | นาที (มี 0 นำหน้า) | 30 |
+| K | ตัวระบุ AM/PM | PM |
+
+<FormatDemo />
+
+```tsx
+<InputTime format="H:i" defaultValue={new Date()} />
+<InputTime format="h:i K" defaultValue={new Date()} />
+<InputTime format="G:i" defaultValue={new Date()} />
+<InputTime format="h.i K" defaultValue={new Date()} />
+```
+
+<Callout type="warning">
+  **Note**
+
+  รองรับเฉพาะโทเค็นในตารางข้างต้นเท่านั้น ยังไม่รองรับวินาที (S/s) — format ที่มีโทเค็นอื่นจะถูกละเว้นทั้งชุดและใช้ค่าเริ่มต้น `"H:i"` แทน
+</Callout>
+
+### isEditable
+
+<PropertySignature name="isEditable" type="boolean" />
+
+กำหนดว่าผู้ใช้พิมพ์เวลาเองได้หรือไม่ เมื่อเป็น false จะเลือกได้จาก dropdown เท่านั้น (คลิกที่ตัวช่องกรอกก็เปิดรายการได้)
+
+ค่าเริ่มต้นของ property นี้คือ true
+
+<IsEditableDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} />
+<InputTime defaultValue={new Date()} isEditable={false} />
+```
+
+<Callout type="info">
+  **Note**
+
+  ต่างจาก isReadOnly ตรงที่ค่ายัง**เปลี่ยนได้** — ทั้งจาก dropdown, ปุ่มลูกศร และล้อเมาส์ — เพียงแต่พิมพ์ไม่ได้ จึงไม่แสดงสไตล์แบบอ่านอย่างเดียว
+</Callout>
+
+### hint
+
+<PropertySignature name="hint" type="string" />
+
+ข้อความอธิบายเพิ่มเติมที่แสดงใต้ช่องกรอก
+
+<HintDemo />
+
+```tsx
+<InputTime hint="รูปแบบ: ชั่วโมง:นาที (24 ชั่วโมง)" defaultValue={new Date()} />
+```
+
+### text
+
+<PropertySignature name="text" type="string" />
+
+ค่าข้อความดิบที่แสดงอยู่ในช่องกรอกจริง ๆ แยกจาก value (ซึ่งเป็นเวลาที่ประมวลผลแล้ว) ใช้คู่กับ onTextChange เพื่อควบคุมหรือสังเกตข้อความที่กำลังพิมพ์แบบสองทาง
+
+<TextDemo />
+
+```tsx
+const [text, setText] = useState('09:30')
+<InputTime text={text} onTextChange={setText} value={value} onChange={setValue} />
+```
+
+### handleWheel
+
+<PropertySignature name="handleWheel" type="boolean" />
+
+กำหนดว่าจะให้เลื่อนล้อเมาส์ตอน focus อยู่ที่ฟิลด์เพื่อขยับไปรายการเวลาถัดไป/ก่อนหน้าได้หรือไม่ ค่าเริ่มต้น (default): false
+
+<Callout type="info">
+  **Note**
+
+  ทำงานเฉพาะตอนฟิลด์ focus อยู่เท่านั้น ไม่ทำงานถ้า isDisabled, isReadOnly หรือไม่ได้กำหนด step
+</Callout>
+
+<HandleWheelDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} />
+<InputTime defaultValue={new Date()} handleWheel />
+```
+
+### isOpen
+
+<PropertySignature name="isOpen" type="boolean" />
+
+ควบคุมสถานะเปิด/ปิดของรายการเวลาแบบ dropdown จากภายนอก ใช้คู่กับ onOpenChange
+
+<IsOpenDemo />
+
+```tsx
+const [isOpen, setIsOpen] = useState(false)
+<InputTime isOpen={isOpen} onOpenChange={setIsOpen} value={value} onChange={setValue} />
+```
+
+### closeOnSelection
+
+<PropertySignature name="closeOnSelection" type="boolean" />
+
+กำหนดว่ารายการจะปิดอัตโนมัติหลังเลือกเวลาหรือไม่ ค่าเริ่มต้นของ property นี้คือ true
+
+<CloseOnSelectionDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} />
+<InputTime defaultValue={new Date()} closeOnSelection={false} />
+```
+
+### showDropdownButton
+
+<PropertySignature name="showDropdownButton" type="boolean" />
+
+กำหนดว่าจะแสดงปุ่มเปิดรายการเวลาหรือไม่ ค่าเริ่มต้นของ property นี้คือ true
+
+<ShowDropdownButtonDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} />
+<InputTime defaultValue={new Date()} showDropdownButton={false} />
+```
+
+### maxDropdownHeight
+
+<PropertySignature name="maxDropdownHeight" type="number" />
+
+ความสูงสูงสุดของรายการ dropdown (หน่วยพิกเซล) ถ้ารายการยาวเกินกว่านี้จะเลื่อนดูได้ ค่าเริ่มต้นของ property นี้คือ 200
+
+<Callout type="info">
+  **Note**
+
+  ค่าเริ่มต้น (ทั้งวัน ทุก 15 นาที) มีถึง 96 รายการ property นี้จึงมีผลกับการใช้งานจริงเสมอ ไม่ใช่แค่กรณีพิเศษ
+</Callout>
+
+<MaxDropdownHeightDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} maxDropdownHeight={120} />
+```
+
+### isReadOnly
+
+<PropertySignature name="isReadOnly" type="boolean" />
+
+เมื่อเป็น true ผู้ใช้แก้ไขค่าไม่ได้เลย แต่ยังคง focus เลือกข้อความ และคัดลอกค่าได้ตามปกติ (มักใช้คู่กับ showDropdownButton={'{false}'})
+
+ค่าเริ่มต้น (default): false
+
+<ReadOnlyDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} />
+<InputTime defaultValue={new Date()} isReadOnly showDropdownButton={false} />
+```
+
+### isDisabled
+
+<PropertySignature name="isDisabled" type="boolean" />
+
+เมื่อเป็น true ปิดการใช้งานทั้งหมด พิมพ์, เปิดรายการ, และ focus ไม่ได้ แสดงผลจางลงเพื่อสื่อว่าใช้งานไม่ได้
+
+ค่าเริ่มต้น (default): false
+
+<DisabledDemo />
+
+```tsx
+<InputTime defaultValue={new Date()} />
+<InputTime defaultValue={new Date()} isDisabled />
+```

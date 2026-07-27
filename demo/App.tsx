@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { InputDate, InputNumber, parseDraft, parseFormattedInput, parseNumericFormat } from 'react-component-library'
+import {
+  InputDate,
+  InputNumber,
+  InputTime,
+  parseDraft,
+  parseFormattedInput,
+  parseNumericFormat,
+} from 'react-component-library'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -53,6 +60,15 @@ function currentWeekRange(): { start: Date; end: Date } {
   return { start, end }
 }
 const weekRange = currentWeekRange()
+
+// Same reasoning as weekRange above: module-level so the min/max Dates
+// handed to InputTime stay referentially stable across re-renders. Only the
+// time-of-day part of these is read, so the date they carry is arbitrary.
+const businessHours = { start: new Date(2026, 0, 1, 9, 0), end: new Date(2026, 0, 1, 17, 0) }
+
+function formatTimeCommitted(value: Date | null) {
+  return value === null ? 'null' : value.toTimeString().slice(0, 5)
+}
 
 // InputNumber only fires onChange on commit (blur/Enter/spin/arrow) by
 // design — these fields still want to show the plain underlying number as
@@ -108,6 +124,10 @@ export function App() {
   const [weekDate, setWeekDate] = useState<Date | null>(new Date())
   const [wheelDate, setWheelDate] = useState<Date | null>(new Date())
   const [thaiDate, setThaiDate] = useState<Date | null>(new Date())
+  const [defaultTime, setDefaultTime] = useState<Date | null>(new Date())
+  const [meetingTime, setMeetingTime] = useState<Date | null>(businessHours.start)
+  const [alarmTime, setAlarmTime] = useState<Date | null>(new Date(2026, 0, 1, 6, 30))
+  const [freeTime, setFreeTime] = useState<Date | null>(null)
 
   const liveDefault = useLiveText(defaultVal)
   const liveQuantity = useLiveText(quantity)
@@ -356,6 +376,70 @@ export function App() {
           note={`The underlying (Gregorian) value is ${formatDateCommitted(thaiDate)} — the field itself, calendar popup, and its year spinner all display พ.ศ.`}
         >
           <InputDate id="thai-date" value={thaiDate} onChange={setThaiDate} locale="th" />
+        </Field>
+      </Section>
+
+      <Section title="InputTime">
+        <Field
+          label="Default InputTime (24-hour, 15-minute steps)"
+          htmlFor="default-input-time"
+          note={`The current value is ${formatTimeCommitted(defaultTime)}`}
+        >
+          <InputTime id="default-input-time" value={defaultTime} onChange={setDefaultTime} />
+        </Field>
+
+        <Field
+          label="Meeting slot (min/max 09:00-17:00, step 30, 12-hour format)"
+          htmlFor="meeting-time"
+          note={`The current value is ${formatTimeCommitted(meetingTime)}`}
+        >
+          <InputTime
+            id="meeting-time"
+            value={meetingTime}
+            onChange={setMeetingTime}
+            min={businessHours.start}
+            max={businessHours.end}
+            step={30}
+            format="h:i K"
+          />
+        </Field>
+
+        <Field
+          label="Alarm (isEditable={false} — pick from the list only)"
+          htmlFor="alarm-time"
+          note={`The current value is ${formatTimeCommitted(alarmTime)}`}
+        >
+          <InputTime
+            id="alarm-time"
+            value={alarmTime}
+            onChange={setAlarmTime}
+            isEditable={false}
+            step={15}
+            maxDropdownHeight={160}
+          />
+        </Field>
+
+        <Field
+          label="Free-form time (step={null} — no dropdown, typing only)"
+          htmlFor="free-time"
+          note={`The current value is ${formatTimeCommitted(freeTime)}`}
+        >
+          <InputTime
+            id="free-time"
+            value={freeTime}
+            onChange={setFreeTime}
+            step={null}
+            isRequired={false}
+            placeholder="HH:MM"
+          />
+        </Field>
+
+        <Field label="Fixed time (read-only)" htmlFor="time-readonly">
+          <InputTime id="time-readonly" value={new Date(2026, 0, 1, 8, 0)} onChange={() => {}} isReadOnly />
+        </Field>
+
+        <Field label="Fixed time (disabled)" htmlFor="time-disabled">
+          <InputTime id="time-disabled" value={new Date(2026, 0, 1, 8, 0)} onChange={() => {}} isDisabled />
         </Field>
       </Section>
     </div>
