@@ -19,9 +19,10 @@ describe('InputTime', () => {
     expect(input).toHaveAttribute('id', 'start')
     expect(input).toHaveAttribute('name', 'startTime')
     expect(input).toHaveAttribute('placeholder', 'Pick a time')
-    // className styles the wrapper (bordered box around the input and
-    // dropdown button), not the input itself.
-    expect(input.parentElement?.className).toContain('custom')
+    // The border and background live on the input itself (the clock icon
+    // overlays it rather than sitting in a cell beside it), so a consumer
+    // className lands there too.
+    expect(input.className).toContain('custom')
   })
 
   it('displays a controlled value', () => {
@@ -609,7 +610,7 @@ describe('InputTime', () => {
 
     it('does not carry the read-only wrapper styling', () => {
       render(<InputTime defaultValue={at(9)} isEditable={false} />)
-      expect(screen.getByRole('combobox').parentElement?.className).not.toContain('bg-gray-50')
+      expect(screen.getByRole('combobox').className).not.toContain('bg-gray-50')
     })
   })
 
@@ -618,7 +619,7 @@ describe('InputTime', () => {
       render(<InputTime defaultValue={at(9)} isDisabled />)
       const input = screen.getByRole('combobox')
       expect(input).toBeDisabled()
-      expect(input.parentElement?.className).toContain('bg-gray-100')
+      expect(input.className).toContain('bg-gray-100')
     })
 
     it('prevents typing and dropdown toggling while disabled', async () => {
@@ -638,7 +639,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
       expect(input).toHaveAttribute('readonly')
       expect(input).not.toBeDisabled()
-      expect(input.parentElement?.className).toContain('bg-gray-50')
+      expect(input.className).toContain('bg-gray-50')
     })
 
     it('blocks every commit path while read-only', async () => {

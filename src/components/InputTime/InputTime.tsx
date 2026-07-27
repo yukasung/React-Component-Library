@@ -82,24 +82,26 @@ export interface InputTimeProps
   maxDropdownHeight?: number
 }
 
-const wrapperBaseClassName =
-  'flex items-stretch overflow-hidden rounded-lg border shadow-sm focus-within:border-blue-300 focus-within:ring-3 focus-within:ring-blue-500/20'
+// Same layout as InputDate — see the note on its own copy of these: the
+// border, background and focus ring sit on the <input>, and the icon
+// overlays its right edge rather than occupying a bordered cell beside it.
+const inputBaseClassName =
+  'h-11 w-full appearance-none rounded-lg border px-4 py-2.5 text-sm shadow-sm outline-none placeholder:text-gray-400 focus:ring-3 dark:text-white/90 dark:placeholder:text-white/30'
 
-function wrapperStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
+function inputStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
   if (isDisabled) {
-    return 'cursor-not-allowed border-gray-300 bg-gray-100 opacity-40 dark:border-gray-700 dark:bg-gray-800'
+    return 'cursor-not-allowed border-gray-300 bg-gray-100 text-gray-500 opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
   }
   if (isReadOnly) {
-    return 'cursor-default border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'
+    return 'cursor-default border-gray-300 bg-gray-50 text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800/60 dark:focus:border-blue-800'
   }
-  return 'border-gray-300 bg-transparent dark:border-gray-700 dark:bg-gray-900'
+  return 'border-gray-300 bg-transparent text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-blue-800'
 }
 
-const inputClassName =
-  'h-11 min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-gray-800 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-white/90 dark:placeholder:text-white/30 dark:disabled:text-gray-400'
-
+// No hover treatment, matching InputDate and the reference it came from —
+// the icon holds one gray at rest and only changes when disabled.
 const dropdownButtonClassName =
-  'flex h-11 w-9 shrink-0 items-center justify-center border-l border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:border-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:disabled:text-gray-700'
+  'absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-400 dark:disabled:text-gray-700'
 
 // Mirrors the calendar popup's own surface treatment (see
 // flatpickr-theme.css) so the two dropdowns in this library read as one
@@ -121,7 +123,7 @@ function optionClassName(isSelected: boolean, isHighlighted: boolean): string {
 
 function ClockIcon() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+    <svg viewBox="0 0 16 16" width="20" height="20" fill="none" aria-hidden="true">
       <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
       <path d="M8 4.75V8l2.25 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -386,70 +388,68 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
 
   return (
     <div className="relative" ref={dropdown.rootRef}>
-      <div
-        className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
-      >
-        <input
-          {...rest}
-          ref={(node) => {
-            inputElementRef.current = node
-            if (typeof ref === 'function') ref(node)
-            else if (ref) ref.current = node
-          }}
-          type="text"
-          disabled={isDisabled}
-          // A non-editable field is read-only as far as the browser's own
-          // text entry goes, but not read-only as a control — hence the
-          // separate isReadOnly styling and the still-live dropdown.
-          readOnly={isReadOnly || !isEditable}
-          required={isRequired}
-          // Combobox-with-listbox pattern (the time list), as opposed to
-          // InputDate's combobox-with-dialog calendar.
-          role="combobox"
-          aria-expanded={dropdown.isOpen}
-          aria-haspopup="listbox"
-          aria-controls={hasDropdown ? listId : undefined}
-          aria-activedescendant={
-            dropdown.isOpen && dropdown.highlightedIndex >= 0 ? `${listId}-${dropdown.highlightedIndex}` : undefined
-          }
-          aria-autocomplete="none"
-          value={draft}
-          onChange={handleChange}
-          onFocus={(event) => {
-            setIsFocused(true)
-            // Times are edited as a whole value rather than
-            // character-by-character — selecting everything on focus lets
-            // the user just start typing to replace it. Deferred (see
-            // selectAllOnFocus's own doc comment) — a synchronous
-            // .select() here doesn't reliably work in WebKit/Safari.
-            selectAllOnFocus(event.currentTarget)
-          }}
-          onBlur={() => {
-            setIsFocused(false)
-            commitDraft()
-          }}
-          onClick={() => {
-            // With typing disabled the field itself is just another way
-            // to reach the only input method left.
-            if (!isEditable && hasDropdown && !isDisabled && !isReadOnly) dropdown.open()
-          }}
-          onKeyDown={handleKeyDown}
-          className={inputClassName}
-        />
-        {showDropdownButton && hasDropdown && (
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Toggle time list"
-            disabled={isDisabled || isReadOnly}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={handleToggleDropdown}
-            className={dropdownButtonClassName}
-          >
-            <ClockIcon />
-          </button>
-        )}
-      </div>
+      <input
+        {...rest}
+        ref={(node) => {
+          inputElementRef.current = node
+          if (typeof ref === 'function') ref(node)
+          else if (ref) ref.current = node
+        }}
+        type="text"
+        disabled={isDisabled}
+        // A non-editable field is read-only as far as the browser's own
+        // text entry goes, but not read-only as a control — hence the
+        // separate isReadOnly styling and the still-live dropdown.
+        readOnly={isReadOnly || !isEditable}
+        required={isRequired}
+        // Combobox-with-listbox pattern (the time list), as opposed to
+        // InputDate's combobox-with-dialog calendar.
+        role="combobox"
+        aria-expanded={dropdown.isOpen}
+        aria-haspopup="listbox"
+        aria-controls={hasDropdown ? listId : undefined}
+        aria-activedescendant={
+          dropdown.isOpen && dropdown.highlightedIndex >= 0 ? `${listId}-${dropdown.highlightedIndex}` : undefined
+        }
+        aria-autocomplete="none"
+        value={draft}
+        onChange={handleChange}
+        onFocus={(event) => {
+          setIsFocused(true)
+          // Times are edited as a whole value rather than
+          // character-by-character — selecting everything on focus lets
+          // the user just start typing to replace it. Deferred (see
+          // selectAllOnFocus's own doc comment) — a synchronous
+          // .select() here doesn't reliably work in WebKit/Safari.
+          selectAllOnFocus(event.currentTarget)
+        }}
+        onBlur={() => {
+          setIsFocused(false)
+          commitDraft()
+        }}
+        onClick={() => {
+          // With typing disabled the field itself is just another way
+          // to reach the only input method left.
+          if (!isEditable && hasDropdown && !isDisabled && !isReadOnly) dropdown.open()
+        }}
+        onKeyDown={handleKeyDown}
+        // The icon overlays the input's right edge, so the text needs room
+        // to stop short of it.
+        className={`${inputBaseClassName} ${inputStateClassName(isDisabled, isReadOnly)} ${showDropdownButton && hasDropdown ? 'pr-11' : ''} ${className ?? ''}`}
+      />
+      {showDropdownButton && hasDropdown && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Toggle time list"
+          disabled={isDisabled || isReadOnly}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={handleToggleDropdown}
+          className={dropdownButtonClassName}
+        >
+          <ClockIcon />
+        </button>
+      )}
       {dropdown.isOpen && hasDropdown && (
         <ul
           ref={dropdown.listRef}
