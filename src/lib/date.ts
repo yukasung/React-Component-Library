@@ -1,4 +1,5 @@
 import flatpickr from 'flatpickr'
+import type { MaskSegment } from './inputMask'
 
 // flatpickr's static parseDate/formatDate accept an extra `locale` argument
 // at runtime (confirmed empirically against the installed version — e.g.
@@ -252,15 +253,6 @@ export function unshiftYearInDraft(raw: string, format: string, yearOffset: numb
   return trimmed.slice(0, yearStart) + replacement + trimmed.slice(yearStart + rawYear.length)
 }
 
-// Segment shape for src/lib/dateMask.ts's live-typing masker — a `format`
-// string turned into an ordered list of fixed-width digit groups (with a
-// valid value range, where one applies) and literal separator runs.
-// `min`/`max` are absent for Y/y (any digit is valid at any of their
-// positions, only a width cap applies).
-export type DateMaskSegment =
-  | { type: 'token'; token: 'Y' | 'y' | 'm' | 'n' | 'd' | 'j'; width: number; min?: number; max?: number }
-  | { type: 'literal'; text: string }
-
 // Turns a format string into masking segments, or undefined if it contains
 // any non-numeric token (F/M/D/l/...) — masking is opt-out for those exactly
 // like typed round-trip parsing already is (see parseDateDraft's doc
@@ -275,8 +267,8 @@ export type DateMaskSegment =
 // behavior only shows up post-commit, via the existing formatDateValue
 // reformat, unchanged by this. This mirrors NUMERIC_TOKEN_PATTERN above,
 // which already treats m/n and d/j identically for parsing.
-export function tokenizeDateMask(format: string): DateMaskSegment[] | undefined {
-  const segments: DateMaskSegment[] = []
+export function tokenizeDateMask(format: string): MaskSegment[] | undefined {
+  const segments: MaskSegment[] = []
   let literal = ''
   function flushLiteral() {
     if (literal) segments.push({ type: 'literal', text: literal })

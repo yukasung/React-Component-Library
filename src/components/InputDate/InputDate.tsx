@@ -5,20 +5,15 @@ import { Thai } from 'flatpickr/dist/l10n/th.js'
 import './flatpickr-theme.css'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { addDays, clampDate, formatDateValue, isSameDay, parseDateDraft, startOfDay, tokenizeDateMask } from '../../lib/date'
-import { applyDateMask, diffStrings, isLiteralCharAt, pendingAdvanceAtCursor } from '../../lib/dateMask'
+import {
+  AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS,
+  applyInputMask,
+  diffStrings,
+  isLiteralCharAt,
+  pendingAdvanceAtCursor,
+} from '../../lib/inputMask'
 import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
 import { useFlatpickrCalendar } from './useFlatpickrCalendar'
-
-// How long to wait, with no further digit typed, before an ambiguous
-// day/month segment (e.g. "1" — could stay "1" or continue to "10"-"19")
-// auto-advances on its own. Pairs with (doesn't replace) the explicit-
-// separator force-advance already in dateMask.ts — matches the common
-// pattern in native browser date inputs and masked-input libraries
-// (IMask.js, Cleave.js, react-input-mask) of supporting both. Internal
-// only, not exposed as a prop. Set to 1200ms (up from an initial 600ms,
-// which raced ahead of typing a second digit like the "5" of "15" before
-// the user could enter it) to leave comfortable room for the second digit.
-const AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS = 1200
 
 // The offset added to a Gregorian year to display/accept Buddhist Era (พ.ศ.)
 // years — flatpickr has no built-in era concept at all, this is entirely
@@ -289,15 +284,15 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     let maskCursor = -1
     clearPendingAdvance()
     if (maskSegments) {
-      // Live-typing mask — see src/lib/dateMask.ts. diffStrings recovers the
+      // Live-typing mask — see src/lib/inputMask.ts. diffStrings recovers the
       // single edit region from the browser's own resulting value (works
       // uniformly for a keystroke, Backspace/Delete, an overtyped selection,
-      // or a paste, without needing to know which one happened); applyDateMask
+      // or a paste, without needing to know which one happened); applyInputMask
       // then either accepts it (auto-inserting the next literal separator
       // when a segment completes) or rejects it outright, restoring the
       // draft/cursor to where the rejected edit started.
       const edit = diffStrings(draft, rawNext)
-      const result = applyDateMask(maskSegments, draft, edit)
+      const result = applyInputMask(maskSegments, draft, edit)
       if (result === 'reject') {
         applySelection(el, edit.start, edit.start)
         // The draft is unchanged, but the segment being edited may still be
