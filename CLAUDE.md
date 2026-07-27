@@ -65,7 +65,9 @@ flatpickr has a time-picker mode (`noCalendar: true, enableTime: true`), and it 
 
 So `src/lib/time.ts` implements formatting and parsing from scratch, and the dropdown is ordinary React-rendered markup (`InputTime.tsx` plus `useTimeDropdown.ts`). It deliberately keeps flatpickr's *token vocabulary* (`H`, `h`, `G`, `i`, `K`) so consumers learn one set of format strings across `InputDate` and `InputTime`. Because the popup is React's own, none of the DOM-ownership escape-hatch machinery below applies to it.
 
-Internally all time logic runs on **minutes of day** (0–1439) rather than `Date` objects; the component composes the result back onto a `Date`, preserving the year/month/day of the existing value so an `InputDate` and an `InputTime` can edit two halves of one `Date`. Seconds and Thai locale are both out of scope for the current version (a format naming an unsupported token falls back to `'H:i'`).
+Internally all time logic runs on **minutes of day** (0–1439) rather than `Date` objects; the component composes the result back onto a `Date`, preserving the year/month/day of the existing value so an `InputDate` and an `InputTime` can edit two halves of one `Date`. Seconds and Thai locale are both out of scope for the current version.
+
+`tokenizeTimeFormat` rejects a format for two different reasons, and both fall back to `'H:i'`: it names a token outside `H h G i K` (seconds being the case that actually comes up), **or** it pairs `H` with `K`. The second isn't a typo-catcher — `"14:30 PM"` is not a time, because a 24-hour hour has already said which half of the day it is and leaves the designator nothing to mean. Accepting it would render a designator that then gets silently dropped on parse (and, worse, `"2:30 PM"` reading back as 02:30), so the format itself is refused instead.
 
 ### The live-typing mask is shared, not per-component
 

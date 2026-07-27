@@ -216,6 +216,29 @@ describe('InputTime', () => {
       render(<InputTime value={at(14, 30)} onChange={() => {}} format="H:i:S" />)
       expect(screen.getByRole('combobox')).toHaveValue('14:30')
     })
+
+    it('falls back to H:i for a 24-hour format that also asks for AM/PM', () => {
+      // "14:30 PM" isn't a time, so the designator is refused rather than
+      // rendered and then silently dropped on the way back in.
+      render(<InputTime value={at(14, 30)} onChange={() => {}} format="H:i K" />)
+      expect(screen.getByRole('combobox')).toHaveValue('14:30')
+    })
+
+    it('does not commit a 24-hour time pasted with a designator', () => {
+      const onChange = vi.fn()
+      render(<InputTime value={at(9)} onChange={onChange} format="h:i K" />)
+      const input = screen.getByRole('combobox')
+
+      // The mask blocks typing "14" into a 12-hour field, but a paste
+      // rebuilds without per-segment range checks — commit is where it's
+      // caught, and the draft reverts rather than committing a wrong time.
+      fireEvent.change(input, { target: { value: '14:30 PM' } })
+      expect(input).toHaveValue('14:30 PM')
+
+      fireEvent.blur(input)
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input).toHaveValue('9:00 AM')
+    })
   })
 
   describe('min / max', () => {

@@ -53,10 +53,11 @@ export interface InputTimeProps
   step?: number | null
   // Time format built from the same token vocabulary as InputDate's:
   // `H` (00-23), `h` (1-12), `G` (01-12), `i` (00-59) and `K` (AM/PM).
-  // A format naming any other token — `S`/`s` for seconds in particular,
-  // which this component doesn't support (it works at whole-minute
-  // granularity throughout) — falls back to the default rather than
-  // rendering a wrong time.
+  // Falls back to the default rather than rendering a wrong time when the
+  // format names any other token (`S`/`s` for seconds in particular, which
+  // this component doesn't support — it works at whole-minute granularity
+  // throughout), or when it pairs `H` with `K`, which can't mean anything:
+  // a 24-hour hour already says which half of the day it is.
   format?: string
   // Named to match InputNumber/InputDate's isRequired rather than the
   // native `required` convention — see CLAUDE.md's note on this deliberate

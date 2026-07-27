@@ -46,6 +46,29 @@ describe('tokenizeTimeFormat', () => {
     expect(tokenizeTimeFormat('H:i:S')).toBeUndefined()
     expect(tokenizeTimeFormat('Y-m-d')).toBeUndefined()
   })
+
+  it('rejects a 24-hour hour paired with an AM/PM designator', () => {
+    // "14:30 PM" isn't a time — a 24-hour hour already says which half of
+    // the day it is, leaving the designator nothing to mean.
+    expect(tokenizeTimeFormat('H:i K')).toBeUndefined()
+    expect(tokenizeTimeFormat('K H:i')).toBeUndefined()
+  })
+
+  it('still accepts a designator alongside either 12-hour token', () => {
+    expect(tokenizeTimeFormat('h:i K')).toBeDefined()
+    expect(tokenizeTimeFormat('G:i K')).toBeDefined()
+  })
+
+  it('does not count an escaped H against the designator (it is a literal, not the token)', () => {
+    expect(tokenizeTimeFormat('h:i K \\H')).toEqual([
+      { type: 'token', token: 'h' },
+      { type: 'literal', text: ':' },
+      { type: 'token', token: 'i' },
+      { type: 'literal', text: ' ' },
+      { type: 'token', token: 'K' },
+      { type: 'literal', text: ' H' },
+    ])
+  })
 })
 
 describe('formatTimeOfDay', () => {
@@ -133,6 +156,17 @@ describe('parseTimeDraft', () => {
   it('rejects an unsupported format outright', () => {
     expect(parseTimeDraft('09:30:00', 'H:i:S')).toBeUndefined()
   })
+
+  it('rejects a 24-hour-plus-designator format rather than dropping the designator', () => {
+    // Before the format was rejected this parsed to 14:30 with the "PM"
+    // quietly ignored — and, worse, "2:30 PM" read back as 02:30.
+    expect(parseTimeDraft('14:30 PM', 'H:i K')).toBeUndefined()
+    expect(parseTimeDraft('2:30 PM', 'H:i K')).toBeUndefined()
+  })
+
+  it('rejects an out-of-range 12-hour value even with a designator', () => {
+    expect(parseTimeDraft('14:30 PM', 'h:i K')).toBeUndefined()
+  })
 })
 
 describe('timeMaskSegments', () => {
@@ -156,6 +190,7 @@ describe('timeMaskSegments', () => {
 
   it('returns undefined for an unsupported format', () => {
     expect(timeMaskSegments('H:i:S')).toBeUndefined()
+    expect(timeMaskSegments('H:i K')).toBeUndefined()
   })
 })
 

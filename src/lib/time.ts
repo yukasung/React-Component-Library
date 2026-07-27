@@ -58,8 +58,21 @@ const TOKEN_MASK: Record<Exclude<TimeToken, 'K'>, { width: number; min: number; 
 // granularity throughout (the dropdown steps in minutes, min/max clamp in
 // minutes) and half-supporting seconds in display only would be worse than
 // not supporting them.
+//
+// A format pairing the 24-hour hour token with the AM/PM designator ("H:i K")
+// is rejected for a different reason: it isn't a format anyone typed wrong,
+// it's one that can't mean anything. AM/PM exists to say which half of the
+// day an hour of 1-12 falls in, and a 24-hour hour has already said that
+// itself — "14:30 PM" is not a time. Accepting it would leave the designator
+// with nothing to do, so it would be formatted, displayed, and then silently
+// dropped on parse ("2:30 PM" reading back as 02:30). Rejecting the format
+// outright puts the mistake where it belongs, on the format string.
 export function tokenizeTimeFormat(format: string): TimeFormatSegment[] | undefined {
-  return tokenizeFormat(format, TIME_TOKENS)
+  const segments = tokenizeFormat(format, TIME_TOKENS)
+  if (!segments) return undefined
+  const tokens = segments.filter((segment) => segment.type === 'token').map((segment) => segment.token)
+  if (tokens.includes('H') && tokens.includes('K')) return undefined
+  return segments
 }
 
 // The live-typing mask segments for a format, or undefined when the format
