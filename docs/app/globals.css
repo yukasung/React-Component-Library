@@ -8,6 +8,37 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* The gray scale the components' own class names are written against.
+   `references/tailadmin-react` redefines Tailwind's grays wholesale, and
+   every gray-* utility in src/ was chosen against *those* values — so
+   without this block the docs site renders the components in stock
+   Tailwind grays and they come out visibly different from the design they
+   were built from (a date field's border and its icon, for instance, are
+   meant to be #d0d5dd against #667085).
+
+   Copied verbatim from demo/index.css, which has carried the same scale
+   since the components were first built; the docs site is simply the
+   consumer that never got it. Values are the reference's own, read from
+   `references/tailadmin-react/src/index.css` rather than eyeballed.
+
+   Only the grays are here, not the reference's brand, success or error
+   scales: nothing in src/ uses those names, and an unused token is just
+   config to keep in sync for no benefit. */
+@theme {
+  --color-gray-25: #fcfcfd;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f2f4f7;
+  --color-gray-200: #e4e7ec;
+  --color-gray-300: #d0d5dd;
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #1d2939;
+  --color-gray-900: #101828;
+  --color-gray-950: #0c111d;
+}
+
 /* nextra-theme-docs underlines every h2 by default (border-bottom) — drop
    it and use margin instead so heading-to-content spacing stays even
    without the line. */
