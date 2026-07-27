@@ -94,8 +94,13 @@ function wrapperStateClassName(isDisabled: boolean, isReadOnly: boolean): string
 const inputClassName =
   'h-11 min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-right text-sm text-gray-800 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-white/90 dark:placeholder:text-white/30 dark:disabled:text-gray-400'
 
+// The glyphs take InputDate's and InputTime's dropdown-icon colour
+// treatment exactly: one gray at rest (gray-500 light / gray-400 dark), no
+// hover response, and a change only when disabled. What stays different is
+// the surrounding cell — these keep their bordered box, where those icons
+// float over the input.
 const spinButtonClassName =
-  'flex h-11 w-9 shrink-0 items-center justify-center border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:border-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:disabled:text-gray-700'
+  'flex h-11 w-9 shrink-0 items-center justify-center border-gray-300 text-gray-500 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-400 dark:disabled:text-gray-700'
 
 // The increase/decrease buttons are identical apart from which edge they
 // border, their icon, and the callbacks they're wired to — pulled out so
