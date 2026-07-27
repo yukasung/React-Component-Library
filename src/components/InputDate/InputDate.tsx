@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
 import 'flatpickr/dist/flatpickr.css'
 import { Thai } from 'flatpickr/dist/l10n/th.js'
@@ -46,7 +46,6 @@ export interface InputDateProps
   isRequired?: boolean
   isReadOnly?: boolean
   isDisabled?: boolean
-  hint?: string
   // Wijmo-style two-way binding for the raw text shown in the control,
   // distinct from `value` — same contract as InputNumber's text/onTextChange.
   text?: string
@@ -100,14 +99,12 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     isDisabled = false,
     isReadOnly = false,
     isRequired = true,
-    hint,
     handleWheel = false,
     closeOnSelection = true,
     showDropdownButton = true,
     monthCount = 1,
     locale = 'en',
     className,
-    'aria-describedby': ariaDescribedBy,
     ...rest
   },
   ref,
@@ -142,8 +139,6 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     if (next !== draft) onTextChange?.(next)
     setDraft(next)
   }
-  const hintId = useId()
-  const describedBy = [ariaDescribedBy, hint ? hintId : undefined].filter(Boolean).join(' ') || undefined
   // Tracks the most recently committed value synchronously, independent of
   // whether a controlled parent re-renders with the new `value` prop.
   const lastCommittedRef = useRef(committedValue)
@@ -292,70 +287,62 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   }, [])
 
   return (
-    <>
-      <div className="relative">
-        <div
-          className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
-        >
-          <input
-            {...rest}
-            ref={(node) => {
-              inputElementRef.current = node
-              if (typeof ref === 'function') ref(node)
-              else if (ref) ref.current = node
-            }}
-            type="text"
-            disabled={isDisabled}
-            readOnly={isReadOnly}
-            required={isRequired}
-            aria-describedby={describedBy}
-            // Combobox-with-popup pattern (calendar dropdown), not a
-            // spinbutton like InputNumber.
-            role="combobox"
-            aria-expanded={isOpenState}
-            aria-haspopup="dialog"
-            aria-autocomplete="none"
-            value={draft}
-            onChange={handleChange}
-            onFocus={(event) => {
-              setIsFocused(true)
-              // Dates are usually edited as a whole value rather than
-              // character-by-character — selecting everything on focus lets
-              // the user just start typing to replace it. Deferred (see
-              // selectAllOnFocus's own doc comment) — a synchronous
-              // .select() here doesn't reliably work in WebKit/Safari.
-              selectAllOnFocus(event.currentTarget)
-            }}
-            onBlur={() => {
-              setIsFocused(false)
-              commitDraft()
-            }}
-            onKeyDown={handleKeyDown}
-            className={inputClassName}
-          />
-          {showDropdownButton && (
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Toggle calendar"
-              disabled={isDisabled || isReadOnly}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={handleToggleDropdown}
-              className={dropdownButtonClassName}
-            >
-              <CalendarIcon />
-            </button>
-          )}
-        </div>
-        {/* React-opaque host for flatpickr's popup — see the DOM-ownership
-            escape-hatch note above; must stay empty in JSX. */}
-        <div ref={containerRef} className="absolute inset-x-0 bottom-0 h-0 w-0" aria-hidden="true" />
+    <div className="relative">
+      <div
+        className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
+      >
+        <input
+          {...rest}
+          ref={(node) => {
+            inputElementRef.current = node
+            if (typeof ref === 'function') ref(node)
+            else if (ref) ref.current = node
+          }}
+          type="text"
+          disabled={isDisabled}
+          readOnly={isReadOnly}
+          required={isRequired}
+          // Combobox-with-popup pattern (calendar dropdown), not a
+          // spinbutton like InputNumber.
+          role="combobox"
+          aria-expanded={isOpenState}
+          aria-haspopup="dialog"
+          aria-autocomplete="none"
+          value={draft}
+          onChange={handleChange}
+          onFocus={(event) => {
+            setIsFocused(true)
+            // Dates are usually edited as a whole value rather than
+            // character-by-character — selecting everything on focus lets
+            // the user just start typing to replace it. Deferred (see
+            // selectAllOnFocus's own doc comment) — a synchronous
+            // .select() here doesn't reliably work in WebKit/Safari.
+            selectAllOnFocus(event.currentTarget)
+          }}
+          onBlur={() => {
+            setIsFocused(false)
+            commitDraft()
+          }}
+          onKeyDown={handleKeyDown}
+          className={inputClassName}
+        />
+        {showDropdownButton && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Toggle calendar"
+            disabled={isDisabled || isReadOnly}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={handleToggleDropdown}
+            className={dropdownButtonClassName}
+          >
+            <CalendarIcon />
+          </button>
+        )}
       </div>
-      {hint && (
-        <p id={hintId} className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          {hint}
-        </p>
-      )}
-    </>
+      {/* React-opaque host for flatpickr's popup — see the DOM-ownership
+          escape-hatch note above; must stay empty in JSX. */}
+      <div ref={containerRef} className="absolute inset-x-0 bottom-0 h-0 w-0" aria-hidden="true" />
+    </div>
   )
 })

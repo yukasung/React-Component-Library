@@ -214,8 +214,7 @@ export function TruncateDemo() {
           value={roundedValue}
           onChange={setRoundedValue}
           ref={liveRounded.inputRef} onInput={liveRounded.onInput}
-          precision={1}
-          step={1}
+          step={0.1}
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
           The current value is {liveRounded.liveText}
@@ -230,8 +229,7 @@ export function TruncateDemo() {
           value={truncatedValue}
           onChange={setTruncatedValue}
           ref={liveTruncated.inputRef} onInput={liveTruncated.onInput}
-          precision={1}
-          step={1}
+          step={0.1}
           truncate
         />
         <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">

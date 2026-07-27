@@ -69,7 +69,6 @@ export interface InputTimeProps
   // leaves the field otherwise fully interactive (unlike isReadOnly, the
   // value still changes — via the dropdown, Arrow keys and the wheel).
   isEditable?: boolean
-  hint?: string
   // Wijmo-style two-way binding for the raw text shown in the control,
   // distinct from `value` — same contract as InputNumber/InputDate.
   text?: string
@@ -77,7 +76,6 @@ export interface InputTimeProps
   // Steps through the dropdown's entries per wheel notch; opt-in and
   // focus-gated, same convention as InputNumber/InputDate.
   handleWheel?: boolean
-  closeOnSelection?: boolean
   showDropdownButton?: boolean
   // Height cap (px) for the scrollable list. A real necessity rather than a
   // nicety here: a full day at the default 15-minute step is 96 entries.
@@ -145,13 +143,10 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     isReadOnly = false,
     isRequired = true,
     isEditable = true,
-    hint,
     handleWheel = false,
-    closeOnSelection = true,
     showDropdownButton = true,
     maxDropdownHeight = 200,
     className,
-    'aria-describedby': ariaDescribedBy,
     ...rest
   },
   ref,
@@ -209,9 +204,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     if (next !== draft) onTextChange?.(next)
     setDraft(next)
   }
-  const hintId = useId()
   const listId = useId()
-  const describedBy = [ariaDescribedBy, hint ? hintId : undefined].filter(Boolean).join(' ') || undefined
   // Tracks the most recently committed value synchronously, independent of
   // whether a controlled parent re-renders with the new `value` prop.
   const lastCommittedRef = useRef(committedValue)
@@ -284,7 +277,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     if (isReadOnly) return
     mask.clearPendingAdvance()
     commit(minutes)
-    if (closeOnSelection) dropdown.close()
+    dropdown.close()
     inputElementRef.current?.focus()
   }
 
@@ -392,106 +385,98 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   }, [])
 
   return (
-    <>
-      <div className="relative" ref={dropdown.rootRef}>
-        <div
-          className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
-        >
-          <input
-            {...rest}
-            ref={(node) => {
-              inputElementRef.current = node
-              if (typeof ref === 'function') ref(node)
-              else if (ref) ref.current = node
-            }}
-            type="text"
-            disabled={isDisabled}
-            // A non-editable field is read-only as far as the browser's own
-            // text entry goes, but not read-only as a control — hence the
-            // separate isReadOnly styling and the still-live dropdown.
-            readOnly={isReadOnly || !isEditable}
-            required={isRequired}
-            aria-describedby={describedBy}
-            // Combobox-with-listbox pattern (the time list), as opposed to
-            // InputDate's combobox-with-dialog calendar.
-            role="combobox"
-            aria-expanded={dropdown.isOpen}
-            aria-haspopup="listbox"
-            aria-controls={hasDropdown ? listId : undefined}
-            aria-activedescendant={
-              dropdown.isOpen && dropdown.highlightedIndex >= 0 ? `${listId}-${dropdown.highlightedIndex}` : undefined
-            }
-            aria-autocomplete="none"
-            value={draft}
-            onChange={handleChange}
-            onFocus={(event) => {
-              setIsFocused(true)
-              // Times are edited as a whole value rather than
-              // character-by-character — selecting everything on focus lets
-              // the user just start typing to replace it. Deferred (see
-              // selectAllOnFocus's own doc comment) — a synchronous
-              // .select() here doesn't reliably work in WebKit/Safari.
-              selectAllOnFocus(event.currentTarget)
-            }}
-            onBlur={() => {
-              setIsFocused(false)
-              commitDraft()
-            }}
-            onClick={() => {
-              // With typing disabled the field itself is just another way
-              // to reach the only input method left.
-              if (!isEditable && hasDropdown && !isDisabled && !isReadOnly) dropdown.open()
-            }}
-            onKeyDown={handleKeyDown}
-            className={inputClassName}
-          />
-          {showDropdownButton && hasDropdown && (
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Toggle time list"
-              disabled={isDisabled || isReadOnly}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={handleToggleDropdown}
-              className={dropdownButtonClassName}
-            >
-              <ClockIcon />
-            </button>
-          )}
-        </div>
-        {dropdown.isOpen && hasDropdown && (
-          <ul
-            ref={dropdown.listRef}
-            id={listId}
-            role="listbox"
-            aria-label="Time options"
-            style={{ maxHeight: maxDropdownHeight }}
-            className={listClassName}
+    <div className="relative" ref={dropdown.rootRef}>
+      <div
+        className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
+      >
+        <input
+          {...rest}
+          ref={(node) => {
+            inputElementRef.current = node
+            if (typeof ref === 'function') ref(node)
+            else if (ref) ref.current = node
+          }}
+          type="text"
+          disabled={isDisabled}
+          // A non-editable field is read-only as far as the browser's own
+          // text entry goes, but not read-only as a control — hence the
+          // separate isReadOnly styling and the still-live dropdown.
+          readOnly={isReadOnly || !isEditable}
+          required={isRequired}
+          // Combobox-with-listbox pattern (the time list), as opposed to
+          // InputDate's combobox-with-dialog calendar.
+          role="combobox"
+          aria-expanded={dropdown.isOpen}
+          aria-haspopup="listbox"
+          aria-controls={hasDropdown ? listId : undefined}
+          aria-activedescendant={
+            dropdown.isOpen && dropdown.highlightedIndex >= 0 ? `${listId}-${dropdown.highlightedIndex}` : undefined
+          }
+          aria-autocomplete="none"
+          value={draft}
+          onChange={handleChange}
+          onFocus={(event) => {
+            setIsFocused(true)
+            // Times are edited as a whole value rather than
+            // character-by-character — selecting everything on focus lets
+            // the user just start typing to replace it. Deferred (see
+            // selectAllOnFocus's own doc comment) — a synchronous
+            // .select() here doesn't reliably work in WebKit/Safari.
+            selectAllOnFocus(event.currentTarget)
+          }}
+          onBlur={() => {
+            setIsFocused(false)
+            commitDraft()
+          }}
+          onClick={() => {
+            // With typing disabled the field itself is just another way
+            // to reach the only input method left.
+            if (!isEditable && hasDropdown && !isDisabled && !isReadOnly) dropdown.open()
+          }}
+          onKeyDown={handleKeyDown}
+          className={inputClassName}
+        />
+        {showDropdownButton && hasDropdown && (
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Toggle time list"
+            disabled={isDisabled || isReadOnly}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={handleToggleDropdown}
+            className={dropdownButtonClassName}
           >
-            {times.map((minutes, index) => (
-              <li
-                key={minutes}
-                id={`${listId}-${index}`}
-                role="option"
-                aria-selected={minutes === displayMinutes}
-                // Keeps focus in the text field: without this the mousedown
-                // blurs the input, which commits the draft and can close the
-                // list before the click that picks an entry ever lands.
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => selectTime(minutes)}
-                className={optionClassName(minutes === displayMinutes, index === dropdown.highlightedIndex)}
-              >
-                {timeLabels[index]}
-              </li>
-            ))}
-          </ul>
+            <ClockIcon />
+          </button>
         )}
       </div>
-      {hint && (
-        <p id={hintId} className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          {hint}
-        </p>
+      {dropdown.isOpen && hasDropdown && (
+        <ul
+          ref={dropdown.listRef}
+          id={listId}
+          role="listbox"
+          aria-label="Time options"
+          style={{ maxHeight: maxDropdownHeight }}
+          className={listClassName}
+        >
+          {times.map((minutes, index) => (
+            <li
+              key={minutes}
+              id={`${listId}-${index}`}
+              role="option"
+              aria-selected={minutes === displayMinutes}
+              // Keeps focus in the text field: without this the mousedown
+              // blurs the input, which commits the draft and can close the
+              // list before the click that picks an entry ever lands.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectTime(minutes)}
+              className={optionClassName(minutes === displayMinutes, index === dropdown.highlightedIndex)}
+            >
+              {timeLabels[index]}
+            </li>
+          ))}
+        </ul>
       )}
-    </>
+    </div>
   )
 })

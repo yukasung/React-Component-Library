@@ -538,14 +538,14 @@ describe('InputNumber', () => {
     expect(input).toHaveFocus()
   })
 
-  it('displays the committed value fixed to the given precision', () => {
-    render(<InputNumber value={3} precision={2} onChange={() => {}} />)
+  it('displays the committed value fixed to the decimal places implied by step', () => {
+    render(<InputNumber value={3} step={0.01} onChange={() => {}} />)
     expect(screen.getByRole('spinbutton')).toHaveValue('3.00')
   })
 
-  it('does not reformat the live draft to the given precision while typing', async () => {
+  it('does not reformat the live draft to those decimal places while typing', async () => {
     const user = userEvent.setup()
-    render(<InputNumber value={3} precision={2} onChange={() => {}} isRequired={false} />)
+    render(<InputNumber value={3} step={0.01} onChange={() => {}} isRequired={false} />)
     const input = screen.getByRole('spinbutton')
 
     await user.clear(input)
@@ -554,10 +554,10 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('3.1')
   })
 
-  it('rounds a typed value to the given precision on commit', async () => {
+  it('rounds a typed value to those decimal places on commit', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={3} precision={2} onChange={onChange} />)
+    render(<InputNumber value={3} step={0.01} onChange={onChange} />)
     const input = screen.getByRole('spinbutton')
 
     await user.clear(input)
@@ -568,17 +568,17 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('3.14')
   })
 
-  it('an explicit precision prop overrides precision inferred from step', async () => {
+  it('infers the decimal places from a fractional step', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={1} step={0.1} precision={3} onChange={onChange} />)
+    render(<InputNumber value={1} step={0.001} onChange={onChange} />)
     const input = screen.getByRole('spinbutton')
 
     input.focus()
     await user.keyboard('{ArrowUp}')
 
-    expect(onChange).toHaveBeenCalledWith(1.1)
-    expect(input).toHaveValue('1.100')
+    expect(onChange).toHaveBeenCalledWith(1.001)
+    expect(input).toHaveValue('1.001')
   })
 
   it('passes through aria-label, aria-labelledby, and aria-invalid', () => {
@@ -600,34 +600,12 @@ describe('InputNumber', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('renders hint text wired to the input via aria-describedby', () => {
-    render(<InputNumber value={5} onChange={() => {}} hint="Enter a whole number" />)
-    const input = screen.getByRole('spinbutton')
-    const hint = screen.getByText('Enter a whole number')
-
-    expect(hint).toHaveAttribute('id')
-    expect(input).toHaveAttribute('aria-describedby', hint.id)
+  it('passes a consumer-supplied aria-describedby straight through', () => {
+    render(<InputNumber value={5} onChange={() => {}} aria-describedby="extra-desc" />)
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-describedby', 'extra-desc')
   })
 
-  it('merges a consumer-supplied aria-describedby with the generated hint id', () => {
-    render(
-      <>
-        <span id="extra-desc">Extra description</span>
-        <InputNumber
-          value={5}
-          onChange={() => {}}
-          hint="Enter a whole number"
-          aria-describedby="extra-desc"
-        />
-      </>,
-    )
-    const input = screen.getByRole('spinbutton')
-    const hint = screen.getByText('Enter a whole number')
-
-    expect(input.getAttribute('aria-describedby')).toBe(`extra-desc ${hint.id}`)
-  })
-
-  it('omits aria-describedby entirely when there is no hint and no consumer value', () => {
+  it('omits aria-describedby entirely when the consumer supplies none', () => {
     render(<InputNumber value={5} onChange={() => {}} />)
     expect(screen.getByRole('spinbutton')).not.toHaveAttribute('aria-describedby')
   })
@@ -793,7 +771,7 @@ describe('InputNumber', () => {
     it('rounds excess decimals by default on commit', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
-      render(<InputNumber value={0} precision={1} onChange={onChange} />)
+      render(<InputNumber value={0} step={0.1} onChange={onChange} />)
       const input = screen.getByRole('spinbutton')
 
       await user.clear(input)
@@ -807,7 +785,7 @@ describe('InputNumber', () => {
     it('truncates instead of rounding when truncate is set', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
-      render(<InputNumber value={0} precision={1} truncate onChange={onChange} />)
+      render(<InputNumber value={0} step={0.1} truncate onChange={onChange} />)
       const input = screen.getByRole('spinbutton')
 
       await user.clear(input)
@@ -1017,9 +995,9 @@ describe('InputNumber', () => {
       expect(input.selectionEnd).toBe(3)
     })
 
-    it('is fully blocked when precision is 0', () => {
+    it('is fully blocked under a zero-decimal format', () => {
       const onChange = vi.fn()
-      render(<InputNumber value={5} precision={0} onChange={onChange} />)
+      render(<InputNumber value={5} format="n0" onChange={onChange} />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
       input.focus()
       input.setSelectionRange(1, 1)
@@ -1029,9 +1007,9 @@ describe('InputNumber', () => {
       expect(onChange).not.toHaveBeenCalled()
     })
 
-    it('fills an empty draft with "0." padded to the configured precision', async () => {
+    it('fills an empty draft with "0." padded to the implied decimal places', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={5} precision={2} onChange={() => {}} isRequired={false} />)
+      render(<InputNumber value={5} step={0.01} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
 
       await user.clear(input)
@@ -1388,8 +1366,8 @@ describe('InputNumber', () => {
       expect(onChange).toHaveBeenLastCalledWith(0.5)
     })
 
-    it("format's own precision digit overrides the separate precision prop", () => {
-      render(<InputNumber value={1.5} onChange={() => {}} format="n3" precision={0} />)
+    it("format's own precision digit wins over the decimal places step would imply", () => {
+      render(<InputNumber value={1.5} onChange={() => {}} format="n3" step={1} />)
       expect(screen.getByRole('spinbutton')).toHaveValue('1.500')
     })
 
@@ -1552,7 +1530,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onTextChange = vi.fn()
       render(
-        <InputNumber value={1} onChange={() => {}} onTextChange={onTextChange} precision={2} />,
+        <InputNumber value={1} onChange={() => {}} onTextChange={onTextChange} step={0.01} />,
       )
       const input = screen.getByRole('spinbutton')
 

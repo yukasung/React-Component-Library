@@ -202,16 +202,6 @@ export function IsEditableDemo() {
   )
 }
 
-export function HintDemo() {
-  const [value, setValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))
-
-  return (
-    <div className="not-prose my-6 max-w-xs">
-      <InputTime value={value} onChange={setValue} hint="รูปแบบ: ชั่วโมง:นาที (24 ชั่วโมง)" />
-    </div>
-  )
-}
-
 export function TextDemo() {
   const [text, setText] = useState('09:30')
   const [value, setValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 30))
@@ -241,34 +231,6 @@ export function HandleWheelDemo() {
           handleWheel
         </label>
         <InputTime id="demo-time-wheel" value={wheelValue} onChange={setWheelValue} step={15} handleWheel />
-      </div>
-    </div>
-  )
-}
-
-export function CloseOnSelectionDemo() {
-  const [closingValue, setClosingValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))
-  const [stayingValue, setStayingValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))
-
-  return (
-    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
-      <div>
-        <label htmlFor="demo-time-closing" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
-          closeOnSelection (default)
-        </label>
-        <InputTime id="demo-time-closing" value={closingValue} onChange={setClosingValue} step={30} />
-      </div>
-      <div>
-        <label htmlFor="demo-time-staying" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
-          closeOnSelection={'{false}'}
-        </label>
-        <InputTime
-          id="demo-time-staying"
-          value={stayingValue}
-          onChange={setStayingValue}
-          step={30}
-          closeOnSelection={false}
-        />
       </div>
     </div>
   )

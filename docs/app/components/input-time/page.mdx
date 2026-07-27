@@ -1,12 +1,10 @@
 import { Callout } from 'nextra/components'
 import {
-  CloseOnSelectionDemo,
   DateTimeDemo,
   DefaultDemo,
   DisabledDemo,
   FormatDemo,
   HandleWheelDemo,
-  HintDemo,
   IsEditableDemo,
   IsRequiredDemo,
   MaxDropdownHeightDemo,
@@ -218,18 +216,6 @@ step ยังเป็นเงื่อนไข**เดียว**ที่�
   ต่างจาก isReadOnly ตรงที่ค่ายัง**เปลี่ยนได้** — ทั้งจาก dropdown, ปุ่มลูกศร และล้อเมาส์ — เพียงแต่พิมพ์ไม่ได้ จึงไม่แสดงสไตล์แบบอ่านอย่างเดียว
 </Callout>
 
-### hint
-
-<PropertySignature name="hint" type="string" />
-
-ข้อความอธิบายเพิ่มเติมที่แสดงใต้ช่องกรอก
-
-<HintDemo />
-
-```tsx
-<InputTime hint="รูปแบบ: ชั่วโมง:นาที (24 ชั่วโมง)" defaultValue={new Date()} />
-```
-
 ### text
 
 <PropertySignature name="text" type="string" />
@@ -260,19 +246,6 @@ const [text, setText] = useState('09:30')
 ```tsx
 <InputTime defaultValue={new Date()} />
 <InputTime defaultValue={new Date()} handleWheel />
-```
-
-### closeOnSelection
-
-<PropertySignature name="closeOnSelection" type="boolean" />
-
-กำหนดว่ารายการจะปิดอัตโนมัติหลังเลือกเวลาหรือไม่ ค่าเริ่มต้นของ property นี้คือ true
-
-<CloseOnSelectionDemo />
-
-```tsx
-<InputTime defaultValue={new Date()} />
-<InputTime defaultValue={new Date()} closeOnSelection={false} />
 ```
 
 ### showDropdownButton

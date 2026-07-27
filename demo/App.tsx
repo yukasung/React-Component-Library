@@ -186,7 +186,6 @@ export function App() {
             min={0}
             max={10}
             step={1}
-            hint="Enter a whole number between 0 and 10"
           />
         </Field>
 
@@ -247,13 +246,12 @@ export function App() {
             onChange={setPrice}
             ref={livePrice.inputRef}
             onInput={livePrice.onInput}
-            step={0.1}
-            precision={2}
+            step={0.01}
           />
         </Field>
 
         <Field
-          label="Price (truncate — type 2.999, precision 1)"
+          label="Price (truncate — type 2.999 with step 0.1)"
           htmlFor="truncated-price"
           note={`The current value is ${liveTruncatedPrice.liveText} (2.999 should become 2.9, not 3.0)`}
         >
@@ -263,9 +261,8 @@ export function App() {
             onChange={setTruncatedPrice}
             ref={liveTruncatedPrice.inputRef}
             onInput={liveTruncatedPrice.onInput}
-            precision={1}
+            step={0.1}
             truncate
-            step={1}
           />
         </Field>
 

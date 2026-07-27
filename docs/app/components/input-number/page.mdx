@@ -113,7 +113,7 @@ const [value, setValue] = useState<number | null>(10)
 
   ถ้าไม่ระบุ step ปุ่ม spinner, ปุ่มลูกศรบนคีย์บอร์ด และ handleWheel จะใช้งานไม่ได้ทั้งหมด เพราะไม่มีจำนวนให้ขยับค่า
 
-  ถ้า step มีทศนิยมและไม่ได้ระบุ precision เอง ระบบจะคำนวณจำนวนทศนิยมที่แสดงให้อัตโนมัติ
+  ถ้า step มีทศนิยม ระบบจะใช้จำนวนทศนิยมของ step เป็นจำนวนทศนิยมที่แสดงและปัดเศษให้อัตโนมัติ (step 0.01 หมายถึงทศนิยม 2 ตำแหน่ง) เว้นแต่ระบุ format ไว้ ซึ่ง format จะเป็นตัวกำหนดแทน
 </Callout>
 
 <StepDemo />
@@ -127,7 +127,7 @@ const [value, setValue] = useState<number | null>(10)
 
 <PropertySignature name="format" type="string" />
 
-รูปแบบการแสดงผลตัวเลข เขียนด้วยตัวอักษร 1 ตัวบอกประเภท ตามด้วยจำนวนทศนิยมที่เป็นตัวเลือก (เช่น "n2", "C", "p0") เมื่อระบุจะแทนที่ precision เดิมทั้งหมด
+รูปแบบการแสดงผลตัวเลข เขียนด้วยตัวอักษร 1 ตัวบอกประเภท ตามด้วยจำนวนทศนิยมที่เป็นตัวเลือก (เช่น "n2", "C", "p0") เมื่อระบุจะเป็นตัวกำหนดจำนวนทศนิยมแทนที่ step
 
 รองรับครบทั้ง 9 ตัว:
 
@@ -166,21 +166,21 @@ const [value, setValue] = useState<number | null>(10)
 
 <PropertySignature name="truncate" type="boolean" />
 
-กำหนดว่าจะตัดทศนิยมส่วนเกินทิ้งแทนการปัดเศษหรือไม่ เมื่อค่าที่พิมพ์มีทศนิยมมากกว่าที่ระบุใน precision หรือ format
+กำหนดว่าจะตัดทศนิยมส่วนเกินทิ้งแทนการปัดเศษหรือไม่ เมื่อค่าที่พิมพ์มีทศนิยมมากกว่าที่ step หรือ format กำหนดไว้
 
 ค่าเริ่มต้นของ property นี้คือ false (ปัดเศษตามปกติ)
 
 <Callout type="info">
   **Note**
 
-  เช่น precision เป็น 1 แล้วพิมพ์ 2.999 — ถ้า truncate เป็น false (ปกติ) จะปัดเป็น 3.0 แต่ถ้า truncate เป็น true จะตัดทิ้งเหลือ 2.9 แทน
+  เช่น step เป็น 0.1 (ทศนิยม 1 ตำแหน่ง) แล้วพิมพ์ 2.999 — ถ้า truncate เป็น false (ปกติ) จะปัดเป็น 3.0 แต่ถ้า truncate เป็น true จะตัดทิ้งเหลือ 2.9 แทน
 </Callout>
 
 <TruncateDemo />
 
 ```tsx
-<InputNumber precision={1} step={1} defaultValue={0} />
-<InputNumber precision={1} step={1} defaultValue={0} truncate />
+<InputNumber step={0.1} defaultValue={0} />
+<InputNumber step={0.1} defaultValue={0} truncate />
 ```
 
 ### repeatButtons

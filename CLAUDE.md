@@ -48,6 +48,16 @@ Pure parsing/formatting/clamping logic lives in `src/lib/number.ts` (`parseDraft
 
 Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight. `InputTime`'s `isEditable` (mirroring Wijmo's own `isEditable`) belongs to the exception set too.
 
+### The prop surface is scoped to Wijmo's, minus the open state
+
+Every prop on these components either exists on the corresponding Wijmo control, or is structurally required by React. Nothing else. Props that were invented here and have since been removed on that basis: `hint` (helper text below the field — Wijmo has only `placeholder`), `precision` on `InputNumber` (decimal places now come from `step`, or from `format` when one is given, exactly as Wijmo does it), and `closeOnSelection` on `InputTime` (Wijmo has it on `InputDate`, which keeps it, but not on `InputTime`, which derives from `ComboBox`).
+
+Before adding a prop, check the Wijmo API page for that control. Casing may differ (`showDropdownButton` vs `showDropDownButton`, `maxDropdownHeight` vs `maxDropDownHeight`) and events become `on*` props (`valueChanged` → `onChange`, `textChanged` → `onTextChange`) — those are the same prop, not new surface.
+
+The React-structural exceptions, which have no Wijmo counterpart because Wijmo isn't React and are **not** candidates for removal: `defaultValue` (uncontrolled mode), the `on*` callbacks above, forwarded `ref`, and everything inherited from `InputHTMLAttributes` (`className`, `id`, `name`, …).
+
+`InputDate`'s `locale` is a deliberate addition rather than an oversight: Wijmo switches culture globally for the whole app, so it has no per-control equivalent, and Buddhist Era has no Wijmo equivalent at all.
+
 ### Dropdown open state never leaves the component
 
 Neither `InputDate` nor `InputTime` exposes its dropdown's open state at all — no `isOpen` to drive it, and no `onOpenChange` to observe it. The only outward trace is `aria-expanded` on the input.

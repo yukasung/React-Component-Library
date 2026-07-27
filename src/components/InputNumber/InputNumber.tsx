@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
@@ -38,11 +38,10 @@ export interface InputNumberProps
   // handleWheel) to increment by — they're hidden/inert until a step is
   // given. There's no separate visibility prop for this.
   step?: number | null
-  precision?: number
   // .NET-style standard numeric format string (e.g. "n2", "C", "P0") —
-  // see resolveFormatPrecision/formatWithSpec in src/lib/number.ts. When
-  // set, this supersedes `precision` entirely for both display and the
-  // decimal places used when clamping/rounding on commit.
+  // see resolveFormatPrecision/formatWithSpec in src/lib/number.ts. Sets
+  // both the display and the decimal places used when clamping/rounding on
+  // commit; without one, the decimal places are inferred from `step`.
   format?: string
   repeatButtons?: boolean
   handleWheel?: boolean
@@ -58,7 +57,6 @@ export interface InputNumberProps
   // `isDisabled` naming rather than the native `disabled` HTML/React
   // convention.
   isDisabled?: boolean
-  hint?: string
   // Wijmo-style two-way binding for the raw text shown in the control,
   // distinct from `value` (which holds the parsed number). Setting `text`
   // from outside overrides the displayed draft directly (no reformatting),
@@ -151,7 +149,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     min,
     max,
     step,
-    precision,
     format,
     isDisabled = false,
     isReadOnly = false,
@@ -159,9 +156,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     repeatButtons = true,
     handleWheel = false,
     truncate = false,
-    hint,
     className,
-    'aria-describedby': ariaDescribedBy,
     ...rest
   },
   ref,
@@ -170,11 +165,11 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   const [internalValue, setInternalValue] = useState<number | null>(defaultValue)
   const [isFocused, setIsFocused] = useState(false)
   const committedValue = isControlled ? value : internalValue
-  // `format`, when set, supersedes `precision` entirely — see the prop doc
-  // comment above. resolveFormatPrecision maps the format spec to the
-  // decimal-places count used for clamping/rounding on commit.
+  // resolveFormatPrecision maps a format spec to the decimal-places count
+  // used for clamping/rounding on commit; without a format, that count is
+  // inferred from `step` instead (a step of 0.25 implies two decimals).
   const formatSpec = format ? parseNumericFormat(format) : undefined
-  const effectivePrecision = formatSpec ? resolveFormatPrecision(formatSpec) : (precision ?? resolvePrecision(step ?? undefined))
+  const effectivePrecision = formatSpec ? resolveFormatPrecision(formatSpec) : resolvePrecision(step ?? undefined)
   // Matches Wijmo: step is the sole condition for the spinner (buttons,
   // Arrow keys, handleWheel) — there's no separate visibility prop. No step
   // means no defined increment amount, so there's nothing to step by.
@@ -238,8 +233,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   const atMax = typeof max === 'number' && committedValue !== null && committedValue >= max
   const atMin = typeof min === 'number' && committedValue !== null && committedValue <= min
   const spinButtonsDisabled = isDisabled || isReadOnly
-  const hintId = useId()
-  const describedBy = [ariaDescribedBy, hint ? hintId : undefined].filter(Boolean).join(' ') || undefined
   const repeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const repeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const hasRepeatedRef = useRef(false)
@@ -584,81 +577,73 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   }
 
   return (
-    <>
-      <div
-        className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
-      >
-        {hasStep && (
-          <SpinButton
-            ariaLabel="Decrease value"
-            disabled={spinButtonsDisabled || atMin}
-            onStart={() => startRepeat(-1)}
-            onEnd={clearRepeat}
-            onClick={() => handleSpinClick(-1)}
-            borderSide="border-r"
-            path="M2 6h8"
-          />
-        )}
-        <input
-          {...rest}
-          ref={(node) => {
-            inputElementRef.current = node
-            if (typeof ref === 'function') ref(node)
-            else if (ref) ref.current = node
-          }}
-          type="text"
-          inputMode="decimal"
-          disabled={isDisabled}
-          readOnly={isReadOnly}
-          required={isRequired}
-          aria-describedby={describedBy}
-          // ARIA spinbutton pattern (https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/)
-          // — this control has increment/decrement affordances (spin
-          // buttons, Arrow keys), so it's announced as a spinbutton rather
-          // than a generic textbox. Tracks the live draft (see
-          // draftNumericValue above), not just the last committed value, so
-          // a screen reader announces whatever's currently on screen.
-          role="spinbutton"
-          aria-valuenow={typeof draftNumericValue === 'number' ? draftNumericValue : undefined}
-          aria-valuetext={draft === '' ? undefined : draft}
-          aria-valuemin={min}
-          aria-valuemax={max}
-          value={draft}
-          onChange={handleChange}
-          onFocus={(event) => {
-            setIsFocused(true)
-            // Numeric fields are usually edited as a whole value rather
-            // than character-by-character — selecting everything on focus
-            // lets the user just start typing to replace it, instead of
-            // having to select-all themselves first. Deferred (see
-            // selectAllOnFocus's own doc comment) — a synchronous
-            // .select() here doesn't reliably work in WebKit/Safari.
-            selectAllOnFocus(event.currentTarget)
-          }}
-          onBlur={() => {
-            setIsFocused(false)
-            commitDraft()
-          }}
-          onKeyDown={handleKeyDown}
-          className={inputClassName}
+    <div
+      className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
+    >
+      {hasStep && (
+        <SpinButton
+          ariaLabel="Decrease value"
+          disabled={spinButtonsDisabled || atMin}
+          onStart={() => startRepeat(-1)}
+          onEnd={clearRepeat}
+          onClick={() => handleSpinClick(-1)}
+          borderSide="border-r"
+          path="M2 6h8"
         />
-        {hasStep && (
-          <SpinButton
-            ariaLabel="Increase value"
-            disabled={spinButtonsDisabled || atMax}
-            onStart={() => startRepeat(1)}
-            onEnd={clearRepeat}
-            onClick={() => handleSpinClick(1)}
-            borderSide="border-l"
-            path="M6 2v8M2 6h8"
-          />
-        )}
-      </div>
-      {hint && (
-        <p id={hintId} className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          {hint}
-        </p>
       )}
-    </>
+      <input
+        {...rest}
+        ref={(node) => {
+          inputElementRef.current = node
+          if (typeof ref === 'function') ref(node)
+          else if (ref) ref.current = node
+        }}
+        type="text"
+        inputMode="decimal"
+        disabled={isDisabled}
+        readOnly={isReadOnly}
+        required={isRequired}
+        // ARIA spinbutton pattern (https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/)
+        // — this control has increment/decrement affordances (spin
+        // buttons, Arrow keys), so it's announced as a spinbutton rather
+        // than a generic textbox. Tracks the live draft (see
+        // draftNumericValue above), not just the last committed value, so
+        // a screen reader announces whatever's currently on screen.
+        role="spinbutton"
+        aria-valuenow={typeof draftNumericValue === 'number' ? draftNumericValue : undefined}
+        aria-valuetext={draft === '' ? undefined : draft}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        value={draft}
+        onChange={handleChange}
+        onFocus={(event) => {
+          setIsFocused(true)
+          // Numeric fields are usually edited as a whole value rather
+          // than character-by-character — selecting everything on focus
+          // lets the user just start typing to replace it, instead of
+          // having to select-all themselves first. Deferred (see
+          // selectAllOnFocus's own doc comment) — a synchronous
+          // .select() here doesn't reliably work in WebKit/Safari.
+          selectAllOnFocus(event.currentTarget)
+        }}
+        onBlur={() => {
+          setIsFocused(false)
+          commitDraft()
+        }}
+        onKeyDown={handleKeyDown}
+        className={inputClassName}
+      />
+      {hasStep && (
+        <SpinButton
+          ariaLabel="Increase value"
+          disabled={spinButtonsDisabled || atMax}
+          onStart={() => startRepeat(1)}
+          onEnd={clearRepeat}
+          onClick={() => handleSpinClick(1)}
+          borderSide="border-l"
+          path="M6 2v8M2 6h8"
+        />
+      )}
+    </div>
   )
 })

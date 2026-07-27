@@ -6,7 +6,6 @@ import {
   DisabledDemo,
   FormatDemo,
   HandleWheelDemo,
-  HintDemo,
   IsRequiredDemo,
   LocaleDemo,
   MinMaxDemo,
@@ -174,18 +173,6 @@ const [end, setEnd] = useState<Date | null>(null)
 <InputDate format="y-m-d" defaultValue={new Date()} />
 <InputDate format="j/n/Y" defaultValue={new Date()} />
 <InputDate format="n/j/Y" defaultValue={new Date()} />
-```
-
-### hint
-
-<PropertySignature name="hint" type="string" />
-
-ข้อความอธิบายเพิ่มเติมที่แสดงใต้ช่องกรอก
-
-<HintDemo />
-
-```tsx
-<InputDate hint="รูปแบบ: ปี-เดือน-วัน" defaultValue={new Date()} />
 ```
 
 ### text

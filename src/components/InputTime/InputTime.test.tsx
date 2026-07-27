@@ -413,16 +413,6 @@ describe('InputTime', () => {
       expect(screen.queryByRole('listbox')).toBeNull()
     })
 
-    it('stays open after selection when closeOnSelection is false', async () => {
-      const user = userEvent.setup()
-      render(<InputTime defaultValue={at(9)} min={at(9)} max={at(10)} step={30} closeOnSelection={false} />)
-
-      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
-      await user.click(screen.getByRole('option', { name: '09:30' }))
-
-      expect(screen.getByRole('listbox')).toBeInTheDocument()
-    })
-
     it('toggles closed when clicking the button again', async () => {
       const user = userEvent.setup()
       render(<InputTime defaultValue={at(9)} min={at(9)} max={at(10)} step={30} />)
@@ -717,20 +707,12 @@ describe('InputTime', () => {
       expect(screen.getByRole('option', { name: '09:30' })).toHaveAttribute('id', activeId)
     })
 
-    it('renders hint text wired to the input via aria-describedby', () => {
-      render(<InputTime defaultValue={at(9)} hint="Office hours only" />)
-      const input = screen.getByRole('combobox')
-      const hintId = input.getAttribute('aria-describedby')
-      expect(hintId).toBeTruthy()
-      expect(document.getElementById(hintId!)).toHaveTextContent('Office hours only')
+    it('passes a consumer-supplied aria-describedby straight through', () => {
+      render(<InputTime defaultValue={at(9)} aria-describedby="external" />)
+      expect(screen.getByRole('combobox')).toHaveAttribute('aria-describedby', 'external')
     })
 
-    it('merges a consumer-supplied aria-describedby with the generated hint id', () => {
-      render(<InputTime defaultValue={at(9)} hint="Office hours only" aria-describedby="external" />)
-      expect(screen.getByRole('combobox').getAttribute('aria-describedby')).toMatch(/^external /)
-    })
-
-    it('omits aria-describedby entirely when there is no hint and no consumer value', () => {
+    it('omits aria-describedby entirely when the consumer supplies none', () => {
       render(<InputTime defaultValue={at(9)} />)
       expect(screen.getByRole('combobox')).not.toHaveAttribute('aria-describedby')
     })

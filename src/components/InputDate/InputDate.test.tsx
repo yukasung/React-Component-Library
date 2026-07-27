@@ -453,23 +453,12 @@ describe('InputDate', () => {
       expect(input).toHaveAttribute('aria-expanded', 'false')
     })
 
-    it('renders hint text wired to the input via aria-describedby', () => {
-      render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} hint="Format: YYYY-MM-DD" />)
-      const input = screen.getByRole('combobox')
-      const describedBy = input.getAttribute('aria-describedby')
-      expect(describedBy).toBeTruthy()
-      expect(document.getElementById(describedBy!)).toHaveTextContent('Format: YYYY-MM-DD')
+    it('passes a consumer-supplied aria-describedby straight through', () => {
+      render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} aria-describedby="external-id" />)
+      expect(screen.getByRole('combobox')).toHaveAttribute('aria-describedby', 'external-id')
     })
 
-    it('merges a consumer-supplied aria-describedby with the generated hint id', () => {
-      render(
-        <InputDate value={new Date(2026, 6, 1)} onChange={() => {}} hint="Hint" aria-describedby="external-id" />,
-      )
-      const describedBy = screen.getByRole('combobox').getAttribute('aria-describedby')
-      expect(describedBy).toContain('external-id')
-    })
-
-    it('omits aria-describedby entirely when there is no hint and no consumer value', () => {
+    it('omits aria-describedby entirely when the consumer supplies none', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
       expect(screen.getByRole('combobox')).not.toHaveAttribute('aria-describedby')
     })

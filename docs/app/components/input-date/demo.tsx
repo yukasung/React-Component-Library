@@ -153,16 +153,6 @@ export function FormatDemo() {
   )
 }
 
-export function HintDemo() {
-  const [value, setValue] = useState<Date | null>(new Date())
-
-  return (
-    <div className="not-prose my-6 max-w-xs">
-      <InputDate value={value} onChange={setValue} hint="รูปแบบ: ปี-เดือน-วัน" />
-    </div>
-  )
-}
-
 export function TextDemo() {
   const [text, setText] = useState('2026-07-22')
   const [value, setValue] = useState<Date | null>(new Date(2026, 6, 22))

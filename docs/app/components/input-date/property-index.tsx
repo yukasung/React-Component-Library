@@ -9,7 +9,6 @@ const properties = [
   { name: 'min', href: '#min' },
   { name: 'max', href: '#max' },
   { name: 'format', href: '#format' },
-  { name: 'hint', href: '#hint' },
   { name: 'text', href: '#text' },
   { name: 'handleWheel', href: '#handlewheel' },
   { name: 'closeOnSelection', href: '#closeonselection' },
