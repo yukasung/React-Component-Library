@@ -11,9 +11,10 @@ describe('InputDate', () => {
     expect(input).toHaveAttribute('id', 'dob')
     expect(input).toHaveAttribute('name', 'dateOfBirth')
     expect(input).toHaveAttribute('placeholder', 'Pick a date')
-    // className styles the wrapper (bordered box around the input and
-    // dropdown button), not the input itself.
-    expect(input.parentElement?.className).toContain('custom')
+    // The border and background live on the input itself (the calendar
+    // icon overlays it rather than sitting in a cell beside it), so a
+    // consumer className lands there too.
+    expect(input.className).toContain('custom')
   })
 
   it('displays a controlled value', () => {
@@ -295,7 +296,7 @@ describe('InputDate', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} isDisabled />)
       const input = screen.getByRole('combobox')
       expect(input).toBeDisabled()
-      expect(input.parentElement?.className).toContain('opacity-40')
+      expect(input.className).toContain('opacity-40')
     })
 
     it('prevents typing and dropdown toggling, and never calls onChange', async () => {

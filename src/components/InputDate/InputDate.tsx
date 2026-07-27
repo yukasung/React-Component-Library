@@ -58,28 +58,35 @@ export interface InputDateProps
   monthCount?: number
 }
 
-const wrapperBaseClassName =
-  'flex items-stretch overflow-hidden rounded-lg border shadow-sm focus-within:border-blue-300 focus-within:ring-3 focus-within:ring-blue-500/20'
+// Layout ported from references/tailadmin-react/src/components/form/date-picker.tsx:
+// the border, background and focus ring live on the <input> itself, and the
+// calendar icon is an overlay positioned over its right edge — not a
+// bordered button in its own cell beside it. Only the palette is
+// translated: the reference's `brand-*` scale and `shadow-theme-xs` become
+// this project's stock `blue-*` and `shadow-sm`.
+const inputBaseClassName =
+  'h-11 w-full appearance-none rounded-lg border px-4 py-2.5 text-sm shadow-sm outline-none placeholder:text-gray-400 focus:ring-3 dark:text-white/90 dark:placeholder:text-white/30'
 
-function wrapperStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
+function inputStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
   if (isDisabled) {
-    return 'cursor-not-allowed border-gray-300 bg-gray-100 opacity-40 dark:border-gray-700 dark:bg-gray-800'
+    return 'cursor-not-allowed border-gray-300 bg-gray-100 text-gray-500 opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
   }
   if (isReadOnly) {
-    return 'cursor-default border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60'
+    return 'cursor-default border-gray-300 bg-gray-50 text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800/60 dark:focus:border-blue-800'
   }
-  return 'border-gray-300 bg-transparent dark:border-gray-700 dark:bg-gray-900'
+  return 'border-gray-300 bg-transparent text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-blue-800'
 }
 
-const inputClassName =
-  'h-11 min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-gray-800 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-white/90 dark:placeholder:text-white/30 dark:disabled:text-gray-400'
-
+// Unlike the reference's icon — a `pointer-events-none` <span>, purely
+// decorative there — this one opens the calendar, so it stays a real button
+// and keeps its accessible name. Everything visual about it matches:
+// centred on the input's right edge, no border, no cell of its own.
 const dropdownButtonClassName =
-  'flex h-11 w-9 shrink-0 items-center justify-center border-l border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent dark:border-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:disabled:text-gray-700'
+  'absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:disabled:text-gray-700'
 
 function CalendarIcon() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+    <svg viewBox="0 0 16 16" width="20" height="20" fill="none" aria-hidden="true">
       <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
       <path d="M2 6.5h12M5 1.5v3M11 1.5v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
@@ -288,58 +295,58 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
 
   return (
     <div className="relative">
-      <div
-        className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
-      >
-        <input
-          {...rest}
-          ref={(node) => {
-            inputElementRef.current = node
-            if (typeof ref === 'function') ref(node)
-            else if (ref) ref.current = node
-          }}
-          type="text"
-          disabled={isDisabled}
-          readOnly={isReadOnly}
-          required={isRequired}
-          // Combobox-with-popup pattern (calendar dropdown), not a
-          // spinbutton like InputNumber.
-          role="combobox"
-          aria-expanded={isOpenState}
-          aria-haspopup="dialog"
-          aria-autocomplete="none"
-          value={draft}
-          onChange={handleChange}
-          onFocus={(event) => {
-            setIsFocused(true)
-            // Dates are usually edited as a whole value rather than
-            // character-by-character — selecting everything on focus lets
-            // the user just start typing to replace it. Deferred (see
-            // selectAllOnFocus's own doc comment) — a synchronous
-            // .select() here doesn't reliably work in WebKit/Safari.
-            selectAllOnFocus(event.currentTarget)
-          }}
-          onBlur={() => {
-            setIsFocused(false)
-            commitDraft()
-          }}
-          onKeyDown={handleKeyDown}
-          className={inputClassName}
-        />
-        {showDropdownButton && (
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Toggle calendar"
-            disabled={isDisabled || isReadOnly}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={handleToggleDropdown}
-            className={dropdownButtonClassName}
-          >
-            <CalendarIcon />
-          </button>
-        )}
-      </div>
+      <input
+        {...rest}
+        ref={(node) => {
+          inputElementRef.current = node
+          if (typeof ref === 'function') ref(node)
+          else if (ref) ref.current = node
+        }}
+        type="text"
+        disabled={isDisabled}
+        readOnly={isReadOnly}
+        required={isRequired}
+        // Combobox-with-popup pattern (calendar dropdown), not a
+        // spinbutton like InputNumber.
+        role="combobox"
+        aria-expanded={isOpenState}
+        aria-haspopup="dialog"
+        aria-autocomplete="none"
+        value={draft}
+        onChange={handleChange}
+        onFocus={(event) => {
+          setIsFocused(true)
+          // Dates are usually edited as a whole value rather than
+          // character-by-character — selecting everything on focus lets
+          // the user just start typing to replace it. Deferred (see
+          // selectAllOnFocus's own doc comment) — a synchronous
+          // .select() here doesn't reliably work in WebKit/Safari.
+          selectAllOnFocus(event.currentTarget)
+        }}
+        onBlur={() => {
+          setIsFocused(false)
+          commitDraft()
+        }}
+        onKeyDown={handleKeyDown}
+        // The icon overlays the input's right edge rather than sitting
+        // beside it, so the text needs room to stop short of it — the
+        // reference has no such padding because its own icon is
+        // decorative and its field is never long enough to reach it.
+        className={`${inputBaseClassName} ${inputStateClassName(isDisabled, isReadOnly)} ${showDropdownButton ? 'pr-11' : ''} ${className ?? ''}`}
+      />
+      {showDropdownButton && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Toggle calendar"
+          disabled={isDisabled || isReadOnly}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={handleToggleDropdown}
+          className={dropdownButtonClassName}
+        >
+          <CalendarIcon />
+        </button>
+      )}
       {/* React-opaque host for flatpickr's popup — see the DOM-ownership
           escape-hatch note above; must stay empty in JSX. */}
       <div ref={containerRef} className="absolute inset-x-0 bottom-0 h-0 w-0" aria-hidden="true" />

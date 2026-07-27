@@ -124,9 +124,9 @@
    bottom-of-input anchor point, landing the popup's bottom edge just 2px
    above the input's *bottom* — covering the entire input, not clearing it
    (confirmed: this is exactly the overlap the un-adjusted version
-   produced). 2.75rem is InputDate's own fixed row height (`h-11` on both
-   the text input and the dropdown button in InputDate.tsx, kept in sync by
-   `items-stretch` on the row) — adding it shifts the anchor up by the
+   produced). 2.75rem is the input's own fixed height (`h-11` on the
+   <input> in InputDate.tsx — the calendar icon overlays that same input
+   rather than adding height of its own) — adding it shifts the anchor up by the
    input's own height, so the popup's bottom edge clears the input's *top*
    instead. If InputDate.tsx's row height class ever changes from h-11,
    this value must change with it. */
