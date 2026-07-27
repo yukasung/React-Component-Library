@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { tokenizeDateMask } from './date'
 import { applyInputMask, diffStrings, isLiteralCharAt, pendingAdvanceAtCursor } from './inputMask'
+import { timeMaskSegments } from './time'
 
 describe('diffStrings', () => {
   it('finds a single character inserted at the end', () => {
@@ -256,5 +257,78 @@ describe('isLiteralCharAt', () => {
   it('is false at the index of a digit', () => {
     expect(isLiteralCharAt('31/07/2026', 0, dmy)).toBe(false)
     expect(isLiteralCharAt('31/07/2026', 6, dmy)).toBe(false)
+  })
+
+  it('is false inside an AM/PM designator', () => {
+    const hik = timeMaskSegments('h:i K')!
+    expect(isLiteralCharAt('9:30 AM', 4, hik)).toBe(true)
+    expect(isLiteralCharAt('9:30 AM', 5, hik)).toBe(false)
+    expect(isLiteralCharAt('9:30 AM', 6, hik)).toBe(false)
+  })
+})
+
+// The masker is shared with InputTime, whose formats bring two things date
+// formats never do: hour/minute ranges, and the letter-valued AM/PM segment.
+describe('applyInputMask with time segments', () => {
+  const hi = timeMaskSegments('H:i')!
+  const hik = timeMaskSegments('h:i K')!
+
+  it('auto-completes and auto-advances an hour leading digit 3-9 (no valid 2-digit continuation)', () => {
+    expect(applyInputMask(hi, '', diffStrings('', '9'))).toEqual({ draft: '9:', cursor: 2 })
+  })
+
+  it('keeps an hour leading digit 0-2 open for a possible second digit', () => {
+    expect(applyInputMask(hi, '', diffStrings('', '1'))).toEqual({ draft: '1', cursor: 1 })
+  })
+
+  it('rejects a second hour digit that pushes past 23', () => {
+    expect(applyInputMask(hi, '2', diffStrings('2', '25'))).toBe('reject')
+    expect(applyInputMask(hi, '2', diffStrings('2', '23'))).toEqual({ draft: '23:', cursor: 3 })
+  })
+
+  it('completes a minute leading digit past 5 outright (no valid 2-digit continuation)', () => {
+    expect(applyInputMask(hi, '09:', diffStrings('09:', '09:6'))).toEqual({ draft: '09:6', cursor: 4 })
+  })
+
+  it('rejects a second minute digit that pushes past 59', () => {
+    expect(applyInputMask(hi, '09:5', diffStrings('09:5', '09:59'))).toEqual({ draft: '09:59', cursor: 5 })
+    expect(applyInputMask(hi, '09:1', diffStrings('09:1', '09:1 '))).toBe('reject')
+  })
+
+  it('restricts a 12-hour token to 1-12', () => {
+    expect(applyInputMask(hik, '1', diffStrings('1', '13'))).toBe('reject')
+    expect(applyInputMask(hik, '1', diffStrings('1', '12'))).toEqual({ draft: '12:', cursor: 3 })
+  })
+
+  it('writes the whole designator from a single a/p keystroke', () => {
+    expect(applyInputMask(hik, '9:30 ', diffStrings('9:30 ', '9:30 p'))).toEqual({ draft: '9:30 PM', cursor: 7 })
+    expect(applyInputMask(hik, '9:30 ', diffStrings('9:30 ', '9:30 A'))).toEqual({ draft: '9:30 AM', cursor: 7 })
+  })
+
+  it('overwrites an existing designator rather than rejecting the keystroke', () => {
+    expect(applyInputMask(hik, '9:30 AM', diffStrings('9:30 AM', '9:30 pAM'))).toEqual({
+      draft: '9:30 PM',
+      cursor: 7,
+    })
+  })
+
+  it('rejects a letter that is not a designator', () => {
+    expect(applyInputMask(hik, '9:30 ', diffStrings('9:30 ', '9:30 x'))).toBe('reject')
+  })
+
+  it('rebuilds from a pasted 12-hour time, designator included', () => {
+    expect(applyInputMask(hik, '', diffStrings('', '9:30 PM'))).toEqual({ draft: '9:30 PM', cursor: 7 })
+  })
+
+  it('stops at the designator when a pasted time has no am/pm', () => {
+    expect(applyInputMask(hik, '', diffStrings('', '09:30'))).toEqual({ draft: '09:30 ', cursor: 6 })
+  })
+
+  it('never auto-advances an AM/PM segment on the timeout path (one keystroke completes it)', () => {
+    expect(pendingAdvanceAtCursor(hik, '9:30 ', 5)).toBeNull()
+  })
+
+  it('still auto-advances an ambiguous hour after a pause', () => {
+    expect(pendingAdvanceAtCursor(hi, '1', 1)).toEqual({ draft: '1:', cursor: 2 })
   })
 })
