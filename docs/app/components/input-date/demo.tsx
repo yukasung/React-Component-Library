@@ -205,29 +205,16 @@ export function HandleWheelDemo() {
   )
 }
 
-export function IsOpenDemo() {
+export function OnOpenChangeDemo() {
   const [value, setValue] = useState<Date | null>(new Date())
   const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div className="not-prose my-6 max-w-xs">
-      <div className="mb-2 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-        >
-          เปิดปฏิทิน
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsOpen(false)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-        >
-          ปิดปฏิทิน
-        </button>
-      </div>
-      <InputDate value={value} onChange={setValue} isOpen={isOpen} onOpenChange={setIsOpen} />
+      <InputDate value={value} onChange={setValue} onOpenChange={setIsOpen} />
+      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+        ตอนนี้ปฏิทิน{isOpen ? 'เปิดอยู่' : 'ปิดอยู่'}
+      </p>
     </div>
   )
 }

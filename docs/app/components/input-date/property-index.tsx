@@ -12,7 +12,7 @@ const properties = [
   { name: 'hint', href: '#hint' },
   { name: 'text', href: '#text' },
   { name: 'handleWheel', href: '#handlewheel' },
-  { name: 'isOpen', href: '#isopen' },
+  { name: 'onOpenChange', href: '#onopenchange' },
   { name: 'closeOnSelection', href: '#closeonselection' },
   { name: 'showDropdownButton', href: '#showdropdownbutton' },
   { name: 'monthCount', href: '#monthcount' },

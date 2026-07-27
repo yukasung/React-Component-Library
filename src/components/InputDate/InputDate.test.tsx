@@ -418,14 +418,19 @@ describe('InputDate', () => {
     })
   })
 
-  describe('isOpen / onOpenChange / monthCount', () => {
-    it('opens the popup when the controlled isOpen prop becomes true', () => {
-      const { rerender } = render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} isOpen={false} />)
+  describe('onOpenChange / monthCount', () => {
+    it('tracks the popup state on aria-expanded as the user opens and closes it', async () => {
+      const user = userEvent.setup()
+      render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
       const input = screen.getByRole('combobox')
+      const button = screen.getByRole('button', { name: 'Toggle calendar' })
       expect(input).toHaveAttribute('aria-expanded', 'false')
 
-      rerender(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} isOpen />)
+      await user.click(button)
       expect(input).toHaveAttribute('aria-expanded', 'true')
+
+      await user.click(button)
+      expect(input).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('calls onOpenChange when the dropdown button toggles the popup', async () => {

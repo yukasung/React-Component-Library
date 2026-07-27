@@ -54,9 +54,10 @@ export interface InputDateProps
   // Day-step per wheel notch, opt-in + focus-gated, same convention as
   // InputNumber's handleWheel.
   handleWheel?: boolean
-  // Controlled calendar-dropdown open state — extends the is-prefix
-  // exception set (mirrors Wijmo's isDroppedDown).
-  isOpen?: boolean
+  // Fired whenever the calendar popup opens or closes, by user action of any
+  // kind. Notification only — the open state itself belongs to the control,
+  // and there's deliberately no prop to drive it from outside (same as
+  // InputTime).
   onOpenChange?: (isOpen: boolean) => void
   closeOnSelection?: boolean
   showDropdownButton?: boolean
@@ -106,7 +107,6 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     isRequired = true,
     hint,
     handleWheel = false,
-    isOpen,
     onOpenChange,
     closeOnSelection = true,
     showDropdownButton = true,
@@ -226,7 +226,6 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     flatpickrLocale,
     yearOffset,
     committedValue,
-    isOpen,
     onPick: commit,
     onOpenChange: (open) => {
       setIsOpenState(open)

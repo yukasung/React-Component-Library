@@ -46,9 +46,13 @@ Pure parsing/formatting/clamping logic lives in `src/lib/number.ts` (`parseDraft
 
 ### Boolean prop naming: `is`-prefix vs. native
 
-Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight. `InputDate`'s `isOpen`/`onOpenChange` (controlled calendar-dropdown open state) extends this same exception set, loosely mirroring Wijmo's `isDroppedDown` — note the name is this library's own, not Wijmo's, unlike the four `is` props above it. `InputTime`'s `isEditable` (mirroring Wijmo's own `isEditable`) belongs to the exception set too.
+Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight. `InputTime`'s `isEditable` (mirroring Wijmo's own `isEditable`) belongs to the exception set too.
 
-`InputTime` deliberately does **not** have an `isOpen`: its dropdown's open state belongs to the control, and `onOpenChange` reports it without any prop to drive it from outside. This is a narrower API than both `InputDate` and Wijmo (whose `isDroppedDown` is settable) — a deliberate scope decision, so don't "restore" it for symmetry.
+### Dropdown open state is never a prop
+
+Neither `InputDate` nor `InputTime` has an `isOpen`. Their dropdown's open state belongs to the control; `onOpenChange` reports every open and close (button, click-away, selection, Escape) and nothing drives it from outside.
+
+This is deliberately **narrower than Wijmo**, whose `isDroppedDown` is settable — so it is not a parity gap to be closed. Both components had a controlled `isOpen` at one point and it was removed on review; don't reintroduce one on the grounds that the reference API has it, or that a consumer could want it. If a real use case turns up, that's a decision to make deliberately, for both components at once.
 
 ### `step` is the sole condition for the spin buttons / time dropdown (matches Wijmo)
 

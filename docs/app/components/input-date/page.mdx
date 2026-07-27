@@ -7,11 +7,11 @@ import {
   FormatDemo,
   HandleWheelDemo,
   HintDemo,
-  IsOpenDemo,
   IsRequiredDemo,
   LocaleDemo,
   MinMaxDemo,
   MonthCountDemo,
+  OnOpenChangeDemo,
   ReadOnlyDemo,
   ShowDropdownButtonDemo,
   TextDemo,
@@ -221,17 +221,23 @@ const [text, setText] = useState('2026-07-22')
 <InputDate defaultValue={new Date()} handleWheel />
 ```
 
-### isOpen
+### onOpenChange
 
-<PropertySignature name="isOpen" type="boolean" />
+<PropertySignature name="onOpenChange" type="(isOpen: boolean) => void" />
 
-ควบคุมสถานะเปิด/ปิดของปฏิทิน dropdown จากภายนอก ใช้คู่กับ onOpenChange
+เรียกทุกครั้งที่ปฏิทินเปิดหรือปิด ไม่ว่าจะจากปุ่ม, การคลิกนอกช่อง หรือการเลือกวันที่
 
-<IsOpenDemo />
+<Callout type="info">
+  **Note**
+
+  เป็นการ**แจ้งสถานะ**อย่างเดียว — สถานะเปิด/ปิดเป็นของตัว control เอง ไม่มี property สำหรับสั่งเปิด/ปิดจากภายนอก (เช่นเดียวกับ InputTime)
+</Callout>
+
+<OnOpenChangeDemo />
 
 ```tsx
 const [isOpen, setIsOpen] = useState(false)
-<InputDate isOpen={isOpen} onOpenChange={setIsOpen} value={value} onChange={setValue} />
+<InputDate onOpenChange={setIsOpen} value={value} onChange={setValue} />
 ```
 
 ### closeOnSelection

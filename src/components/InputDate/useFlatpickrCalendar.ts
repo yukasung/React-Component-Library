@@ -24,7 +24,6 @@ export interface UseFlatpickrCalendarOptions {
   // in InputDate.tsx; this hook only consumes the resolved number.
   yearOffset: number
   committedValue: Date | null
-  isOpen: boolean | undefined
   // Called when a day is picked in the calendar, with the picked date
   // normalized to the start of day. Kept latest-in-a-ref internally, so the
   // once-bound flatpickr onChange always calls the current closure.
@@ -60,7 +59,6 @@ export function useFlatpickrCalendar({
   flatpickrLocale,
   yearOffset,
   committedValue,
-  isOpen,
   onPick,
   onOpenChange,
 }: UseFlatpickrCalendarOptions): UseFlatpickrCalendarResult {
@@ -311,19 +309,6 @@ export function useFlatpickrCalendar({
     if (committedValue) instance.setDate(committedValue, false)
     else instance.clear(false)
   }, [committedValue])
-
-  // Reflects external isOpen control without a feedback loop — flatpickr's
-  // own onOpen/onClose hooks (above) fire for both user- and
-  // programmatically-triggered open/close, so the consumer's open state
-  // stays the single source of truth either way.
-  useEffect(() => {
-    const instance = instanceRef.current
-    if (!instance || isOpen === undefined) return
-    if (isOpen !== instance.isOpen) {
-      if (isOpen) instance.open()
-      else instance.close()
-    }
-  }, [isOpen])
 
   const toggle = useCallback(() => {
     instanceRef.current?.toggle()
