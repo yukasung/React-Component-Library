@@ -204,11 +204,29 @@
   background-image: none;
 }
 
+/* The last two declarations close the gap that otherwise sits between the
+   month name and the year. A <select> sizes itself to its *widest* option,
+   so with "January" showing it stays as wide as "September" and the
+   leftover space lands between the two — flatpickr's own `width: auto`
+   can't help, since that is the auto behaviour.
+
+   `field-sizing: content` is the direct fix (size to the selected option,
+   not the widest) and is ignored by browsers that don't support it yet.
+   `text-align: right` is what covers those: the box stays wide, but the
+   month name sits at its right edge, hard against the year, and the slack
+   moves to the left of the month instead of between them.
+
+   Deliberately not solved by switching to `monthSelectorType: 'static'`,
+   which is what the reference does — that renders the month as a plain
+   span (sized to its text, no gap) but costs the month dropdown, and
+   being able to jump straight to a month is worth keeping. */
 .flatpickr-current-month .flatpickr-monthDropdown-months {
   background: none;
   background-image: none;
   appearance: none;
   font-weight: 500;
+  field-sizing: content;
+  text-align: right;
 }
 
 .flatpickr-current-month .flatpickr-monthDropdown-months:focus {

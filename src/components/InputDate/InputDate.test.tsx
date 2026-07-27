@@ -434,6 +434,21 @@ describe('InputDate', () => {
       expect(input).toHaveAttribute('aria-expanded', 'false')
     })
 
+    it('keeps the month as a dropdown you can pick from', async () => {
+      const user = userEvent.setup()
+      render(<InputDate value={new Date(2026, 0, 15)} onChange={() => {}} />)
+
+      await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+
+      // flatpickr's monthSelectorType is left at its default rather than
+      // 'static': the reference uses static (a plain span, no gap before
+      // the year) but that costs the dropdown, so the gap is closed in CSS
+      // instead — see flatpickr-theme.css.
+      const monthSelect = document.querySelector('.flatpickr-calendar .flatpickr-monthDropdown-months')
+      expect(monthSelect).not.toBeNull()
+      expect(monthSelect?.tagName).toBe('SELECT')
+    })
+
     it('renders multiple months when monthCount is set', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} monthCount={2} />)
