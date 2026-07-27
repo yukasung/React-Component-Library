@@ -5,14 +5,8 @@ import { Thai } from 'flatpickr/dist/l10n/th.js'
 import './flatpickr-theme.css'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { addDays, clampDate, formatDateValue, isSameDay, parseDateDraft, startOfDay, tokenizeDateMask } from '../../lib/date'
-import {
-  AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS,
-  applyInputMask,
-  diffStrings,
-  isLiteralCharAt,
-  pendingAdvanceAtCursor,
-} from '../../lib/inputMask'
-import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
+import { useInputMask } from '../../hooks/useInputMask'
+import { selectAllOnFocus } from '../../lib/domSelection'
 import { useFlatpickrCalendar } from './useFlatpickrCalendar'
 
 // The offset added to a Gregorian year to display/accept Buddhist Era (พ.ศ.)
@@ -161,11 +155,10 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   const lastCommittedRef = useRef(committedValue)
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
-  // Timer for the ambiguous-digit auto-advance (see
-  // AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS above) — rescheduled on every
-  // keystroke in handleChange, cleared on blur/commit and Escape, and on
-  // unmount below.
-  const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The React half of the live-typing mask — the auto-advance timeout and
+  // the cursor bookkeeping that drives src/lib/inputMask.ts. Shared with
+  // InputTime; see the hook's own doc comment.
+  const mask = useInputMask({ segments: maskSegments, draft, setDraft: updateDraft, inputRef: inputElementRef })
 
   useEffect(() => {
     if (pendingSelectionRef.current !== null && inputElementRef.current) {
@@ -174,37 +167,6 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
       pendingSelectionRef.current = null
     }
   })
-
-  function clearPendingAdvance() {
-    if (advanceTimeoutRef.current !== null) {
-      clearTimeout(advanceTimeoutRef.current)
-      advanceTimeoutRef.current = null
-    }
-  }
-
-  // Schedules the ambiguous-digit auto-advance (see
-  // AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS) *if* the cursor is currently sitting
-  // in an ambiguous, still-open day/month segment — pendingAdvanceAtCursor
-  // returns null otherwise, so this is a no-op when there's nothing to
-  // advance. Cursor-scoped (not a global open-segment scan) specifically so
-  // a single-digit segment the user has already typed past can't schedule a
-  // spurious advance that yanks the cursor back to it. Callers must
-  // clearPendingAdvance() first; the fired callback re-checks focus, since
-  // the user may have blurred during the delay.
-  function scheduleAdvanceIfPending(currentDraft: string, cursor: number) {
-    if (!maskSegments) return
-    const pending = pendingAdvanceAtCursor(maskSegments, currentDraft, cursor)
-    if (!pending) return
-    advanceTimeoutRef.current = setTimeout(() => {
-      advanceTimeoutRef.current = null
-      const node = inputElementRef.current
-      if (!node || document.activeElement !== node) return
-      updateDraft(pending.draft)
-      applySelection(node, pending.cursor, pending.cursor)
-    }, AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS)
-  }
-
-  useEffect(() => clearPendingAdvance, [])
 
   function datesEqual(a: Date | null, b: Date | null): boolean {
     if (a === null || b === null) return a === b
@@ -223,7 +185,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
 
   function commitDraft() {
     if (isReadOnly) return
-    clearPendingAdvance()
+    mask.clearPendingAdvance()
     // No flush-before-parse needed here — confirmed empirically that
     // flatpickr's own parseDate already accepts a bare, not-yet-finalized
     // 1-2 digit day/month value exactly like a fully-flushed one (it
@@ -279,48 +241,11 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const el = event.target
-    const rawNext = el.value
-    let next = rawNext
-    let maskCursor = -1
-    clearPendingAdvance()
-    if (maskSegments) {
-      // Live-typing mask — see src/lib/inputMask.ts. diffStrings recovers the
-      // single edit region from the browser's own resulting value (works
-      // uniformly for a keystroke, Backspace/Delete, an overtyped selection,
-      // or a paste, without needing to know which one happened); applyInputMask
-      // then either accepts it (auto-inserting the next literal separator
-      // when a segment completes) or rejects it outright, restoring the
-      // draft/cursor to where the rejected edit started.
-      const edit = diffStrings(draft, rawNext)
-      const result = applyInputMask(maskSegments, draft, edit)
-      if (result === 'reject') {
-        applySelection(el, edit.start, edit.start)
-        // The draft is unchanged, but the segment being edited may still be
-        // an ambiguous open one (e.g. typing an invalid 2nd day digit onto
-        // "3" is rejected, leaving "3" still open) — keep its auto-advance
-        // ticking rather than leaving it stuck with no way forward.
-        scheduleAdvanceIfPending(draft, edit.start)
-        return
-      }
-      next = result.draft
-      maskCursor = result.cursor
-      // Always re-apply the cursor here, even when `next` happens to
-      // textually equal `rawNext` (e.g. an explicit separator keystroke
-      // that force-advances a segment to exactly what the browser already
-      // typed) — an earlier version skipped this call in that case,
-      // reasoning the browser's own native cursor placement was already
-      // right. That reasoning doesn't hold: React's controlled-input
-      // reconciliation doesn't know the DOM's `value` was just mutated
-      // natively by this same keystroke (it only sees "state changed from
-      // the previous render"), so it can still reassign `el.value` on
-      // commit — even to matching text — which resets the browser's own
-      // cursor placement with nothing left to correct it afterward. Always
-      // calling `applySelection` here (cheap: a `setSelectionRange` plus a
-      // microtask re-apply, see its own doc comment) removes that
-      // assumption entirely instead of relying on it holding in every
-      // browser engine.
-      applySelection(el, result.cursor, result.cursor)
-    }
+    // Live-typing mask (auto-inserted separators, per-segment digit ranges,
+    // the ambiguous-digit auto-advance) — null means the edit was rejected
+    // and the draft should stay as it is.
+    const next = mask.maskChange(el, el.value)
+    if (next === null) return
     if (isRequired && next.trim() === '') {
       // Required fields can't sit empty even mid-edit — snap immediately
       // (not just on blur) to today's formatted date and select it so the
@@ -331,23 +256,14 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
       pendingSelectionRef.current = { start: 0, end: todayText.length }
       return
     }
-    // An ambiguous day/month digit (e.g. "1" — could stay "1" or continue to
-    // "10"-"19") pairs the explicit-separator force-advance above with a
-    // short-pause auto-advance: if nothing else is typed within
-    // AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS, finalize the segment the cursor is
-    // in as-is. Scoped to the cursor's own segment (see
-    // pendingAdvanceAtCursor) so a single-digit segment already typed past
-    // never schedules an advance that would drag the cursor back to it.
-    if (maskSegments) scheduleAdvanceIfPending(next, maskCursor)
     updateDraft(next)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    const el = event.currentTarget
     if (event.key === 'Enter') {
       commitDraft()
     } else if (event.key === 'Escape') {
-      clearPendingAdvance()
+      mask.clearPendingAdvance()
       updateDraft(formattedValue)
     } else if (event.key === 'ArrowUp' && !isReadOnly) {
       event.preventDefault()
@@ -355,22 +271,11 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     } else if (event.key === 'ArrowDown' && !isReadOnly) {
       event.preventDefault()
       stepBy(-1)
-    } else if (event.key === 'Backspace' && !isReadOnly && maskSegments) {
-      // Two-press skip-then-delete, mirroring InputNumber's own
-      // decimal-point-skip convention: stepping over a separator instead of
-      // deleting nothing lets the *next* Backspace delete the actual digit
-      // natively, rather than requiring bespoke "smart" deletion logic here.
-      const cursor = el.selectionStart
-      if (cursor !== null && cursor === el.selectionEnd && cursor > 0 && isLiteralCharAt(draft, cursor - 1, maskSegments)) {
-        event.preventDefault()
-        el.setSelectionRange(cursor - 1, cursor - 1)
-      }
-    } else if (event.key === 'Delete' && !isReadOnly && maskSegments) {
-      const cursor = el.selectionStart
-      if (cursor !== null && cursor === el.selectionEnd && isLiteralCharAt(draft, cursor, maskSegments)) {
-        event.preventDefault()
-        el.setSelectionRange(cursor + 1, cursor + 1)
-      }
+    } else if (!isReadOnly) {
+      // Two-press skip-then-delete over an auto-inserted separator,
+      // mirroring InputNumber's own decimal-point-skip convention — see
+      // useInputMask.handleDeleteKey.
+      mask.handleDeleteKey(event)
     }
   }
 

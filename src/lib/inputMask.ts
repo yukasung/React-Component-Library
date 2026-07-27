@@ -26,6 +26,51 @@ export type MaskSegment =
   | { type: 'ampm' }
   | { type: 'literal'; text: string }
 
+// A format string split into its ordered token/literal parts, before any
+// per-token widths or ranges are attached. Both date and time formats are
+// written in the same shape — single-letter tokens, `\`-escaped literals,
+// anything else literal — so they're split by one function rather than a
+// walk re-written per format family (which is how the rule "an unrecognized
+// letter aborts the whole format rather than being guessed at" ends up
+// stated once instead of three times).
+export type FormatSegment<T extends string> = { type: 'token'; token: T } | { type: 'literal'; text: string }
+
+// Returns undefined if the format contains any alphabetic character that
+// isn't one of `tokens` — callers use that to fall back to a format they can
+// actually render, rather than emitting something subtly wrong.
+export function tokenizeFormat<T extends string>(
+  format: string,
+  tokens: ReadonlySet<T>,
+): FormatSegment<T>[] | undefined {
+  const segments: FormatSegment<T>[] = []
+  let literal = ''
+  function flushLiteral() {
+    if (literal) segments.push({ type: 'literal', text: literal })
+    literal = ''
+  }
+  for (let i = 0; i < format.length; i++) {
+    if (format[i] === '\\') continue
+    const escaped = format[i - 1] === '\\'
+    const char = format[i]
+    if (!escaped && (tokens as ReadonlySet<string>).has(char)) {
+      flushLiteral()
+      segments.push({ type: 'token', token: char as T })
+    } else if (!escaped && /[A-Za-z]/.test(char)) {
+      return undefined
+    } else {
+      literal += char
+    }
+  }
+  flushLiteral()
+  return segments
+}
+
+// Escapes a literal run so it can be embedded in a regex built from a
+// format string (used by both date and time parsing).
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // How long to wait, with no further character typed, before an ambiguous
 // segment (e.g. a day "1" — could stay "1" or continue to "10"-"19")
 // auto-advances on its own. Pairs with (doesn't replace) the explicit-
@@ -75,15 +120,18 @@ interface LocatedSegment {
   segment: FillableSegment
 }
 
-// Each fillable segment's width and the characters it accepts. `ampm` holds
-// letters rather than digits, which is the only thing that differs about it
-// as far as locating/splicing goes — everything below stays shared.
-function segmentWidth(segment: FillableSegment): number {
-  return segment.type === 'ampm' ? AM_PM_WIDTH : segment.width
-}
-
-function segmentCharPattern(segment: FillableSegment): RegExp {
-  return segment.type === 'ampm' ? AM_PM_CHAR_PATTERN : /\d/
+// How far a fillable segment's own characters extend from `pos`. `ampm`
+// holds letters rather than digits, and that's the only thing that differs
+// about it as far as locating and splicing go — so the difference is
+// confined to this one function, which every walk over the segment list
+// goes through (rather than each walk re-deciding it and drifting).
+function segmentCharsEnd(draft: string, segment: FillableSegment, pos: number): number {
+  const isAmPm = segment.type === 'ampm'
+  const pattern = isAmPm ? AM_PM_CHAR_PATTERN : /\d/
+  const limit = Math.min(draft.length, pos + (isAmPm ? AM_PM_WIDTH : segment.width))
+  let end = pos
+  while (end < limit && pattern.test(draft[end])) end++
+  return end
 }
 
 // Re-derives, fresh from the draft string every time (cheap — format
@@ -101,10 +149,7 @@ function locateSegment(draft: string, segments: MaskSegment[], offset: number): 
       pos += seg.text.length
       continue
     }
-    const width = segmentWidth(seg)
-    const charPattern = segmentCharPattern(seg)
-    let digitsEnd = pos
-    while (digitsEnd < draft.length && digitsEnd < pos + width && charPattern.test(draft[digitsEnd])) digitsEnd++
+    const digitsEnd = segmentCharsEnd(draft, seg, pos)
     if (offset >= pos && offset <= digitsEnd) {
       return { index: i, digitsStart: pos, digits: draft.slice(pos, digitsEnd), segment: seg }
     }
@@ -318,25 +363,21 @@ export function applyInputMask(
   }
 
   const located = locateSegment(prevDraft, segments, edit.start)
-  const posInSegment = located ? edit.start - located.digitsStart : -1
-  const fitsInSegment =
-    located !== undefined &&
-    located.segment.type === 'token' &&
-    posInSegment >= 0 &&
-    posInSegment + edit.removedCount <= located.digits.length
-
-  if (fitsInSegment) {
-    // The edit lands entirely within one segment's own digits (a plain
-    // keystroke, or a selection that never leaves this segment — e.g.
-    // overtyping just the "1" in a fully-typed day "12") — per-segment
-    // range validation applies exactly like a fresh keystroke would, and a
-    // genuinely invalid result rejects outright, no silent fix-up,
-    // regardless of whether anything was removed.
-    const removeEnd = posInSegment + edit.removedCount
-    const digitsBefore = located!.digits.slice(0, posInSegment)
-    const digitsAfter = located!.digits.slice(removeEnd)
-    const outcome = acceptDigit(located!.segment as TokenSegment, digitsBefore, digitsAfter, inserted)
-    return outcome === 'reject' ? 'reject' : applyAcceptedChars(prevDraft, segments, located!, outcome)
+  if (located && located.segment.type === 'token') {
+    const posInSegment = edit.start - located.digitsStart
+    if (posInSegment >= 0 && posInSegment + edit.removedCount <= located.digits.length) {
+      // The edit lands entirely within one segment's own digits (a plain
+      // keystroke, or a selection that never leaves this segment — e.g.
+      // overtyping just the "1" in a fully-typed day "12") — per-segment
+      // range validation applies exactly like a fresh keystroke would, and a
+      // genuinely invalid result rejects outright, no silent fix-up,
+      // regardless of whether anything was removed.
+      const removeEnd = posInSegment + edit.removedCount
+      const digitsBefore = located.digits.slice(0, posInSegment)
+      const digitsAfter = located.digits.slice(removeEnd)
+      const outcome = acceptDigit(located.segment, digitsBefore, digitsAfter, inserted)
+      return outcome === 'reject' ? 'reject' : applyAcceptedChars(prevDraft, segments, located, outcome)
+    }
   }
 
   // The edit doesn't fit within a single segment — most commonly, overtyping
@@ -421,11 +462,7 @@ export function isLiteralCharAt(draft: string, index: number, segments: MaskSegm
       pos += seg.text.length
       continue
     }
-    const width = segmentWidth(seg)
-    const charPattern = segmentCharPattern(seg)
-    let digitsEnd = pos
-    while (digitsEnd < draft.length && digitsEnd < pos + width && charPattern.test(draft[digitsEnd])) digitsEnd++
-    pos = digitsEnd
+    pos = segmentCharsEnd(draft, seg, pos)
   }
   return false
 }

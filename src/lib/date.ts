@@ -1,4 +1,5 @@
 import flatpickr from 'flatpickr'
+import { escapeRegExp, tokenizeFormat } from './inputMask'
 import type { MaskSegment } from './inputMask'
 
 // flatpickr's static parseDate/formatDate accept an extra `locale` argument
@@ -225,7 +226,7 @@ export function unshiftYearInDraft(raw: string, format: string, yearOffset: numb
       // rather than guessing.
       return undefined
     } else {
-      pattern += char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      pattern += escapeRegExp(char)
     }
   }
   if (yearGroupIndex === undefined || !yearToken) return undefined
@@ -253,48 +254,38 @@ export function unshiftYearInDraft(raw: string, format: string, yearOffset: numb
   return trimmed.slice(0, yearStart) + replacement + trimmed.slice(yearStart + rawYear.length)
 }
 
+type DateToken = 'Y' | 'y' | 'm' | 'n' | 'd' | 'j'
+
+const DATE_TOKENS: ReadonlySet<DateToken> = new Set<DateToken>(['Y', 'y', 'm', 'n', 'd', 'j'])
+
+// Each token's masking shape. n/j deliberately get the same width (2) and
+// value range as m/d — masking treats padded and unpadded tokens identically
+// while a segment is actively being typed (a single digit like day "4"
+// completes and auto-advances without the draft ever showing a padded "04");
+// the token's true unpadded behavior only shows up post-commit, via the
+// existing formatDateValue reformat, unchanged by this. This mirrors
+// NUMERIC_TOKEN_PATTERN above, which already treats m/n and d/j identically
+// for parsing. Y/y carry no range at all — any digit is valid at any of
+// their positions, only a width cap applies.
+const DATE_TOKEN_MASK: Record<DateToken, { width: number; min?: number; max?: number }> = {
+  Y: { width: 4 },
+  y: { width: 2 },
+  m: { width: 2, min: 1, max: 12 },
+  n: { width: 2, min: 1, max: 12 },
+  d: { width: 2, min: 1, max: 31 },
+  j: { width: 2, min: 1, max: 31 },
+}
+
 // Turns a format string into masking segments, or undefined if it contains
 // any non-numeric token (F/M/D/l/...) — masking is opt-out for those exactly
 // like typed round-trip parsing already is (see parseDateDraft's doc
-// comment); this walks the format the same way unshiftYearInDraft does
-// (char-by-char, `\`-escape aware, bail on any other letter) rather than
-// duplicating a second, subtly-different walk.
-//
-// n/j deliberately get the same width (2) and value range as m/d — masking
-// treats padded and unpadded tokens identically while a segment is actively
-// being typed (a single digit like day "4" completes and auto-advances
-// without the draft ever showing a padded "04"); the token's true unpadded
-// behavior only shows up post-commit, via the existing formatDateValue
-// reformat, unchanged by this. This mirrors NUMERIC_TOKEN_PATTERN above,
-// which already treats m/n and d/j identically for parsing.
+// comment). The walk itself is tokenizeFormat's job, shared with time.ts.
 export function tokenizeDateMask(format: string): MaskSegment[] | undefined {
-  const segments: MaskSegment[] = []
-  let literal = ''
-  function flushLiteral() {
-    if (literal) segments.push({ type: 'literal', text: literal })
-    literal = ''
-  }
-  for (let i = 0; i < format.length; i++) {
-    if (format[i] === '\\') continue
-    const escaped = format[i - 1] === '\\'
-    const char = format[i]
-    if (!escaped && (char === 'Y' || char === 'y')) {
-      flushLiteral()
-      segments.push({ type: 'token', token: char, width: char === 'Y' ? 4 : 2 })
-    } else if (!escaped && (char === 'm' || char === 'n')) {
-      flushLiteral()
-      segments.push({ type: 'token', token: char, width: 2, min: 1, max: 12 })
-    } else if (!escaped && (char === 'd' || char === 'j')) {
-      flushLiteral()
-      segments.push({ type: 'token', token: char, width: 2, min: 1, max: 31 })
-    } else if (!escaped && /[A-Za-z]/.test(char)) {
-      // Any other alphabetic token — not supported for typed round-trip at
-      // all (see parseDateDraft's doc comment); bail out rather than guess.
-      return undefined
-    } else {
-      literal += char
-    }
-  }
-  flushLiteral()
-  return segments
+  const segments = tokenizeFormat(format, DATE_TOKENS)
+  if (!segments) return undefined
+  return segments.map((segment) =>
+    segment.type === 'literal'
+      ? { type: 'literal', text: segment.text }
+      : { type: 'token', token: segment.token, ...DATE_TOKEN_MASK[segment.token] },
+  )
 }

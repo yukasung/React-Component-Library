@@ -4,6 +4,7 @@ import {
   InputDate,
   InputNumber,
   InputTime,
+  formatTimeValue,
   parseDraft,
   parseFormattedInput,
   parseNumericFormat,
@@ -66,8 +67,11 @@ const weekRange = currentWeekRange()
 // time-of-day part of these is read, so the date they carry is arbitrary.
 const businessHours = { start: new Date(2026, 0, 1, 9, 0), end: new Date(2026, 0, 1, 17, 0) }
 
+// Always shown in 24-hour form, whatever the field's own `format` is — the
+// note is reporting the underlying committed value, the same way the Thai
+// date field's note reports its underlying Gregorian date.
 function formatTimeCommitted(value: Date | null) {
-  return value === null ? 'null' : value.toTimeString().slice(0, 5)
+  return value === null ? 'null' : formatTimeValue(value, 'H:i')
 }
 
 // InputNumber only fires onChange on commit (blur/Enter/spin/arrow) by

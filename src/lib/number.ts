@@ -14,7 +14,10 @@ export function formatValue(value: number | null, precision?: number): string {
   return typeof precision === 'number' ? value.toFixed(precision) : String(value)
 }
 
-export function clamp(value: number, min?: number, max?: number): number {
+// min/max accept null as well as undefined so callers holding a nullable
+// bound (InputDate/InputTime's own props are `T | null`) don't have to
+// normalize first — the `typeof` guards already treat both as "unbounded".
+export function clamp(value: number, min?: number | null, max?: number | null): number {
   let next = value
   if (typeof min === 'number') next = Math.max(min, next)
   if (typeof max === 'number') next = Math.min(max, next)

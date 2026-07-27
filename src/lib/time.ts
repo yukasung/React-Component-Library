@@ -1,4 +1,6 @@
-import type { MaskSegment } from './inputMask'
+import { escapeRegExp, tokenizeFormat } from './inputMask'
+import type { FormatSegment, MaskSegment } from './inputMask'
+import { clamp } from './number'
 
 // Minutes in a day — the exclusive upper bound of every "minutes of day"
 // value in this module. A time is always 0 <= minutes < MINUTES_PER_DAY.
@@ -28,9 +30,9 @@ export const MINUTES_PER_DAY = 24 * 60
 // Seconds (S/s) are deliberately not in this set — see tokenizeTimeFormat.
 export type TimeToken = 'H' | 'h' | 'G' | 'i' | 'K'
 
-export type TimeFormatSegment = { type: 'token'; token: TimeToken } | { type: 'literal'; text: string }
+export type TimeFormatSegment = FormatSegment<TimeToken>
 
-const TIME_TOKENS = new Set<string>(['H', 'h', 'G', 'i', 'K'])
+const TIME_TOKENS: ReadonlySet<TimeToken> = new Set<TimeToken>(['H', 'h', 'G', 'i', 'K'])
 
 // The mask shape of each digit token (width plus the range each segment's
 // value must land in) — consumed by timeMaskSegments below and, through it,
@@ -45,10 +47,9 @@ const TOKEN_MASK: Record<Exclude<TimeToken, 'K'>, { width: number; min: number; 
 
 // Splits a format string into ordered token/literal segments, or returns
 // undefined if it contains any alphabetic character that isn't a supported
-// token. Walks the string the same way tokenizeDateMask does — char by
-// char, `\`-escape aware, bail on any other letter — rather than a regex,
-// so escaped literals (e.g. `\\h` for a literal "h") behave identically in
-// both components.
+// token. The walk itself is tokenizeFormat's job, shared with date.ts, so
+// escaped literals (e.g. `\\h` for a literal "h") behave identically in
+// both components by construction rather than by two walks agreeing.
 //
 // Returning undefined (rather than rendering the unknown token literally)
 // is what lets the component fall back to a format it *can* handle instead
@@ -58,27 +59,7 @@ const TOKEN_MASK: Record<Exclude<TimeToken, 'K'>, { width: number; min: number; 
 // minutes) and half-supporting seconds in display only would be worse than
 // not supporting them.
 export function tokenizeTimeFormat(format: string): TimeFormatSegment[] | undefined {
-  const segments: TimeFormatSegment[] = []
-  let literal = ''
-  function flushLiteral() {
-    if (literal) segments.push({ type: 'literal', text: literal })
-    literal = ''
-  }
-  for (let i = 0; i < format.length; i++) {
-    if (format[i] === '\\') continue
-    const escaped = format[i - 1] === '\\'
-    const char = format[i]
-    if (!escaped && TIME_TOKENS.has(char)) {
-      flushLiteral()
-      segments.push({ type: 'token', token: char as TimeToken })
-    } else if (!escaped && /[A-Za-z]/.test(char)) {
-      return undefined
-    } else {
-      literal += char
-    }
-  }
-  flushLiteral()
-  return segments
+  return tokenizeFormat(format, TIME_TOKENS)
 }
 
 // The live-typing mask segments for a format, or undefined when the format
@@ -139,17 +120,49 @@ export function formatTimeValue(value: Date | null, format: string): string {
   return formatTimeOfDay(timeOfDayMinutes(value), format)
 }
 
-// Regex fragments for each token, used to build one combined pattern for
-// the whole format — the same single-pass approach unshiftYearInDraft uses
-// in date.ts, and for the same reason: matching tokens in isolation can't
-// tell where one variable-width digit group ends and the next begins when
-// they sit next to each other without a separator.
-const TOKEN_PATTERN: Record<TimeToken, string> = {
-  H: '(\\d\\d|\\d)',
-  h: '(\\d\\d|\\d)',
-  G: '(\\d\\d|\\d)',
-  i: '(\\d\\d|\\d)',
-  K: '([AaPp])[Mm]?',
+// Regex fragments the combined per-format pattern is built from — one pass
+// over the whole format, the same approach unshiftYearInDraft uses in
+// date.ts and for the same reason: matching tokens in isolation can't tell
+// where one variable-width digit group ends and the next begins when they
+// sit next to each other without a separator. Every digit token accepts the
+// same one-or-two digits (their differing ranges are checked afterward,
+// against TOKEN_MASK, where the real distinction lives).
+const DIGIT_TOKEN_PATTERN = '(\\d\\d|\\d)'
+const AM_PM_TOKEN_PATTERN = '([AaPp])[Mm]?'
+
+interface TimePattern {
+  regex: RegExp
+  // Which token produced each capture group, in order.
+  groupTokens: TimeToken[]
+}
+
+// Compiling the pattern means walking the format, escaping every literal
+// and building a RegExp — all a pure function of the format string, while
+// parseTimeDraft itself runs on every commit, every Arrow key and every
+// wheel notch (a trackpad flick delivers dozens a second). The set of
+// format strings an app uses is tiny and fixed, so they're compiled once.
+const patternCache = new Map<string, TimePattern | undefined>()
+
+function timePattern(format: string): TimePattern | undefined {
+  if (patternCache.has(format)) return patternCache.get(format)
+  const segments = tokenizeTimeFormat(format)
+  if (!segments) {
+    patternCache.set(format, undefined)
+    return undefined
+  }
+  let pattern = ''
+  const groupTokens: TimeToken[] = []
+  for (const segment of segments) {
+    if (segment.type === 'literal') {
+      pattern += escapeRegExp(segment.text)
+      continue
+    }
+    groupTokens.push(segment.token)
+    pattern += segment.token === 'K' ? AM_PM_TOKEN_PATTERN : DIGIT_TOKEN_PATTERN
+  }
+  const compiled = { regex: new RegExp('^' + pattern + '$', 'i'), groupTokens }
+  patternCache.set(format, compiled)
+  return compiled
 }
 
 // Parses a raw draft string into minutes of day. `null` means "empty, a
@@ -168,20 +181,10 @@ const TOKEN_PATTERN: Record<TimeToken, string> = {
 export function parseTimeDraft(raw: string, format: string): number | null | undefined {
   const trimmed = raw.trim()
   if (trimmed === '') return null
-  const segments = tokenizeTimeFormat(format)
-  if (!segments) return undefined
-
-  let pattern = ''
-  const groupTokens: TimeToken[] = []
-  for (const segment of segments) {
-    if (segment.type === 'literal') {
-      pattern += segment.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      continue
-    }
-    groupTokens.push(segment.token)
-    pattern += TOKEN_PATTERN[segment.token]
-  }
-  const match = new RegExp('^' + pattern + '$', 'i').exec(trimmed)
+  const pattern = timePattern(format)
+  if (!pattern) return undefined
+  const { regex, groupTokens } = pattern
+  const match = regex.exec(trimmed)
   if (!match) return undefined
 
   let hours: number | undefined
@@ -239,12 +242,11 @@ export function isSameTime(a: Date, b: Date): boolean {
   return timeOfDayMinutes(a) === timeOfDayMinutes(b)
 }
 
-export function clampMinutes(minutes: number, min?: number | null, max?: number | null): number {
-  let next = minutes
-  if (typeof min === 'number') next = Math.max(min, next)
-  if (typeof max === 'number') next = Math.min(max, next)
-  return next
-}
+// Times are plain numbers once they're minutes of day, so this is number.ts's
+// clamp verbatim — re-exported under a name that reads correctly at the call
+// sites here rather than reimplemented. (date.ts's clampDate is a different
+// case: it genuinely specializes, routing both ends through startOfDay.)
+export const clampMinutes = clamp
 
 // The dropdown's entries: every time from `min` to `max` inclusive, spaced
 // `step` minutes apart. An unusable step (zero or negative, which would
@@ -255,6 +257,21 @@ export function buildTimeList(min: number, max: number, step: number): number[] 
   const times: number[] = []
   for (let minutes = min; minutes <= max; minutes += step) times.push(minutes)
   return times
+}
+
+// Index of the entry the dropdown should highlight for a given value:
+// the exact one when the value is on the grid, otherwise the nearest entry
+// at or after it (or the last, when the value is past the end). `times` is
+// ascending, so the first entry >= the value answers both cases in one
+// pass. -1 means "nothing to highlight" — no value, or no entries.
+//
+// Opening a list with nothing highlighted would make Enter a no-op and
+// leave a 96-entry list scrolled to the top, so an off-grid value (typed by
+// hand, or left behind by a coarser `step`) still needs somewhere to land.
+export function nearestTimeIndex(times: number[], minutes: number | null): number {
+  if (minutes === null || times.length === 0) return -1
+  const at = times.findIndex((entry) => entry >= minutes)
+  return at === -1 ? times.length - 1 : at
 }
 
 // The entry Arrow-key/wheel stepping should move to, given where the value

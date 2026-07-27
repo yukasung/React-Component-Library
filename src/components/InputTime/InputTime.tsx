@@ -1,25 +1,19 @@
 import { forwardRef, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
+import { useInputMask } from '../../hooks/useInputMask'
 import { useSyncedState } from '../../hooks/useSyncedState'
-import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
-import {
-  AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS,
-  applyInputMask,
-  diffStrings,
-  isLiteralCharAt,
-  pendingAdvanceAtCursor,
-} from '../../lib/inputMask'
+import { selectAllOnFocus } from '../../lib/domSelection'
 import {
   MINUTES_PER_DAY,
   buildTimeList,
   clampMinutes,
   formatTimeOfDay,
   isSameTime,
+  nearestTimeIndex,
   parseTimeDraft,
   stepThroughTimes,
   timeMaskSegments,
   timeOfDayMinutes,
-  tokenizeTimeFormat,
   withTimeOfDay,
 } from '../../lib/time'
 import { useTimeDropdown } from './useTimeDropdown'
@@ -27,6 +21,10 @@ import { useTimeDropdown } from './useTimeDropdown'
 // 24-hour hours:minutes. Also the fallback whenever `format` names a token
 // this component can't render (see the format prop's doc comment).
 const DEFAULT_FORMAT = 'H:i'
+// Every format this component accepts is maskable (unlike InputDate, whose
+// month/weekday-name tokens aren't), so the fallback format's segments are
+// what an unusable `format` resolves to — computed once, not per render.
+const DEFAULT_MASK_SEGMENTS = timeMaskSegments(DEFAULT_FORMAT)!
 
 export interface InputTimeProps
   extends Omit<
@@ -114,11 +112,16 @@ const dropdownButtonClassName =
 const listClassName =
   'absolute inset-x-0 top-full z-50 mt-2 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-white/5 dark:bg-gray-900'
 
+// Hover is styled rather than tracked: routing it through `highlightedIndex`
+// would re-render all 96 entries and force a layout read (the scroll-into-view
+// effect) for every row the pointer crosses, to reach a row that is by
+// definition already visible. The keyboard highlight stays real state.
 function optionClassName(isSelected: boolean, isHighlighted: boolean): string {
   const base = 'cursor-pointer px-3 py-1.5 text-sm'
   if (isSelected) return `${base} bg-blue-600 font-medium text-white`
-  if (isHighlighted) return `${base} bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/90`
-  return `${base} text-gray-700 dark:text-gray-300`
+  const hover = 'hover:bg-gray-100 dark:hover:bg-white/5'
+  if (isHighlighted) return `${base} ${hover} bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/90`
+  return `${base} ${hover} text-gray-700 dark:text-gray-300`
 }
 
 function ClockIcon() {
@@ -165,18 +168,26 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   // A format this module can't tokenize would otherwise render as an empty
   // field with no explanation; falling back keeps the control usable and
   // makes the mistake visible (the wrong-looking format) rather than silent.
-  const resolvedFormat = tokenizeTimeFormat(format) ? format : DEFAULT_FORMAT
-  // Live-typing mask segments — undefined only for a format the tokenizer
-  // rejected, which resolvedFormat has already ruled out, so in practice
-  // this is always present. Cheap to recompute every render (format strings
-  // are ~5 chars), no useMemo needed.
-  const maskSegments = timeMaskSegments(resolvedFormat)
+  // The tokenizer runs once here and its result doubles as the live-typing
+  // mask, so the format is never walked twice. Cheap either way (format
+  // strings are ~5 chars), which is why there's no useMemo.
+  const ownSegments = timeMaskSegments(format)
+  const resolvedFormat = ownSegments ? format : DEFAULT_FORMAT
+  const maskSegments = ownSegments ?? DEFAULT_MASK_SEGMENTS
   const minMinutes = min ? timeOfDayMinutes(min) : null
   const maxMinutes = max ? timeOfDayMinutes(max) : null
-  const hasStep = typeof step === 'number' && step > 0
+  // buildTimeList already treats a null/non-positive step as "no entries",
+  // so there's no separate hasStep condition to keep in sync with it —
+  // an empty list *is* the "no dropdown" state.
   const times = useMemo(
-    () => (hasStep ? buildTimeList(minMinutes ?? 0, maxMinutes ?? MINUTES_PER_DAY - 1, step as number) : []),
-    [hasStep, minMinutes, maxMinutes, step],
+    () => buildTimeList(minMinutes ?? 0, maxMinutes ?? MINUTES_PER_DAY - 1, step ?? 0),
+    [minMinutes, maxMinutes, step],
+  )
+  // Rendered once per entry, so it would otherwise re-tokenize the format
+  // 96 times on every keystroke while the list is open.
+  const timeLabels = useMemo(
+    () => times.map((minutes) => formatTimeOfDay(minutes, resolvedFormat)),
+    [times, resolvedFormat],
   )
   // The time a required field shows before it has a value of its own.
   // Captured once at mount rather than read from the clock on every render:
@@ -211,28 +222,18 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   const lastCommittedRef = useRef(committedValue)
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
-  const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The React half of the live-typing mask, shared with InputDate — see the
+  // hook's own doc comment.
+  const mask = useInputMask({ segments: maskSegments, draft, setDraft: updateDraft, inputRef: inputElementRef })
 
-  // Where the highlight lands when the list opens. Distinct from which entry
-  // renders as *selected* (an exact match only): a value that isn't on the
-  // grid — typed by hand, or left behind by a coarser `step` — has no exact
-  // entry, and opening to nothing highlighted would make Enter a no-op and
-  // leave the scroll position at the top of a 96-entry list. Falls back to
-  // the nearest entry at or after the value instead.
-  const highlightIndex = (() => {
-    if (displayMinutes === null || times.length === 0) return -1
-    const exact = times.indexOf(displayMinutes)
-    if (exact !== -1) return exact
-    const after = times.findIndex((minutes) => minutes >= displayMinutes)
-    return after === -1 ? times.length - 1 : after
-  })()
   const dropdown = useTimeDropdown({
     itemCount: times.length,
-    selectedIndex: highlightIndex,
+    selectedIndex: nearestTimeIndex(times, displayMinutes),
     isOpen,
     onOpenChange: (open) => onOpenChange?.(open),
   })
-  const hasDropdown = hasStep && times.length > 0
+  // An empty list and "no dropdown" are the same state — see `times`.
+  const hasDropdown = times.length > 0
 
   useEffect(() => {
     if (pendingSelectionRef.current !== null && inputElementRef.current) {
@@ -241,34 +242,6 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
       pendingSelectionRef.current = null
     }
   })
-
-  function clearPendingAdvance() {
-    if (advanceTimeoutRef.current !== null) {
-      clearTimeout(advanceTimeoutRef.current)
-      advanceTimeoutRef.current = null
-    }
-  }
-
-  // Schedules the ambiguous-digit auto-advance *if* the cursor is currently
-  // sitting in an ambiguous, still-open segment (an hour "1", which could
-  // still become "10"-"12"); pendingAdvanceAtCursor returns null otherwise,
-  // so this is a no-op when there's nothing to advance. Same contract as
-  // InputDate's — callers must clearPendingAdvance() first, and the fired
-  // callback re-checks focus since the user may have blurred during the wait.
-  function scheduleAdvanceIfPending(currentDraft: string, cursor: number) {
-    if (!maskSegments) return
-    const pending = pendingAdvanceAtCursor(maskSegments, currentDraft, cursor)
-    if (!pending) return
-    advanceTimeoutRef.current = setTimeout(() => {
-      advanceTimeoutRef.current = null
-      const node = inputElementRef.current
-      if (!node || document.activeElement !== node) return
-      updateDraft(pending.draft)
-      applySelection(node, pending.cursor, pending.cursor)
-    }, AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS)
-  }
-
-  useEffect(() => clearPendingAdvance, [])
 
   function timesEqual(a: Date | null, b: Date | null): boolean {
     if (a === null || b === null) return a === b
@@ -291,7 +264,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
 
   function commitDraft() {
     if (isReadOnly) return
-    clearPendingAdvance()
+    mask.clearPendingAdvance()
     const parsed = parseTimeDraft(draft, resolvedFormat)
     if (parsed === undefined || (isRequired && parsed === null)) {
       updateDraft(formattedValue)
@@ -310,13 +283,13 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     const current = typeof parsed === 'number' ? parsed : displayMinutes
     const next = stepThroughTimes(times, current, direction)
     if (next === undefined) return
-    clearPendingAdvance()
+    mask.clearPendingAdvance()
     commit(next)
   }
 
   function selectTime(minutes: number) {
     if (isReadOnly) return
-    clearPendingAdvance()
+    mask.clearPendingAdvance()
     commit(minutes)
     if (closeOnSelection) dropdown.close()
     inputElementRef.current?.focus()
@@ -335,33 +308,11 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const el = event.target
-    const rawNext = el.value
-    let next = rawNext
-    let maskCursor = -1
-    clearPendingAdvance()
-    if (maskSegments) {
-      // Live-typing mask — see src/lib/inputMask.ts, which InputDate drives
-      // the same way. diffStrings recovers the single edit region from the
-      // browser's own resulting value (uniformly for a keystroke,
-      // Backspace/Delete, an overtyped selection, or a paste); applyInputMask
-      // then either accepts it (auto-inserting the next literal separator
-      // when a segment completes) or rejects it outright, restoring the
-      // draft/cursor to where the rejected edit started.
-      const edit = diffStrings(draft, rawNext)
-      const result = applyInputMask(maskSegments, draft, edit)
-      if (result === 'reject') {
-        applySelection(el, edit.start, edit.start)
-        scheduleAdvanceIfPending(draft, edit.start)
-        return
-      }
-      next = result.draft
-      maskCursor = result.cursor
-      // Always re-applied, even when the masked text equals what the browser
-      // already produced — see the same call in InputDate.handleChange for
-      // why relying on the browser's own cursor placement isn't safe under
-      // React's controlled-input reconciliation.
-      applySelection(el, result.cursor, result.cursor)
-    }
+    // Live-typing mask (auto-inserted separators, per-segment digit ranges,
+    // the AM/PM designator, the ambiguous-digit auto-advance) — null means
+    // the edit was rejected and the draft should stay as it is.
+    const next = mask.maskChange(el, el.value)
+    if (next === null) return
     if (isRequired && next.trim() === '') {
       // Required fields can't sit empty even mid-edit — snap immediately
       // (not just on blur) and select the result so the next keystroke
@@ -371,12 +322,10 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
       pendingSelectionRef.current = { start: 0, end: fallbackText.length }
       return
     }
-    if (maskSegments) scheduleAdvanceIfPending(next, maskCursor)
     updateDraft(next)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    const el = event.currentTarget
     // Alt+Arrow is the standard combobox gesture for showing/hiding the
     // list — without it there'd be no keyboard-only way to reach the
     // dropdown, since a bare Arrow steps the value instead of opening it.
@@ -415,7 +364,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
         dropdown.close()
         return
       }
-      clearPendingAdvance()
+      mask.clearPendingAdvance()
       updateDraft(formattedValue)
       return
     }
@@ -424,23 +373,9 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
       dropdown.setHighlightedIndex(event.key === 'Home' ? 0 : times.length - 1)
       return
     }
-    if (!maskSegments || isReadOnly || !isEditable) return
-    // Two-press skip-then-delete over a separator, mirroring InputDate's
-    // own handling: stepping over it lets the *next* press delete the
-    // actual character natively, with no bespoke deletion logic here.
-    if (event.key === 'Backspace') {
-      const cursor = el.selectionStart
-      if (cursor !== null && cursor === el.selectionEnd && cursor > 0 && isLiteralCharAt(draft, cursor - 1, maskSegments)) {
-        event.preventDefault()
-        el.setSelectionRange(cursor - 1, cursor - 1)
-      }
-    } else if (event.key === 'Delete') {
-      const cursor = el.selectionStart
-      if (cursor !== null && cursor === el.selectionEnd && isLiteralCharAt(draft, cursor, maskSegments)) {
-        event.preventDefault()
-        el.setSelectionRange(cursor + 1, cursor + 1)
-      }
-    }
+    // Two-press skip-then-delete over an auto-inserted separator — see
+    // useInputMask.handleDeleteKey.
+    if (!isReadOnly && isEditable) mask.handleDeleteKey(event)
   }
 
   // React's synthetic onWheel is attached passively, so preventDefault()
@@ -551,10 +486,9 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
                 // list before the click that picks an entry ever lands.
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectTime(minutes)}
-                onMouseEnter={() => dropdown.setHighlightedIndex(index)}
                 className={optionClassName(minutes === displayMinutes, index === dropdown.highlightedIndex)}
               >
-                {formatTimeOfDay(minutes, resolvedFormat)}
+                {timeLabels[index]}
               </li>
             ))}
           </ul>

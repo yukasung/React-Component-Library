@@ -5,6 +5,7 @@ import {
   formatTimeOfDay,
   formatTimeValue,
   isSameTime,
+  nearestTimeIndex,
   parseTimeDraft,
   stepThroughTimes,
   timeMaskSegments,
@@ -208,6 +209,27 @@ describe('buildTimeList', () => {
     expect(buildTimeList(0, 60, 0)).toEqual([])
     expect(buildTimeList(0, 60, -15)).toEqual([])
     expect(buildTimeList(10 * 60, 9 * 60, 15)).toEqual([])
+  })
+})
+
+describe('nearestTimeIndex', () => {
+  const times = buildTimeList(9 * 60, 10 * 60, 30)
+
+  it('finds the exact entry when the value is on the grid', () => {
+    expect(nearestTimeIndex(times, 9 * 60 + 30)).toBe(1)
+  })
+
+  it('rounds an off-grid value up to the next entry', () => {
+    expect(nearestTimeIndex(times, 9 * 60 + 7)).toBe(1)
+  })
+
+  it('falls back to the last entry when the value is past the end', () => {
+    expect(nearestTimeIndex(times, 23 * 60)).toBe(2)
+  })
+
+  it('reports nothing to highlight for a null value or an empty list', () => {
+    expect(nearestTimeIndex(times, null)).toBe(-1)
+    expect(nearestTimeIndex([], 9 * 60)).toBe(-1)
   })
 })
 

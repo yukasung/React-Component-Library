@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
 export interface UseTimeDropdownOptions {
@@ -47,28 +47,37 @@ export function useTimeDropdown({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const listRef = useRef<HTMLUListElement | null>(null)
   const [internalOpen, setInternalOpen] = useState(false)
-  const [highlightedIndex, setHighlightedIndex] = useState(selectedIndex)
+  const [storedIndex, setHighlightedIndex] = useState(selectedIndex)
   const resolvedOpen = isOpen ?? internalOpen
+  // Clamped on read rather than corrected by an effect: a shrinking list (a
+  // narrower min/max, or a coarser step) can strand the stored index past
+  // the end, and fixing that with state-that-fixes-state costs an extra
+  // render pass and gives the same value two writers.
+  const highlightedIndex = Math.min(storedIndex, itemCount - 1)
 
   // Kept latest-in-a-ref so the document-level listener below can be bound
   // once per open instead of re-bound on every render.
   const onOpenChangeRef = useRef(onOpenChange)
   onOpenChangeRef.current = onOpenChange
+  // Same reason: the listener closes over `close` but is bound once per open.
+  const closeRef = useRef<() => void>(() => {})
 
-  const setOpen = useCallback(
-    (next: boolean) => {
-      // Internal state is tracked even while `isOpen` is controlling the
-      // popup, so handing control back (isOpen -> undefined) doesn't snap
-      // the list to a state the consumer never saw.
-      setInternalOpen(next)
-      if (next !== (isOpen ?? internalOpen)) onOpenChangeRef.current(next)
-    },
-    [isOpen, internalOpen],
-  )
+  // Plain functions, not useCallback — nothing consumes these as a
+  // dependency or across a memo boundary, and the hook returns a fresh
+  // object every render anyway, so memoizing them buys no stability and
+  // only adds dep arrays to keep correct.
+  function setOpen(next: boolean) {
+    // Internal state is tracked even while `isOpen` is controlling the
+    // popup, so handing control back (isOpen -> undefined) doesn't snap
+    // the list to a state the consumer never saw.
+    setInternalOpen(next)
+    if (next !== resolvedOpen) onOpenChangeRef.current(next)
+  }
 
-  const open = useCallback(() => setOpen(true), [setOpen])
-  const close = useCallback(() => setOpen(false), [setOpen])
-  const toggle = useCallback(() => setOpen(!resolvedOpen), [setOpen, resolvedOpen])
+  const open = () => setOpen(true)
+  const close = () => setOpen(false)
+  const toggle = () => setOpen(!resolvedOpen)
+  closeRef.current = close
 
   // Opening always starts from the current value rather than from wherever
   // the highlight was left last time — reopening a list to find it pointing
@@ -81,18 +90,11 @@ export function useTimeDropdown({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedOpen])
 
-  // A shrinking list (a narrower min/max, or a coarser step) can strand the
-  // highlight past the end.
-  useEffect(() => {
-    if (highlightedIndex >= itemCount) setHighlightedIndex(itemCount - 1)
-  }, [itemCount, highlightedIndex])
-
   useEffect(() => {
     if (!resolvedOpen) return
     function handlePointerDown(event: MouseEvent) {
       if (rootRef.current?.contains(event.target as Node)) return
-      setInternalOpen(false)
-      onOpenChangeRef.current(false)
+      closeRef.current()
     }
     // mousedown rather than click: closing on the way down matches how
     // native selects and the calendar popup behave, and avoids a click that
@@ -115,17 +117,14 @@ export function useTimeDropdown({
     else if (itemBottom > list.scrollTop + list.clientHeight) list.scrollTop = itemBottom - list.clientHeight
   }, [resolvedOpen, highlightedIndex])
 
-  const moveHighlight = useCallback(
-    (direction: 1 | -1) => {
-      setHighlightedIndex((current) => {
-        const next = current + direction
-        if (next < 0) return 0
-        if (next > itemCount - 1) return itemCount - 1
-        return next
-      })
-    },
-    [itemCount],
-  )
+  function moveHighlight(direction: 1 | -1) {
+    setHighlightedIndex((current) => {
+      const next = Math.min(current, itemCount - 1) + direction
+      if (next < 0) return 0
+      if (next > itemCount - 1) return itemCount - 1
+      return next
+    })
+  }
 
   return {
     isOpen: resolvedOpen,
