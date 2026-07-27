@@ -79,10 +79,12 @@ function inputStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
 
 // Unlike the reference's icon — a `pointer-events-none` <span>, purely
 // decorative there — this one opens the calendar, so it stays a real button
-// and keeps its accessible name. Everything visual about it matches:
-// centred on the input's right edge, no border, no cell of its own.
+// and keeps its accessible name. Everything visual about it matches, though:
+// centred on the input's right edge, no border, no cell of its own, and no
+// hover treatment — it holds the reference's plain gray at rest and only
+// changes for the one state the reference's icon can't have, disabled.
 const dropdownButtonClassName =
-  'absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:disabled:text-gray-700'
+  'absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-400 dark:disabled:text-gray-700'
 
 function CalendarIcon() {
   return (
