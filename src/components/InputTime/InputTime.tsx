@@ -1,8 +1,20 @@
 import { forwardRef, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
-import { useInputMask } from '../../hooks/useInputMask'
 import { useSyncedState } from '../../hooks/useSyncedState'
-import { selectAllOnFocus } from '../../lib/domSelection'
+import { applySelection, selectRangeAtCaret } from '../../lib/domSelection'
+import { diffStrings, maskPlaceholder } from '../../lib/inputMask'
+import {
+  isTemplateEmpty,
+  templateEdit,
+  templateFinalizeActive,
+  templateFromRaw,
+  templateMoveTo,
+  templateRanges,
+  templateSlotAt,
+  templateText,
+  templateToDraft,
+} from '../../lib/maskTemplate'
+import type { TemplateEntry } from '../../lib/maskTemplate'
 import {
   MINUTES_PER_DAY,
   buildTimeList,
@@ -148,6 +160,10 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     handleWheel = false,
     showDropdownButton = true,
     maxDropdownHeight = 200,
+    // Native passthrough (it arrives via InputHTMLAttributes, not as a prop
+    // of this component's own), pulled out of `rest` only so an empty field
+    // can fall back to the mask's own shape — see placeholderText below.
+    placeholder,
     className,
     ...rest
   },
@@ -166,6 +182,14 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   const ownSegments = timeMaskSegments(format)
   const resolvedFormat = ownSegments ? format : DEFAULT_FORMAT
   const maskSegments = ownSegments ?? DEFAULT_MASK_SEGMENTS
+  // The format as an empty template ("--:--", or "--:-- --" for a 12-hour
+  // format) — what a native time input shows when it has no value. It
+  // follows `format` for free, being derived from the very segments the live
+  // masker types into. Used two ways: as the field's placeholder at rest
+  // (unless the consumer supplied their own), and as real, highlightable
+  // text once an empty field is focused (see `templateVisible`).
+  const maskTemplate = maskPlaceholder(maskSegments)
+  const placeholderText = placeholder ?? maskTemplate
   const minMinutes = min ? timeOfDayMinutes(min) : null
   const maxMinutes = max ? timeOfDayMinutes(max) : null
   // buildTimeList already treats a null/non-positive step as "no entries",
@@ -206,15 +230,37 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     if (next !== draft) onTextChange?.(next)
     setDraft(next)
   }
+  // Focus hands editing over to the fixed-width template
+  // (src/lib/maskTemplate.ts): hour/minute/designator groups that hold their
+  // slot whether or not they're filled, exactly like a native time input's
+  // sub-fields. Non-null means the field is being edited that way, which is
+  // whenever it has focus and typing is allowed.
+  //
+  // Deliberately not the draft: the groups (and their fillers) live in the
+  // *rendered* value, so parseTimeDraft and the commit path only ever see a
+  // finished time string. The entry becomes a draft at commit time, and only
+  // once every group is filled.
+  const [templateEntry, setTemplateEntry] = useState<TemplateEntry | null>(null)
+  const templateVisible = templateEntry !== null
+  const templateValue = templateEntry !== null ? templateText(maskSegments, templateEntry) : ''
+  // Seeds an entry from whatever the field is displaying, so editing a time
+  // that's already there starts from its groups rather than from blank ones.
+  function entryFromDraft(): TemplateEntry {
+    return templateFromRaw(maskSegments, draft)
+  }
+  // The time a required field falls back to when every group is emptied.
+  function entryFromFallback(): TemplateEntry {
+    return templateFromRaw(maskSegments, formatDisplay(clampMinutes(fallbackMinutes, minMinutes, maxMinutes)))
+  }
   const listId = useId()
   // Tracks the most recently committed value synchronously, independent of
   // whether a controlled parent re-renders with the new `value` prop.
   const lastCommittedRef = useRef(committedValue)
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
-  // The React half of the live-typing mask, shared with InputDate — see the
-  // hook's own doc comment.
-  const mask = useInputMask({ segments: maskSegments, draft, setDraft: updateDraft, inputRef: inputElementRef })
+  // See the input's own onMouseDown/onFocus: which group the focus handler
+  // highlights depends on whether a pointer put the caret somewhere first.
+  const focusFromPointerRef = useRef(false)
 
   const dropdown = useTimeDropdown({
     itemCount: times.length,
@@ -252,7 +298,23 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
 
   function commitDraft() {
     if (isReadOnly) return
-    mask.clearPendingAdvance()
+    if (templateEntry !== null) {
+      // The entry turns into a draft string first and then goes through the
+      // very same parse/clamp/commit path a typed string always did — so
+      // min/max, the date part and the de-dupe guard all behave identically.
+      // That conversion only succeeds once every group is filled: an
+      // unfinished entry commits nothing, the way a native time input refuses
+      // to report a half-entered time. `null` is committed only when the user
+      // actually emptied the field, and only where null is allowed.
+      const finalized = templateFinalizeActive(maskSegments, templateEntry)
+      const asDraft = templateToDraft(maskSegments, finalized)
+      const parsed = asDraft === null ? undefined : parseTimeDraft(asDraft, resolvedFormat)
+      setTemplateEntry(null)
+      if (typeof parsed === 'number') commit(clampMinutes(parsed, minMinutes, maxMinutes))
+      else if (isTemplateEmpty(finalized) && !isRequired) commit(null)
+      else updateDraft(formattedValue)
+      return
+    }
     const parsed = parseTimeDraft(draft, resolvedFormat)
     if (parsed === undefined || (isRequired && parsed === null)) {
       updateDraft(formattedValue)
@@ -271,16 +333,55 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     const current = typeof parsed === 'number' ? parsed : displayMinutes
     const next = stepThroughTimes(times, current, direction)
     if (next === undefined) return
-    mask.clearPendingAdvance()
+    // Stepping replaces the whole value, so any half-typed groups go with it.
+    setTemplateEntry(null)
     commit(next)
   }
 
   function selectTime(minutes: number) {
     if (isReadOnly) return
-    mask.clearPendingAdvance()
+    setTemplateEntry(null)
     commit(minutes)
     dropdown.close()
     inputElementRef.current?.focus()
+  }
+
+  // Highlights one whole hour/minute/designator group rather than the whole
+  // value — a native time input's sub-field selection — and moves the entry's
+  // active group to match, since that's the one the next keystroke fills.
+  //
+  // `from` is which group to pick: 'caret' for a pointer, whose landing offset
+  // the browser decides and which is the whole point of the deferral; 'start'
+  // for a keyboard tab-in or a programmatic .focus(), where there is no
+  // pointer and the first group is what a native time input highlights.
+  // Reading the caret in the keyboard case instead would make the result
+  // depend on where each engine happens to park it.
+  function selectSegment(el: HTMLInputElement, from: 'caret' | 'start') {
+    selectRangeAtCaret(el, (caret) => {
+      const index = templateSlotAt(maskSegments, from === 'caret' ? caret : 0)
+      setTemplateEntry((prev) => (prev === null ? prev : templateMoveTo(maskSegments, prev, index)))
+      const range = templateRanges(maskSegments)[index] ?? null
+      // Landing in the field can change its text (a format whose display is
+      // unpadded, e.g. "2:30 PM", pads out to "02:30 PM" for editing), and
+      // React writing that text puts the caret back at the end — so the range
+      // is re-applied after the render as well as now.
+      if (range) pendingSelectionRef.current = range
+      return range
+    })
+  }
+
+  // Puts the highlight back on the group the entry says is active. Applied
+  // three times over, because each covers a case the others don't: straight
+  // away (for an edit that changes nothing and so never re-renders), from the
+  // post-render effect (once React has written the new text, which would
+  // otherwise leave the caret at the end), and once more on a microtask —
+  // which is the one that survives the browser's own post-input-event cursor
+  // handling, the same reason applySelection exists at all.
+  function selectTemplateSlot(el: HTMLInputElement, entry: TemplateEntry) {
+    const range = templateRanges(maskSegments)[entry.active]
+    if (!range) return
+    pendingSelectionRef.current = range
+    applySelection(el, range.start, range.end)
   }
 
   function handleToggleDropdown() {
@@ -294,26 +395,100 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     inputElementRef.current?.focus()
   }
 
-  function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const el = event.target
-    // Live-typing mask (auto-inserted separators, per-segment digit ranges,
-    // the AM/PM designator, the ambiguous-digit auto-advance) — null means
-    // the edit was rejected and the draft should stay as it is.
-    const next = mask.maskChange(el, el.value)
-    if (next === null) return
-    if (isRequired && next.trim() === '') {
-      // Required fields can't sit empty even mid-edit — snap immediately
-      // (not just on blur) and select the result so the next keystroke
-      // overwrites it, matching InputNumber/InputDate.
-      const fallbackText = formatDisplay(clampMinutes(fallbackMinutes, minMinutes, maxMinutes))
-      updateDraft(fallbackText)
-      pendingSelectionRef.current = { start: 0, end: fallbackText.length }
+  // Applies one edit to the groups and re-renders from them. A rejected edit
+  // leaves them exactly as they were (React restores the text it had already
+  // rendered), so only the highlight needs putting back.
+  function applyTemplateEdit(
+    el: HTMLInputElement,
+    entry: TemplateEntry,
+    edit: { start: number; removedCount: number; inserted: string },
+  ) {
+    const next = templateEdit(maskSegments, entry, edit)
+    if (next === 'reject') {
+      selectTemplateSlot(el, entry)
       return
     }
-    updateDraft(next)
+    // A required field can't be left with no value at all, so emptying every
+    // group snaps straight back to a time instead of waiting for blur —
+    // mirroring InputNumber's zero and InputDate's today.
+    const settled = isRequired && isTemplateEmpty(next) ? entryFromFallback() : next
+    setTemplateEntry(settled)
+    onTextChange?.(templateText(maskSegments, settled))
+    selectTemplateSlot(el, settled)
+  }
+
+  // The range a deletion should clear: whatever is selected, or the whole
+  // active group when the caret is collapsed (there are no single characters
+  // to delete here — a group is the unit).
+  function deletionRange(el: HTMLInputElement, entry: TemplateEntry): { start: number; removedCount: number } {
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? start
+    if (end > start) return { start, removedCount: end - start }
+    const active = templateRanges(maskSegments)[entry.active]
+    return { start: active.start, removedCount: active.end - active.start }
+  }
+
+  // Typing is handled on keydown rather than from the resulting text, because
+  // padding makes that text ambiguous: a group showing "01" that gets a "0"
+  // typed over it produces "0:--", which is indistinguishable from deleting
+  // the "1". The key itself carries the intent, so the browser is never let
+  // near the value (every handled key is preventDefault'd) and `onChange`
+  // below is left for the input this can't see — a paste or an IME commit.
+  function handleTemplateKey(event: KeyboardEvent<HTMLInputElement>, entry: TemplateEntry): boolean {
+    const el = event.currentTarget
+    if (event.ctrlKey || event.metaKey || event.altKey) return false
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      event.preventDefault()
+      applyTemplateEdit(el, entry, { ...deletionRange(el, entry), inserted: '' })
+      return true
+    }
+    if (event.key.length !== 1) return false
+    event.preventDefault()
+    applyTemplateEdit(el, entry, {
+      start: templateRanges(maskSegments)[entry.active].start,
+      removedCount: 0,
+      inserted: event.key,
+    })
+    return true
+  }
+
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const el = event.target
+    if (isReadOnly || !isEditable) return
+    const entry = templateEntry ?? entryFromDraft()
+    // Only input the keyboard path never sees reaches here: a paste, an
+    // autofill, or a soft keyboard/IME that commits text without a key. The
+    // multi-character case replays the whole run through the groups, the same
+    // way a pasted time is read anywhere else.
+    const edit = diffStrings(templateText(maskSegments, entry), el.value)
+    if (edit.inserted.length > 1) {
+      const next = templateFromRaw(maskSegments, edit.inserted)
+      setTemplateEntry(next)
+      onTextChange?.(templateText(maskSegments, next))
+      selectTemplateSlot(el, next)
+      return
+    }
+    applyTemplateEdit(el, entry, edit)
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // Left/Right/Home/End walk between groups, the keyboard counterpart to
+    // clicking one — there is no free-roaming caret to move instead, since the
+    // field is edited a group at a time.
+    const groupNav: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 }
+    if (templateVisible && (event.key in groupNav || ((event.key === 'Home' || event.key === 'End') && !dropdown.isOpen))) {
+      event.preventDefault()
+      const target =
+        event.key in groupNav
+          ? templateEntry.active + groupNav[event.key]
+          : event.key === 'Home'
+            ? 0
+            : templateEntry.slots.length - 1
+      const next = templateMoveTo(maskSegments, templateEntry, target)
+      setTemplateEntry(next)
+      selectTemplateSlot(event.currentTarget, next)
+      return
+    }
     // Alt+Arrow is the standard combobox gesture for showing/hiding the
     // list — without it there'd be no keyboard-only way to reach the
     // dropdown, since a bare Arrow steps the value instead of opening it.
@@ -352,7 +527,16 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
         dropdown.close()
         return
       }
-      mask.clearPendingAdvance()
+      // Discarding an in-progress edit re-seeds the groups from the value the
+      // field still holds (empty groups again, for a field that had none) —
+      // the field keeps focus, so it stays in group-editing mode rather than
+      // falling back to plain text.
+      if (templateVisible) {
+        const reset = templateFromRaw(maskSegments, formattedValue)
+        setTemplateEntry(reset)
+        selectTemplateSlot(event.currentTarget, reset)
+        return
+      }
       updateDraft(formattedValue)
       return
     }
@@ -361,9 +545,10 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
       dropdown.setHighlightedIndex(event.key === 'Home' ? 0 : times.length - 1)
       return
     }
-    // Two-press skip-then-delete over an auto-inserted separator — see
-    // useInputMask.handleDeleteKey.
-    if (!isReadOnly && isEditable) mask.handleDeleteKey(event)
+    // Everything left that could be a character or a deletion goes to the
+    // groups — see handleTemplateKey for why editing is driven from the key
+    // rather than from the text the browser would have produced.
+    if (templateVisible && !isReadOnly && isEditable) handleTemplateKey(event, templateEntry)
   }
 
   // React's synthetic onWheel is attached passively, so preventDefault()
@@ -412,25 +597,56 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
           dropdown.isOpen && dropdown.highlightedIndex >= 0 ? `${listId}-${dropdown.highlightedIndex}` : undefined
         }
         aria-autocomplete="none"
-        value={draft}
+        placeholder={placeholderText}
+        // The template stands in for the draft only while the draft is empty
+        // and focused — a display substitution, so the draft itself stays the
+        // single source of truth for everything that parses or reports it.
+        value={templateVisible ? templateValue : draft}
         onChange={handleChange}
+        // Whether this focus came from a pointer decides which group gets
+        // highlighted, and the focus event itself can't tell — so the
+        // mousedown that precedes it is what records it. Consumed (and
+        // reset) by the focus handler below, so a mousedown that never
+        // leads to focus can't leak into a later keyboard one.
+        onMouseDown={() => {
+          focusFromPointerRef.current = true
+        }}
         onFocus={(event) => {
           setIsFocused(true)
-          // Times are edited as a whole value rather than
-          // character-by-character — selecting everything on focus lets
-          // the user just start typing to replace it. Deferred (see
-          // selectAllOnFocus's own doc comment) — a synchronous
-          // .select() here doesn't reliably work in WebKit/Safari.
-          selectAllOnFocus(event.currentTarget)
+          // Landing in the field highlights one part of the time instead of
+          // the whole value — the hour when tabbing in, or whichever group
+          // was clicked. Deferred inside the helper; a synchronous selection
+          // here is overwritten by the click's own native caret positioning
+          // in WebKit/Safari.
+          const fromPointer = focusFromPointerRef.current
+          focusFromPointerRef.current = false
+          // Editing starts here: the field's text becomes a set of groups
+          // seeded from whatever it was displaying. A field that can't be
+          // typed into keeps its plain text (the dropdown is its only input).
+          if (!isReadOnly && isEditable) {
+            if (templateEntry === null) setTemplateEntry(entryFromDraft())
+            selectSegment(event.currentTarget, fromPointer ? 'caret' : 'start')
+          }
         }}
         onBlur={() => {
           setIsFocused(false)
+          // commitDraft owns both cases: a template that's complete commits
+          // like any typed time, and one that isn't (including one nothing was
+          // typed into) is dropped, handing the field back to its placeholder.
           commitDraft()
         }}
-        onClick={() => {
+        onClick={(event) => {
           // With typing disabled the field itself is just another way
           // to reach the only input method left.
           if (!isEditable && hasDropdown && !isDisabled && !isReadOnly) dropdown.open()
+          // Clicking a different group of an already-focused field fires no
+          // focus event, so the highlight has to be re-derived here too. A
+          // plain click collapses the caret at the pointer, while a
+          // drag-selection (or the highlight the focus path just applied)
+          // leaves a range behind — so a non-empty selection is the signal
+          // to keep out of the way.
+          const el = event.currentTarget
+          if (templateVisible && el.selectionStart === el.selectionEnd) selectSegment(el, 'caret')
         }}
         onKeyDown={handleKeyDown}
         // The icon overlays the input's right edge, so the text needs room

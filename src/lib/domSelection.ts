@@ -33,3 +33,31 @@ export function selectAllOnFocus(el: HTMLInputElement): void {
     if (document.activeElement === el) el.select()
   }, 0)
 }
+
+// Widens whatever the browser did with the caret into a range of the
+// caller's choosing: `resolve` receives the offset the caret settled on and
+// returns the range to select (or null to leave it alone). Used by InputTime
+// to highlight the whole mask segment the user landed in, the way a native
+// time input highlights the hour/minute field you click into.
+//
+// Deferred by a macrotask for exactly the reason selectAllOnFocus is (a real
+// click's native caret positioning runs *after* the focus event in WebKit),
+// which here is doubly load-bearing: the offset to widen *from* is the one
+// the browser picked, so it can't even be read until that positioning has
+// happened. Tabbing in reports offset 0 (browsers select the whole value,
+// whose start is 0), which resolves to the first segment — matching what a
+// native time input highlights on tab-in.
+//
+// The caller owns the "leave an intentional selection alone" decision, since
+// only it can tell a drag-selection apart from a highlight this function
+// itself applied a moment ago.
+export function selectRangeAtCaret(
+  el: HTMLInputElement,
+  resolve: (caret: number) => { start: number; end: number } | null,
+): void {
+  setTimeout(() => {
+    if (document.activeElement !== el) return
+    const range = resolve(el.selectionStart ?? 0)
+    if (range) el.setSelectionRange(range.start, range.end)
+  }, 0)
+}

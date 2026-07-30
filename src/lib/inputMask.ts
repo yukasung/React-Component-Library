@@ -86,8 +86,52 @@ export const AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS = 1200
 // The two AM/PM designators an `ampm` segment can hold. Fixed English
 // strings for now — the time formats that use them are English-only in v1.
 const AM_PM_TEXT = { a: 'AM', p: 'PM' } as const
-const AM_PM_WIDTH = 2
+export const AM_PM_WIDTH = 2
 const AM_PM_CHAR_PATTERN = /[AMP]/i
+
+// The rendered width of anything the user fills in — the one place that
+// answers "how many characters does this group occupy", so the fixed-width
+// template editor and this module's own walks can't disagree about it.
+export function segmentWidth(segment: FillableSegment): number {
+  return segment.type === 'ampm' ? AM_PM_WIDTH : segment.width
+}
+
+// The mask as an empty template: every fillable segment becomes one dash per
+// character it holds, literals stay as they are — "H:i" -> "--:--",
+// "h:i K" -> "--:-- --", "d/m/Y" -> "--/--/----". Meant as the default
+// placeholder of a masked field, so an empty one shows the shape it expects
+// instead of nothing at all, the way a native date/time input does.
+// Token-agnostic like everything else here: the dash count comes from the
+// segment's own width, never from what its token means.
+export const MASK_FILLER = '-'
+
+export function maskPlaceholder(segments: MaskSegment[]): string {
+  return segments
+    .map((segment) => (segment.type === 'literal' ? segment.text : MASK_FILLER.repeat(segmentWidth(segment))))
+    .join('')
+}
+
+// Where each fillable group sits inside a string of maskPlaceholder's shape,
+// in order — the position table the fixed-width template editor works from,
+// and what turns a click offset into "the minutes group". Derived from the
+// widths rather than from the characters, because in a template every group
+// is rendered at full width whether it holds typed characters or fillers —
+// unlike a draft, which holds only what's been typed and so has to be
+// measured character by character (locateSegment, below).
+export function maskPlaceholderRanges(segments: MaskSegment[]): { start: number; end: number }[] {
+  const ranges: { start: number; end: number }[] = []
+  let pos = 0
+  for (const segment of segments) {
+    if (segment.type === 'literal') {
+      pos += segment.text.length
+      continue
+    }
+    const width = segmentWidth(segment)
+    ranges.push({ start: pos, end: pos + width })
+    pos += width
+  }
+  return ranges
+}
 
 // Finds the single contiguous edit region between two strings via a
 // common-prefix/common-suffix diff. Works uniformly for a single keystroke,
@@ -108,10 +152,10 @@ export function diffStrings(prev: string, next: string): { start: number; remove
   return { start, removedCount: prevEnd - start, inserted: next.slice(start, nextEnd) }
 }
 
-type TokenSegment = Extract<MaskSegment, { type: 'token' }>
+export type TokenSegment = Extract<MaskSegment, { type: 'token' }>
 // Everything the user actually fills in, as opposed to the literal
 // separators the mask inserts for them.
-type FillableSegment = Extract<MaskSegment, { type: 'token' | 'ampm' }>
+export type FillableSegment = Extract<MaskSegment, { type: 'token' | 'ampm' }>
 
 interface LocatedSegment {
   index: number
@@ -169,7 +213,7 @@ function locateSegment(draft: string, segments: MaskSegment[], offset: number): 
 //     continuation might still be coming — accept, stay open.
 //   - a 2nd digit that pushes the combined value out of range is rejected
 //     outright, not silently corrected.
-function acceptDigit(
+export function acceptDigit(
   segment: TokenSegment,
   digitsBefore: string,
   digitsAfter: string,
@@ -205,10 +249,21 @@ function acceptDigit(
 // make sense anyway. The consequence is that "m" is never an accepted
 // keystroke (the mask spells the designator out, the user doesn't), so
 // typing "a" then "m" simply leaves the already-written "AM" alone.
-function acceptAmPmChar(newChar: string): { digits: string; done: boolean } | 'reject' {
+export function acceptAmPmChar(newChar: string): { digits: string; done: boolean } | 'reject' {
   const key = newChar.toLowerCase()
   if (key !== 'a' && key !== 'p') return 'reject'
   return { digits: AM_PM_TEXT[key], done: true }
+}
+
+// Whether a group that holds fewer digits than its width can be finalized as
+// the value it already spells — the rule behind both ways a short group gets
+// closed out: an explicit separator keystroke and the ambiguous-digit
+// timeout. A day "7" can (no 70-99 exists), a month "0" cannot (a valid
+// prefix of "01"-"09", not a value), and a range-less Y/y always can.
+export function canFinalizeDigits(segment: TokenSegment, digits: string): boolean {
+  if (segment.min === undefined || segment.max === undefined) return true
+  const value = Number(digits)
+  return value >= segment.min && value <= segment.max
 }
 
 // Splices accepted characters (or an early force-advance) into the draft
@@ -257,14 +312,8 @@ function applyLiteralKeystroke(
   // timeout applies (see pendingAdvanceAtCursor). Range-less Y/y is exempt
   // (any digits are "valid"), matching its existing force-advance behavior.
   const { segment, digits } = located
-  if (
-    segment.type === 'token' &&
-    segment.min !== undefined &&
-    segment.max !== undefined &&
-    digits.length < segment.width
-  ) {
-    const value = Number(digits)
-    if (value < segment.min || value > segment.max) return 'reject'
+  if (segment.type === 'token' && digits.length < segment.width && !canFinalizeDigits(segment, digits)) {
+    return 'reject'
   }
   const next = segments[located.index + 1]
   if (!next || next.type !== 'literal' || !next.text.startsWith(char)) return 'reject'
@@ -445,8 +494,7 @@ export function pendingAdvanceAtCursor(
   // standalone value — finalizing it to a bare "0" would commit to a wrong
   // date (flatpickr reads month "0" as December of the previous year), so it
   // stays open, waiting for the second digit, instead of auto-advancing.
-  const value = Number(digits)
-  if (value < segment.min || value > segment.max) return null
+  if (!canFinalizeDigits(segment, digits)) return null
   return applyAcceptedChars(draft, segments, located, { digits, done: true })
 }
 

@@ -91,7 +91,25 @@ Internally all time logic runs on **minutes of day** (0–1439) rather than `Dat
 
 `src/lib/inputMask.ts` (formerly `dateMask.ts`) holds the whole masking engine — `applyInputMask`, `pendingAdvanceAtCursor`, `isLiteralCharAt`, `diffStrings`, the `MaskSegment` type and the `AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS` timeout. It is deliberately **token-agnostic**: every rule it applies comes from a segment's `{ width, min, max }`, never from knowing whether that segment is a month or an hour. Each component supplies its own tokenizer instead — `tokenizeDateMask` in `src/lib/date.ts`, `timeMaskSegments` in `src/lib/time.ts` — and both return the same `MaskSegment[]`.
 
+`InputDate` is the only component that drives the *masker*; `InputTime` shares the segments and the character-acceptance rules but edits through fixed-width groups instead (see the next section). The token-agnostic split above is what makes that possible rather than a fork.
+
 The one segment kind that isn't a digit group is `{ type: 'ampm' }` (the `K` token): a single `a`/`p` keystroke writes the whole "AM"/"PM" designator and completes the segment, and typing `a`/`p` again overwrites it rather than being rejected, since flipping an existing designator is the natural way to correct that field.
+
+### `InputTime` is edited as fixed-width groups, *not* by the masker (`src/lib/maskTemplate.ts`)
+
+`InputTime` does not use `applyInputMask`/`useInputMask` at all — `InputDate` is now the masker's only consumer. Instead, focusing an `InputTime` hands editing to `src/lib/maskTemplate.ts`: one `TemplateSlot` per fillable segment, each occupying its slot from the start and holding fillers (`--`) until typed into, exactly like a native time input's sub-fields. Clicking a group highlights it whole; typing fills that group; Left/Right/Home/End walk between them.
+
+The reason it can't be the masker is structural, not stylistic: a draft holds **only what's been typed, in order**, so `"09:3"` is representable and `"minutes 35, hour still empty"` is not — there is nothing to write in the hour's place. Clicking the minutes of an empty field and typing there therefore has no draft to land in. Fixed-width groups do.
+
+What holds the two together, and must keep holding:
+
+- **The acceptance rules are shared; only storage and positioning differ.** Which characters a group takes comes from `inputMask.ts` (`acceptDigit`, `acceptAmPmChar`, `canFinalizeDigits`), imported rather than restated, so `"25"` is refused as an hour by the same code that refuses it in `InputDate`. `maskPlaceholderRanges` supplies the fixed position table (also shared, also width-derived).
+- **The entry is not the draft.** Groups live in the *rendered* value; the draft only ever holds a finished, formatted time. The entry becomes a draft at commit time via `templateToDraft`, and only once every group is filled — an unfinished entry commits nothing and the field goes back to what it held (a native time input likewise refuses to report a half-entered time). `onTextChange` does report the group text as it's typed (`"09:--"`), since that is what the field is showing.
+- **Typed digits and rendering are separate.** Digits are right-aligned and zero-padded the moment they're typed (`1` renders `01`, matching native), while `TemplateSlot.chars` still holds `"1"`. Both halves are load-bearing: typing `4` next must give `14`, derivable only from the digits. It's also why "continue this group or start it over" is decided by the slot's own `done` flag, never by the shape of the edit.
+- **Editing is driven from `keydown`, not from the resulting text.** Padding makes that text ambiguous — a group showing `01` that gets a `0` typed over it produces `0:--`, which `diffStrings` cannot tell apart from deleting the `1`. So printable keys and Backspace/Delete are handled (and `preventDefault`ed) in `handleTemplateKey`, and `onChange` is left for input the keyboard path can't see: a paste, an autofill, an IME commit.
+- **No ambiguous-digit timeout.** `AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS` exists because an unfinished group is invisible in a draft; here *leaving* the group resolves it (`templateFinalizeActive` on click/Arrow/commit — an hour typed `1` and left commits as `01` instead of being dropped). Native behaves the same way.
+
+Two consequences worth knowing before touching this: a format whose display is unpadded (`h:i K` → `2:30 PM`) pads out while being edited (`02:30 PM`), because group positions have to hold still; and tests must drive typing with `keydown` (or `user.type(..., { skipClick: true })`, since user-event's click has no coordinates and lands the caret at the end, i.e. in the *last* group).
 
 ### `InputDate` + flatpickr: DOM-ownership escape hatch (required, not optional)
 

@@ -52,6 +52,47 @@ export function DateTimeDemo() {
   )
 }
 
+export function PlaceholderDemo() {
+  const [maskValue, setMaskValue] = useState<Date | null>(null)
+  const [amPmValue, setAmPmValue] = useState<Date | null>(null)
+  const [customValue, setCustomValue] = useState<Date | null>(null)
+
+  return (
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-3">
+      <div>
+        <label htmlFor="demo-time-placeholder-mask" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          ค่าเริ่มต้น (format H:i)
+        </label>
+        <InputTime id="demo-time-placeholder-mask" value={maskValue} onChange={setMaskValue} isRequired={false} />
+      </div>
+      <div>
+        <label htmlFor="demo-time-placeholder-ampm" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          ค่าเริ่มต้น (format h:i K)
+        </label>
+        <InputTime
+          id="demo-time-placeholder-ampm"
+          value={amPmValue}
+          onChange={setAmPmValue}
+          isRequired={false}
+          format="h:i K"
+        />
+      </div>
+      <div>
+        <label htmlFor="demo-time-placeholder-custom" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          กำหนดเอง
+        </label>
+        <InputTime
+          id="demo-time-placeholder-custom"
+          value={customValue}
+          onChange={setCustomValue}
+          isRequired={false}
+          placeholder="เวลานัดหมาย (ไม่บังคับ)"
+        />
+      </div>
+    </div>
+  )
+}
+
 export function IsRequiredDemo() {
   const [requiredValue, setRequiredValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 0))
   const [optionalValue, setOptionalValue] = useState<Date | null>(null)
@@ -68,13 +109,7 @@ export function IsRequiredDemo() {
         <label htmlFor="demo-time-optional" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           isRequired={'{false}'}
         </label>
-        <InputTime
-          id="demo-time-optional"
-          value={optionalValue}
-          onChange={setOptionalValue}
-          isRequired={false}
-          placeholder="เวลานัดหมาย (ไม่บังคับ)"
-        />
+        <InputTime id="demo-time-optional" value={optionalValue} onChange={setOptionalValue} isRequired={false} />
       </div>
     </div>
   )

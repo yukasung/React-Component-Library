@@ -1,6 +1,6 @@
 import { createRef, StrictMode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputTime } from './InputTime'
 
@@ -37,7 +37,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '1015')
+    await user.type(input, '1015', { skipClick: true })
 
     expect(input).toHaveValue('10:15')
     expect(onChange).not.toHaveBeenCalled()
@@ -50,7 +50,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '1015')
+    await user.type(input, '1015', { skipClick: true })
     await user.tab()
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -64,7 +64,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '0745')
+    await user.type(input, '0745', { skipClick: true })
     await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -79,7 +79,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '0745')
+    await user.type(input, '0745', { skipClick: true })
     await user.keyboard('{Enter}')
     await user.tab()
 
@@ -93,7 +93,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '9')
+    await user.type(input, '9', { skipClick: true })
     await user.tab()
 
     // "9" alone isn't a complete H:i time.
@@ -108,7 +108,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '2233')
+    await user.type(input, '2233', { skipClick: true })
     await user.keyboard('{Escape}')
 
     expect(input).toHaveValue('09:00')
@@ -133,7 +133,7 @@ describe('InputTime', () => {
     expect(input).toHaveValue('09:00')
 
     await user.clear(input)
-    await user.type(input, '1830')
+    await user.type(input, '1830', { skipClick: true })
     await user.tab()
 
     expect(input).toHaveValue('18:30')
@@ -161,7 +161,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '1645')
+      await user.type(input, '1645', { skipClick: true })
       await user.tab()
 
       const committed = onChange.mock.calls[0][0] as Date
@@ -183,7 +183,7 @@ describe('InputTime', () => {
       render(<InputTime value={new Date(2026, 6, 22, 9, 0, 45, 500)} onChange={onChange} isRequired={false} />)
 
       await user.clear(screen.getByRole('combobox'))
-      await user.type(screen.getByRole('combobox'), '1000')
+      await user.type(screen.getByRole('combobox'), '1000', { skipClick: true })
       await user.tab()
 
       const committed = onChange.mock.calls[0][0] as Date
@@ -205,7 +205,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '230p')
+      await user.type(input, '230p', { skipClick: true })
       await user.tab()
 
       expect(onChange.mock.calls[0][0]).toEqual(at(14, 30))
@@ -225,16 +225,15 @@ describe('InputTime', () => {
       expect(screen.getByRole('combobox')).toHaveValue('14:30')
     })
 
-    it('does not commit a 24-hour time pasted with a designator', () => {
+    it('does not commit a 24-hour time pasted into a 12-hour field', () => {
       const onChange = vi.fn()
       render(<InputTime value={at(9)} onChange={onChange} format="h:i K" />)
       const input = screen.getByRole('combobox')
 
-      // The mask blocks typing "14" into a 12-hour field, but a paste
-      // rebuilds without per-segment range checks — commit is where it's
-      // caught, and the draft reverts rather than committing a wrong time.
+      // "14" is not an hour on a 12-hour clock, so the group refuses it and
+      // the paste stops there rather than being corrected into something else.
       fireEvent.change(input, { target: { value: '14:30 PM' } })
-      expect(input).toHaveValue('14:30 PM')
+      expect(input).toHaveValue('--:-- --')
 
       fireEvent.blur(input)
       expect(onChange).not.toHaveBeenCalled()
@@ -250,7 +249,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '0730')
+      await user.type(input, '0730', { skipClick: true })
       await user.tab()
 
       expect(onChange.mock.calls[0][0]).toEqual(at(9))
@@ -263,7 +262,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '2300')
+      await user.type(input, '2300', { skipClick: true })
       await user.tab()
 
       expect(onChange.mock.calls[0][0]).toEqual(at(17))
@@ -562,7 +561,521 @@ describe('InputTime', () => {
 
       await user.clear(input)
 
+      // Emptied, and still being edited -- so the groups are showing rather
+      // than the field going blank mid-edit.
+      expect(input).toHaveValue('--:--')
+
+      await user.tab()
       expect(input).toHaveValue('')
+    })
+  })
+
+  describe('segment highlight on landing in the field', () => {
+    // The selection is applied on a deferred macrotask, because a real
+    // click's own native caret positioning runs after the focus event in
+    // WebKit and would otherwise overwrite it -- see selectRangeAtCaret.
+    function settleSelection() {
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('highlights the hour on tab-in, not the whole value', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      input.focus()
+      settleSelection()
+
+      expect(input.value).toBe('09:30')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    // A real click: mousedown, then focus, then the browser dropping the
+    // caret where it was clicked (which jsdom doesn't do on its own).
+    function clickAt(input: HTMLInputElement, caret: number) {
+      fireEvent.mouseDown(input)
+      input.focus()
+      input.setSelectionRange(caret, caret)
+    }
+
+    it('highlights the group the caret landed in', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      clickAt(input, 4)
+      settleSelection()
+
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+    })
+
+    it('highlights the AM/PM designator as one group', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(14, 30)} format="h:i K" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      // At rest the format's own unpadded hour is shown.
+      expect(input.value).toBe('2:30 PM')
+
+      clickAt(input, 7)
+      settleSelection()
+
+      // Editing puts every group at full width, so the hour pads out -- the
+      // positions have to hold still while the groups are being edited.
+      expect(input.value).toBe('02:30 PM')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([6, 8])
+    })
+
+    it('ignores where a keyboard focus left the caret, taking the hour either way', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      // No mousedown — a tab-in or a programmatic .focus(), where engines
+      // park the caret in different places (jsdom leaves it at the end).
+      input.focus()
+      input.setSelectionRange(5, 5)
+      settleSelection()
+
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('re-highlights on a later click, when no focus event fires', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      input.focus()
+      settleSelection()
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+
+      // A plain click collapses the caret at the pointer first.
+      input.setSelectionRange(4, 4)
+      fireEvent.click(input)
+      settleSelection()
+
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+    })
+
+    it('leaves a dragged selection alone', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      input.focus()
+      settleSelection()
+      // A drag ends with a range, not a collapsed caret.
+      input.setSelectionRange(1, 4)
+      fireEvent.click(input)
+      settleSelection()
+
+      expect([input.selectionStart, input.selectionEnd]).toEqual([1, 4])
+    })
+
+    it('does not select on a field blurred before the deferred timer fires', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      input.focus()
+      input.blur()
+      settleSelection()
+
+      expect(input.selectionStart).toBe(input.selectionEnd)
+    })
+
+    it('replaces only the highlighted group when the next digit is typed', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      input.focus()
+      settleSelection()
+      // Typing over the highlighted "09" -- the minutes are untouched.
+      fireEvent.keyDown(input, { key: '7' })
+
+      expect(input).toHaveValue('07:30')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+    })
+  })
+
+  describe('empty-field template', () => {
+    function settleSelection() {
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('turns the format into real, highlighted text when an empty field is focused', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      expect(input.value).toBe('')
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+
+      expect(input.value).toBe('--:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('follows the format, highlighting the leading group of a 12-hour one', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} format="h:i K" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+
+      expect(input.value).toBe('--:-- --')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('highlights the group a pointer landed in, not just the leading one', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      fireEvent.mouseDown(input)
+      act(() => {
+        input.focus()
+      })
+      input.setSelectionRange(4, 4)
+      settleSelection()
+
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+    })
+
+    it('fills the group that is highlighted, leaving the earlier one empty', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      // Click into the minutes of an empty field and type there -- the case a
+      // draft (which only holds what is typed, in order) cannot represent.
+      fireEvent.mouseDown(input)
+      act(() => {
+        input.focus()
+      })
+      input.setSelectionRange(4, 4)
+      settleSelection()
+      fireEvent.change(input, { target: { value: '--:3' } })
+
+      expect(input).toHaveValue('--:03')
+      // Still in the minutes: "3" could yet become "35".
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+
+      fireEvent.change(input, { target: { value: '--:5' } })
+      expect(input).toHaveValue('--:35')
+    })
+
+    it('replaces the template with the typed digit, keeping the rest as fillers', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      // What the browser produces when a digit is typed over the highlight.
+      fireEvent.change(input, { target: { value: '9:--' } })
+
+      // An hour of 9 can't take a second digit, so it finishes and pads,
+      // and the highlight moves on to the minutes.
+      expect(input).toHaveValue('09:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+    })
+
+    it('zero-pads a single digit immediately, and still takes a second one', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '1:--' } })
+      // Reads as an hour right away, the way a native time input does.
+      expect(input).toHaveValue('01:--')
+      // Still the hour's group -- "1" could yet become 10-19, so the next
+      // digit continues it instead of starting over.
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+
+      fireEvent.change(input, { target: { value: '4:--' } })
+      expect(input).toHaveValue('14:--')
+    })
+
+    it('rejects a digit that would push a group out of range', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '2:--' } })
+      expect(input).toHaveValue('02:--')
+
+      // 25 is not an hour -- the same rule the draft masker applies, from the
+      // same acceptDigit.
+      fireEvent.change(input, { target: { value: '5:--' } })
+      expect(input).toHaveValue('02:--')
+    })
+
+    it('rebuilds a pasted time dropped onto the template', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} format="h:i K" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '9:30 PM:-- --' } })
+
+      expect(input).toHaveValue('09:30 PM')
+    })
+
+    it('walks between groups with Left/Right, finishing the one it leaves', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '1:--' } })
+      expect(input).toHaveValue('01:--')
+
+      // Leaving an ambiguous "1" settles it as the 01 it already reads as,
+      // rather than losing it for being unfinished.
+      fireEvent.keyDown(input, { key: 'ArrowRight' })
+      expect(input).toHaveValue('01:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+
+      fireEvent.keyDown(input, { key: 'ArrowLeft' })
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('commits a fully filled template on blur', () => {
+      vi.useFakeTimers()
+      const onChange = vi.fn()
+      render(<InputTime value={null} onChange={onChange} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '9:--' } })
+      fireEvent.change(input, { target: { value: '09:3' } })
+      fireEvent.change(input, { target: { value: '09:5' } })
+      expect(input).toHaveValue('09:35')
+
+      act(() => {
+        fireEvent.blur(input)
+      })
+
+      expect(onChange).toHaveBeenCalledTimes(1)
+      const committed = onChange.mock.calls[0][0] as Date
+      expect([committed.getHours(), committed.getMinutes()]).toEqual([9, 35])
+    })
+
+    it('discards a half-filled template on blur', () => {
+      vi.useFakeTimers()
+      const onChange = vi.fn()
+      render(<InputTime value={null} onChange={onChange} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '9:--' } })
+      expect(input).toHaveValue('09:--')
+
+      act(() => {
+        fireEvent.blur(input)
+      })
+
+      // A time with no minutes is not a time; nothing is invented for it.
+      expect(input).toHaveValue('')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('empties every group on Escape', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '9:--' } })
+      expect(input).toHaveValue('09:--')
+
+      fireEvent.keyDown(input, { key: 'Escape' })
+
+      expect(input).toHaveValue('--:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('empties the highlighted group when it is deleted', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.change(input, { target: { value: '9:--' } })
+      expect(input).toHaveValue('09:--')
+
+      // Backspace with the (now highlighted) minutes selected steps back and
+      // clears the hour, since the minutes hold nothing to clear.
+      fireEvent.change(input, { target: { value: '09:' } })
+
+      expect(input).toHaveValue('--:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('keeps the template up when a keystroke is rejected', async () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      // A letter is not a valid character in an H:i field.
+      fireEvent.change(input, { target: { value: 'x:--' } })
+      // Nothing re-renders, so the highlight is re-applied straight to the
+      // element -- including the microtask re-apply that outlives React's own
+      // controlled-value restoration (see applySelection).
+      await Promise.resolve()
+
+      expect(input).toHaveValue('--:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('hands the field back to its placeholder on blur, with no value change', () => {
+      vi.useFakeTimers()
+      const onChange = vi.fn()
+      render(<InputTime value={null} onChange={onChange} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      expect(input.value).toBe('--:--')
+
+      fireEvent.blur(input)
+
+      expect(input.value).toBe('')
+      expect(input).toHaveAttribute('placeholder', '--:--')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('never reports the template as text', () => {
+      vi.useFakeTimers()
+      const onTextChange = vi.fn()
+      render(<InputTime defaultValue={null} isRequired={false} onTextChange={onTextChange} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      fireEvent.blur(input)
+
+      expect(onTextChange).not.toHaveBeenCalledWith('--:--')
+    })
+
+    it('does not show on a required field, which is never empty', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+
+      expect(input).toHaveValue('09:30')
+    })
+
+    it('does not show on a read-only field, which has nothing to type into', () => {
+      vi.useFakeTimers()
+      render(<InputTime defaultValue={null} isRequired={false} isReadOnly />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+
+      expect(input).toHaveValue('')
+    })
+
+    it('gives way to a value picked from the dropdown while still focused', async () => {
+      render(<InputTime defaultValue={null} isRequired={false} min={at(9)} max={at(10)} step={30} />)
+      const user = userEvent.setup()
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      await user.click(screen.getByRole('option', { name: '09:30' }))
+
+      expect(input).toHaveValue('09:30')
+    })
+  })
+
+  describe('placeholder', () => {
+    it('falls back to the format as an empty mask, so a cleared field is not blank', async () => {
+      const user = userEvent.setup()
+      render(<InputTime defaultValue={at(9)} isRequired={false} />)
+      const input = screen.getByRole('combobox')
+
+      await user.clear(input)
+      await user.tab()
+
+      expect(input).toHaveValue('')
+      expect(input).toHaveAttribute('placeholder', '--:--')
+    })
+
+    it('follows the format, designator included', () => {
+      render(<InputTime defaultValue={null} isRequired={false} format="h:i K" />)
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '--:-- --')
+    })
+
+    it('falls back to the default format when the format is unusable', () => {
+      render(<InputTime defaultValue={null} isRequired={false} format="H:i:S" />)
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '--:--')
+    })
+
+    it('leaves a consumer-supplied placeholder alone', () => {
+      render(<InputTime defaultValue={null} isRequired={false} placeholder="เวลานัดหมาย" />)
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'เวลานัดหมาย')
     })
   })
 
@@ -573,7 +1086,7 @@ describe('InputTime', () => {
       render(<InputTime value={DAY} onChange={onChange} isEditable={false} min={at(9)} max={at(10)} step={30} />)
       const input = screen.getByRole('combobox')
 
-      await user.type(input, '1234')
+      await user.type(input, '1234', { skipClick: true })
       expect(input).toHaveValue('09:00')
       expect(onChange).not.toHaveBeenCalled()
 
@@ -627,7 +1140,7 @@ describe('InputTime', () => {
       const onChange = vi.fn()
       render(<InputTime value={at(9)} onChange={onChange} isDisabled />)
 
-      await user.type(screen.getByRole('combobox'), '1234')
+      await user.type(screen.getByRole('combobox'), '1234', { skipClick: true })
       await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
 
       expect(onChange).not.toHaveBeenCalled()
@@ -668,7 +1181,7 @@ describe('InputTime', () => {
       const onTextChange = vi.fn()
 
       function Harness() {
-        const [text, setText] = useState('')
+        const [text, setText] = useState('09:00')
         return (
           <InputTime
             isRequired={false}
@@ -681,10 +1194,30 @@ describe('InputTime', () => {
         )
       }
       render(<Harness />)
+      const input = screen.getByRole('combobox')
 
-      await user.type(screen.getByRole('combobox'), '09')
+      await user.clear(input)
+      await user.type(input, '09', { skipClick: true })
 
-      expect(onTextChange).toHaveBeenLastCalledWith('09:')
+      // What the field is showing, groups and all -- not the raw keystrokes,
+      // and not a half-formatted string the consumer would have to guess at.
+      expect(onTextChange).toHaveBeenLastCalledWith('09:--')
+    })
+
+    it('reports the finished time once it commits', async () => {
+      const user = userEvent.setup()
+      const onTextChange = vi.fn()
+      render(<InputTime defaultValue={null} isRequired={false} onTextChange={onTextChange} />)
+      const input = screen.getByRole('combobox')
+
+      await user.click(input)
+      await user.keyboard('{Home}0930')
+      await user.tab()
+
+      // The groups are reported while they fill, and the formatted value once
+      // the edit commits -- so a consumer watching `text` never has to parse
+      // a partly filled field to know what was settled.
+      expect(onTextChange).toHaveBeenLastCalledWith('09:30')
     })
   })
 
@@ -731,141 +1264,130 @@ describe('InputTime', () => {
     })
   })
 
-  describe('typed-digit masking', () => {
-    function typeChar(input: HTMLInputElement, char: string) {
-      fireEvent.change(input, { target: { value: input.value + char } })
+  describe('group typing', () => {
+    // Typing is driven from the key, not from the text it would produce (a
+    // padded group makes that text ambiguous -- see handleTemplateKey), so
+    // these press keys rather than assigning values.
+    function press(input: HTMLInputElement, ...keys: string[]) {
+      for (const key of keys) fireEvent.keyDown(input, { key })
     }
 
-    it('auto-inserts the separator after an unambiguous hour digit', () => {
-      render(<InputTime defaultValue={null} isRequired={false} />)
+    function focused(props: Partial<Parameters<typeof InputTime>[0]> = {}) {
+      render(<InputTime defaultValue={null} isRequired={false} {...props} />)
       const input = screen.getByRole('combobox') as HTMLInputElement
+      act(() => {
+        input.focus()
+      })
+      return input
+    }
 
-      typeChar(input, '9')
+    it('finishes and moves on when a digit cannot take another', () => {
+      const input = focused()
 
-      expect(input).toHaveValue('9:')
-      expect(input.selectionStart).toBe(2)
+      press(input, '9')
+
+      expect(input).toHaveValue('09:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
     })
 
-    it('keeps an ambiguous hour digit open, then completes on a valid 2nd digit', () => {
-      render(<InputTime defaultValue={null} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+    it('keeps an ambiguous digit in its group, then completes on the second', () => {
+      const input = focused()
 
-      typeChar(input, '1')
-      expect(input).toHaveValue('1')
+      press(input, '1')
+      expect(input).toHaveValue('01:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
 
-      typeChar(input, '4')
-      expect(input).toHaveValue('14:')
-      expect(input.selectionStart).toBe(3)
+      press(input, '4')
+      expect(input).toHaveValue('14:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
     })
 
-    it('rejects a 2nd hour digit that would exceed 23', () => {
-      render(<InputTime defaultValue={null} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+    it('rejects a second hour digit that would exceed 23', () => {
+      const input = focused()
 
-      typeChar(input, '2')
-      typeChar(input, '5')
+      press(input, '2', '5')
 
-      expect(input).toHaveValue('2')
+      expect(input).toHaveValue('02:--')
     })
 
-    it('rejects a minute digit that would exceed 59', () => {
-      render(<InputTime defaultValue={null} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+    it('takes the highest minute, and finishes a minute no second digit can follow', () => {
+      const input = focused()
 
-      for (const digit of ['0', '9', '5', '9']) typeChar(input, digit)
+      press(input, '0', '9', '5', '9')
       expect(input).toHaveValue('09:59')
 
-      // Overtyping the "5" with a "6" would make 69 minutes.
-      fireEvent.change(input, { target: { value: '09:69' } })
-      expect(input).toHaveValue('09:59')
+      // A finished group starts over. "6" is a minute on its own and nothing
+      // can follow it (60-69 don't exist), so it finishes on the spot -- which
+      // is why the "9" after it starts over again rather than making 69.
+      press(input, '6')
+      expect(input).toHaveValue('09:06')
+      press(input, '9')
+      expect(input).toHaveValue('09:09')
     })
 
     it('writes the whole AM/PM designator from a single letter', () => {
-      render(<InputTime defaultValue={null} isRequired={false} format="h:i K" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = focused({ format: 'h:i K' })
 
-      for (const char of ['2', '3', '0', 'p']) typeChar(input, char)
+      press(input, '2', '3', '0', 'p')
 
-      expect(input).toHaveValue('2:30 PM')
+      expect(input).toHaveValue('02:30 PM')
     })
 
-    it('two-press Backspace steps over a separator before deleting the digit before it', () => {
-      render(<InputTime defaultValue={at(9, 30)} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-      input.setSelectionRange(3, 3)
+    it('moves the highlight to the next group when the separator is typed', () => {
+      const input = focused()
 
-      fireEvent.keyDown(input, { key: 'Backspace' })
+      // Nothing typed yet: the separator skips the hour and leaves the
+      // minutes highlighted, ready for digits.
+      press(input, ':')
+      expect(input).toHaveValue('--:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+
+      press(input, '3')
+      expect(input).toHaveValue('--:03')
+    })
+
+    it('finishes a short group when the separator moves off it', () => {
+      const input = focused()
+
+      press(input, '1', ':')
+      // "1" was still open (it could have become 19); the separator settles it
+      // and hands the highlight to the minutes.
+      expect(input).toHaveValue('01:--')
+      expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
+    })
+
+    it('empties the highlighted group on Backspace, then steps back', () => {
+      const input = focused()
+
+      press(input, '9', '3', '0')
       expect(input).toHaveValue('09:30')
-      expect(input.selectionStart).toBe(2)
+
+      press(input, 'Backspace')
+      expect(input).toHaveValue('09:--')
+
+      // Nothing left in the minutes, so the next press clears the hour.
+      press(input, 'Backspace')
+      expect(input).toHaveValue('--:--')
     })
 
     it('rebuilds a full time from a single-event paste', () => {
-      render(<InputTime defaultValue={null} isRequired={false} format="h:i K" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = focused({ format: 'h:i K' })
 
       fireEvent.change(input, { target: { value: '9:30 PM' } })
 
-      expect(input).toHaveValue('9:30 PM')
+      expect(input).toHaveValue('09:30 PM')
     })
 
-    it('masks a digit typed over the auto-selected snap text on required-empty', async () => {
+    it('snaps a required field back to a time when every group is emptied', async () => {
       const user = userEvent.setup()
       render(<InputTime defaultValue={at(9, 30)} />)
       const input = screen.getByRole('combobox') as HTMLInputElement
 
+      // Select-all-then-delete clears every group at once; a required field
+      // can't sit with no value, so it snaps rather than waiting for blur.
       await user.clear(input)
-      // clear() snaps to the fallback time with everything selected; typing
-      // one digit must restart the mask rather than append to the snapped
-      // value. Like InputDate's equivalent case, the removal spans every
-      // segment, so this takes the strip-and-rebuild path — which fills
-      // segments without applying the per-digit completion rule, leaving
-      // the hour open for a second digit (or for the pending-advance
-      // timeout) rather than auto-advancing on the spot.
-      fireEvent.change(input, { target: { value: '7' } })
 
-      expect(input).toHaveValue('7')
-    })
-  })
-
-  describe('pending-advance timeout (ambiguous digits)', () => {
-    afterEach(() => {
-      vi.useRealTimers()
-      cleanup()
-    })
-
-    it('auto-advances an ambiguous hour digit after the delay with no further typing', () => {
-      vi.useFakeTimers()
-      render(<InputTime defaultValue={null} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-
-      act(() => {
-        input.focus()
-        fireEvent.change(input, { target: { value: '1' } })
-      })
-      expect(input).toHaveValue('1')
-
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-      expect(input).toHaveValue('1:')
-    })
-
-    it('clears the pending timeout on blur so it cannot fire afterward', () => {
-      vi.useFakeTimers()
-      render(<InputTime defaultValue={null} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-
-      act(() => {
-        input.focus()
-        fireEvent.change(input, { target: { value: '1' } })
-        fireEvent.blur(input)
-      })
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-
-      // Blur reverted the incomplete draft; the timeout must not resurrect it.
-      expect(input).toHaveValue('')
+      expect(input.value).toMatch(/^\d{2}:\d{2}$/)
     })
   })
 

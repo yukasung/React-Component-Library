@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { tokenizeDateMask } from './date'
-import { applyInputMask, diffStrings, isLiteralCharAt, pendingAdvanceAtCursor } from './inputMask'
+import {
+  applyInputMask,
+  diffStrings,
+  isLiteralCharAt,
+  maskPlaceholder,
+  maskPlaceholderRanges,
+  pendingAdvanceAtCursor,
+} from './inputMask'
 import { timeMaskSegments } from './time'
 
 describe('diffStrings', () => {
@@ -243,6 +250,30 @@ describe('pendingAdvanceAtCursor', () => {
 
   it('works identically for unpadded j/n tokens (same width/range as d/m)', () => {
     expect(pendingAdvanceAtCursor(jny, '1', 1)).toEqual({ draft: '1/', cursor: 2 })
+  })
+})
+
+describe('maskPlaceholder', () => {
+  it('dashes each digit segment to its own width, keeping literals', () => {
+    expect(maskPlaceholder(tokenizeDateMask('d/m/Y')!)).toBe('--/--/----')
+  })
+
+  it('dashes an unpadded token to its full width, not the one digit it can hold', () => {
+    expect(maskPlaceholder(timeMaskSegments('h:i')!)).toBe('--:--')
+  })
+
+  it('dashes the AM/PM designator like a two-character segment', () => {
+    expect(maskPlaceholder(timeMaskSegments('h:i K')!)).toBe('--:-- --')
+  })
+
+  it('reports where each group sits inside it', () => {
+    // The position table the fixed-width template editor works from — offsets
+    // into the string the function above produces.
+    expect(maskPlaceholderRanges(tokenizeDateMask('d/m/Y')!)).toEqual([
+      { start: 0, end: 2 },
+      { start: 3, end: 5 },
+      { start: 6, end: 10 },
+    ])
   })
 })
 
