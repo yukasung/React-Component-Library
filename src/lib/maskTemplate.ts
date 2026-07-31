@@ -8,9 +8,10 @@ import {
 } from './inputMask'
 import type { FillableSegment, MaskSegment } from './inputMask'
 
-// How `InputTime` is edited: **fixed-width groups**, one per fillable
-// segment, each occupying its slot from the start and holding fillers ("--")
-// until typed into — a native time input's sub-fields, on a text input.
+// How `InputTime` and `InputDate` are edited: **fixed-width groups**, one per
+// fillable segment, each occupying its slot from the start and holding
+// fillers ("__") until typed into — a native date/time input's sub-fields, on
+// a text input.
 //
 // This exists because the draft-based masker in inputMask.ts structurally
 // cannot do it. A draft holds only what's been typed, in order: "09:3" is a
@@ -22,11 +23,14 @@ import type { FillableSegment, MaskSegment } from './inputMask'
 // Everything about *which characters a group accepts* is still imported from
 // inputMask.ts (`acceptDigit`, `acceptAmPmChar`, `canFinalizeDigits`): the
 // rules stay single-sourced, and what differs is only storage and
-// positioning, which is exactly the part that can't be shared. `InputDate`
-// still uses the masker itself, unchanged — it isn't affected by any of this.
+// positioning, which is exactly the part that can't be shared. The React half
+// is deliberately *not* shared: each component keeps its own copy so it stays
+// usable on its own, which is why the wiring in InputTime.tsx and
+// InputDate.tsx reads alike. `InputDate` keeps the masker as well, for the
+// alphabetic formats ("F j, Y") that have no fixed-width shape at all.
 //
-// Nothing here knows about hours or minutes: like the masker, every rule it
-// applies comes from a segment's `{ width, min, max }`.
+// Nothing here knows about hours, minutes or months: like the masker, every
+// rule it applies comes from a segment's `{ width, min, max }`.
 
 export interface TemplateSlot {
   // The digits (or the AM/PM designator) typed into this group so far.
@@ -45,6 +49,13 @@ export interface TemplateEntry {
   // Which slot the user is in. The whole slot is what gets highlighted, so
   // this is a group index, never a character offset.
   active: number
+  // Whether the highlight arrived at `active` by the previous keystroke
+  // filling the group before it, rather than by the user moving it. It only
+  // affects the separator key: typing "2026-07-15" in full has to work, and
+  // the "-" after "2026" arrives at a month the year already advanced into --
+  // so that one is swallowed instead of skipping the month. A separator typed
+  // any other time still moves on, which is how an unwanted group is skipped.
+  autoAdvanced: boolean
 }
 
 function fillableSegments(segments: MaskSegment[]): FillableSegment[] {
@@ -52,19 +63,35 @@ function fillableSegments(segments: MaskSegment[]): FillableSegment[] {
 }
 
 export function emptyTemplateEntry(segments: MaskSegment[]): TemplateEntry {
-  return { slots: fillableSegments(segments).map(() => ({ chars: '', done: false })), active: 0 }
+  return { slots: fillableSegments(segments).map(() => ({ chars: '', done: false })), active: 0, autoAdvanced: false }
 }
 
-// Typed characters sit right-aligned in their group, zero-padded — an hour
-// reads "01" the moment "1" is typed, not "1-" waiting for a second digit.
-// That's what a native time input does, and it's why `chars` (what was
-// typed) is kept separately from the rendering: a group showing "01" may
-// still be mid-entry, and typing "4" into it has to produce "14", which is
-// only derivable from the digits, never from the padded text.
-function renderSlot(segment: FillableSegment, slot: TemplateSlot): string {
+// How a group's typed characters fill its width, from the direction its own
+// segment declares (MaskSegment.fill, set by the tokenizers). Right-aligned by
+// default — a minute typed "3" is 03, which is what makes the next digit read
+// as "35" — and left-aligned for a group read most-significant-first, where
+// "2" of a year fills out to 2000 and the digits after it replace those zeros
+// in turn: 2, 20, 202, 2026 showing as 2000, 2000, 2020, 2026.
+//
+// Used for the committed string as well as the rendering (see
+// templateToDraft), so a group can never commit as something other than what
+// it was showing.
+function padSlot(segment: FillableSegment, chars: string): string {
   const width = segmentWidth(segment)
-  if (slot.chars === '') return MASK_FILLER.repeat(width)
-  return slot.chars.padStart(width, '0')
+  return segment.type === 'token' && segment.fill === 'end'
+    ? chars.padEnd(width, '0')
+    : chars.padStart(width, '0')
+}
+
+// Typed characters fill their group immediately — an hour reads "01" the
+// moment "1" is typed, not "1_" waiting for a second digit. That's what a
+// native date/time input does, and it's why `chars` (what was typed) is kept
+// separately from the rendering: a group showing "01" may still be mid-entry,
+// and typing "4" into it has to produce "14", which is only derivable from
+// the digits, never from the padded text.
+function renderSlot(segment: FillableSegment, slot: TemplateSlot): string {
+  if (slot.chars === '') return MASK_FILLER.repeat(segmentWidth(segment))
+  return padSlot(segment, slot.chars)
 }
 
 // The text the field shows: every group at full width, literals in between.
@@ -80,46 +107,76 @@ export function templateText(segments: MaskSegment[], entry: TemplateEntry): str
     .join('')
 }
 
-export function templateRanges(segments: MaskSegment[]): { start: number; end: number }[] {
-  return maskPlaceholderRanges(segments)
-}
+// The position table, under the name the group editor's callers read in — the
+// same function, not a wrapper around it.
+export { maskPlaceholderRanges as templateRanges }
 
 // Which group an offset belongs to. A separator between two groups resolves
 // to the one on its left (the offset is that group's own end), and anything
 // past the last group clamps into it — a click never lands "nowhere".
 export function templateSlotAt(segments: MaskSegment[], offset: number): number {
-  const ranges = templateRanges(segments)
+  return slotAt(maskPlaceholderRanges(segments), offset)
+}
+
+function slotAt(ranges: { start: number; end: number }[], offset: number): number {
   for (let i = 0; i < ranges.length; i++) {
     if (offset <= ranges[i].end) return i
   }
   return ranges.length - 1
 }
 
-function withSlot(entry: TemplateEntry, index: number, slot: TemplateSlot, active: number): TemplateEntry {
+function withSlot(
+  entry: TemplateEntry,
+  index: number,
+  slot: TemplateSlot,
+  active: number,
+  autoAdvanced = false,
+): TemplateEntry {
   const slots = entry.slots.slice()
   slots[index] = slot
-  return { slots, active }
+  return { slots, active, autoAdvanced }
 }
 
 // Which groups a character span touches — how a select-all-then-delete, or a
 // drag across a separator, is turned back into whole groups.
-function coveredSlots(segments: MaskSegment[], start: number, length: number): number[] {
+function coveredSlots(ranges: { start: number; end: number }[], start: number, length: number): number[] {
   const end = start + length
-  return templateRanges(segments)
-    .map((range, index) => ({ range, index }))
-    .filter(({ range }) => range.start < end && range.end > start)
-    .map(({ index }) => index)
+  const covered: number[] = []
+  for (let i = 0; i < ranges.length; i++) {
+    if (ranges[i].start < end && ranges[i].end > start) covered.push(i)
+  }
+  return covered
 }
 
 function clearSlots(entry: TemplateEntry, indexes: number[]): TemplateEntry {
   const slots = entry.slots.map((slot, index) => (indexes.includes(index) ? { chars: '', done: false } : slot))
-  return { slots, active: indexes[0] ?? entry.active }
+  return { slots, active: indexes[0] ?? entry.active, autoAdvanced: false }
 }
 
 // Whether nothing at all is filled in — what the owning component needs to
 // spot a field the user just emptied.
 export function isTemplateEmpty(entry: TemplateEntry): boolean {
   return entry.slots.every((slot) => slot.chars === '')
+}
+
+// Whether an edit wiped the field rather than clearing one group: a deletion
+// that emptied everything *and* spanned more than one group (select-all, then
+// delete). The whole rule lives here rather than in the components, which only
+// differ in what they snap back to — it is a pure function of the segments,
+// the edit and the entry it produced, with nothing React about it.
+export function templateWipedByEdit(
+  segments: MaskSegment[],
+  next: TemplateEntry,
+  edit: { start: number; removedCount: number; inserted: string },
+): boolean {
+  if (edit.inserted !== '' || !isTemplateEmpty(next)) return false
+  const ranges = maskPlaceholderRanges(segments)
+  const end = edit.start + edit.removedCount
+  let covered = 0
+  for (const range of ranges) {
+    if (range.start < end && range.end > edit.start && ++covered > 1) return true
+  }
+  return false
 }
 
 // Where the highlight goes once a group is finished: the next group, or
@@ -159,7 +216,8 @@ export function templateEdit(
   edit: { start: number; removedCount: number; inserted: string },
 ): TemplateEntry | 'reject' {
   const fillable = fillableSegments(segments)
-  const index = templateSlotAt(segments, edit.start)
+  const ranges = maskPlaceholderRanges(segments)
+  const index = slotAt(ranges, edit.start)
   const segment = fillable[index]
   if (!segment) return 'reject'
 
@@ -168,7 +226,7 @@ export function templateEdit(
   // removal covered and leaves the highlight on the first of them, ready to
   // be retyped.
   if (edit.inserted === '') {
-    const covered = coveredSlots(segments, edit.start, edit.removedCount)
+    const covered = coveredSlots(ranges, edit.start, edit.removedCount)
     // More than one group only happens for a span (select-all-then-delete,
     // dragging across the separator) — a single Backspace over a highlighted
     // group covers just that one.
@@ -190,7 +248,7 @@ export function templateEdit(
   if (segment.type === 'ampm') {
     const outcome = acceptAmPmChar(char)
     if (outcome === 'reject') return 'reject'
-    return withSlot(entry, index, { chars: outcome.digits, done: true }, nextActive(entry, index))
+    return withSlot(entry, index, { chars: outcome.digits, done: true }, nextActive(entry, index), true)
   }
   if (/\d/.test(char)) {
     const outcome = acceptDigit(segment, existing, '', char)
@@ -200,6 +258,7 @@ export function templateEdit(
       index,
       { chars: outcome.digits, done: outcome.done },
       outcome.done ? nextActive(entry, index) : index,
+      outcome.done,
     )
   }
   // Typing the separator means "I'm done with this group": the highlight moves
@@ -209,6 +268,10 @@ export function templateEdit(
   // would leave the key doing nothing at all.
   const nextLiteral = segments[segments.indexOf(segment) + 1]
   if (nextLiteral?.type === 'literal' && nextLiteral.text.startsWith(char)) {
+    // Already moved here by the digit that finished the group before this
+    // one: the separator is the one the user would type next anyway, so it
+    // confirms that move instead of making a second one.
+    if (entry.autoAdvanced) return { ...entry, autoAdvanced: false }
     return withSlot(entry, index, settleSlot(segment, slot), nextActive(entry, index))
   }
   return 'reject'
@@ -232,7 +295,9 @@ export function templateFinalizeActive(segments: MaskSegment[], entry: TemplateE
 // Moves the highlight to another group, finishing the one being left.
 export function templateMoveTo(segments: MaskSegment[], entry: TemplateEntry, index: number): TemplateEntry {
   const active = Math.min(Math.max(index, 0), entry.slots.length - 1)
-  return { ...templateFinalizeActive(segments, entry), active }
+  const settled = templateFinalizeActive(segments, entry)
+  if (settled === entry && active === entry.active) return entry
+  return { ...settled, active, autoAdvanced: false }
 }
 
 // Replays raw text (a paste, an autofill) through the slots — the same
@@ -272,7 +337,7 @@ export function templateFromRaw(segments: MaskSegment[], raw: string): TemplateE
   // Land on the group after the last one filled, or on the first when
   // nothing was: a raw string that fills nothing (an empty field) has to start
   // its entry at the leading group, not one past it.
-  return { ...entry, active: filled < 0 ? 0 : nextActive(entry, filled) }
+  return { ...entry, active: filled < 0 ? 0 : nextActive(entry, filled), autoAdvanced: false }
 }
 
 // The equivalent draft string for a fully filled template — what gets handed
@@ -290,7 +355,9 @@ export function templateToDraft(segments: MaskSegment[], entry: TemplateEntry): 
     }
     const slot = entry.slots[slotIndex++]
     if (!slot.done || slot.chars === '') return null
-    draft += segment.type === 'ampm' ? slot.chars : slot.chars.padStart(segmentWidth(segment), '0')
+    // padSlot, not a padding of its own: what commits has to be exactly what
+    // the field was showing, including which side the zeros went on.
+    draft += padSlot(segment, slot.chars)
   }
   return draft
 }

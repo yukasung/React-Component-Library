@@ -6,7 +6,22 @@ import './flatpickr-theme.css'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { addDays, clampDate, formatDateValue, isSameDay, parseDateDraft, startOfDay, tokenizeDateMask } from '../../lib/date'
 import { useInputMask } from '../../hooks/useInputMask'
-import { selectAllOnFocus } from '../../lib/domSelection'
+import { applySelection, selectAllOnFocus, selectRangeAtCaret } from '../../lib/domSelection'
+import { diffStrings, maskPlaceholder } from '../../lib/inputMask'
+import {
+  isTemplateEmpty,
+  templateEdit,
+  templateFinalizeActive,
+  templateFromRaw,
+  templateMoveTo,
+  templateRanges,
+  templateSlotAt,
+  templateText,
+  templateToDraft,
+  templateWipedByEdit,
+} from '../../lib/maskTemplate'
+import type { TemplateEntry } from '../../lib/maskTemplate'
+import type { MaskSegment } from '../../lib/inputMask'
 import { useFlatpickrCalendar } from './useFlatpickrCalendar'
 
 // The offset added to a Gregorian year to display/accept Buddhist Era (พ.ศ.)
@@ -18,6 +33,16 @@ import { useFlatpickrCalendar } from './useFlatpickrCalendar'
 // The locale→offset mapping lives here; the flatpickr hook only consumes the
 // resolved number.
 const BUDDHIST_ERA_OFFSET = 543
+
+// Keys that move between groups while the field is edited as groups, and how
+// far each moves. Module scope so a keydown that falls through to the other
+// branches doesn't allocate it.
+const GROUP_NAV_KEYS: Record<string, (entry: TemplateEntry) => number> = {
+  ArrowLeft: (entry) => entry.active - 1,
+  ArrowRight: (entry) => entry.active + 1,
+  Home: () => 0,
+  End: (entry) => entry.slots.length - 1,
+}
 
 export interface InputDateProps
   extends Omit<
@@ -113,6 +138,10 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     showDropdownButton = true,
     monthCount = 1,
     locale = 'en',
+    // Native passthrough (it arrives via InputHTMLAttributes, not as a prop of
+    // this component's own), pulled out of `rest` only so an empty field can
+    // fall back to the format's own shape — see placeholderText below.
+    placeholder,
     className,
     ...rest
   },
@@ -133,6 +162,15 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   // comment in date.ts). Cheap to recompute every render (format strings
   // are ~10 chars), no useMemo needed.
   const maskSegments = tokenizeDateMask(format)
+  // An empty field shows the shape the format is waiting for — "__/__/____"
+  // for `d/m/Y`, "____-__-__" for `Y-m-d`, and so on — the way a native date
+  // input does, and the same treatment InputTime gives its own formats. It
+  // follows `format` for free, being derived from the very segments the mask
+  // types into, which is also why an alphabetic format ("F j, Y", where the
+  // mask doesn't apply) has no shape to show and falls back to no placeholder
+  // at all rather than to a made-up one. A consumer-supplied placeholder
+  // always wins.
+  const placeholderText = placeholder ?? (maskSegments ? maskPlaceholder(maskSegments) : undefined)
   // Required fields never display as blank — matches Wijmo's stated "default
   // is current date," but this is display-only, mirroring InputNumber's
   // `displayValue = isRequired && committedValue === null ? 0 : committedValue`.
@@ -153,10 +191,64 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   const lastCommittedRef = useRef(committedValue)
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  // See the input's own onMouseDown/onFocus: which group the focus handler
+  // highlights depends on whether a pointer put the caret somewhere first.
+  const focusFromPointerRef = useRef(false)
   // The React half of the live-typing mask — the auto-advance timeout and
-  // the cursor bookkeeping that drives src/lib/inputMask.ts. Shared with
-  // InputTime; see the hook's own doc comment.
+  // the cursor bookkeeping that drives src/lib/inputMask.ts. Still the only
+  // way to type an alphabetic format (see `maskSegments` above); a format the
+  // mask *can* describe is edited as groups instead, below.
   const mask = useInputMask({ segments: maskSegments, draft, setDraft: updateDraft, inputRef: inputElementRef })
+
+  // Group editing, the same model InputTime uses: day/month/year each occupy
+  // their own fixed-width slot, holding fillers until typed into, so landing
+  // in one highlights it whole and typing fills exactly that group. The
+  // component-level half is deliberately kept here rather than shared with
+  // InputTime — the two are meant to be usable one without the other — while
+  // the rules themselves live in src/lib/maskTemplate.ts.
+  //
+  // Non-null means the field is being edited that way, which needs a format
+  // the mask can describe: "F j, Y" spells its month out, so it has no
+  // fixed-width shape and keeps the plain masker path instead.
+  const [templateEntry, setTemplateEntry] = useState<TemplateEntry | null>(null)
+  // The one narrowing of "is this field being edited as groups": both halves
+  // have to hold — a format the mask can describe, and an entry (created on
+  // focus, cleared on commit). Everything below takes `groups` rather than
+  // re-testing the pair, which is also what keeps the segments non-optional
+  // for the helpers that only ever run in this mode.
+  const groups = maskSegments && templateEntry ? { segments: maskSegments, entry: templateEntry } : null
+  // The text the groups are showing, and the fixed position table they sit
+  // at: both depend only on the entry and the format, so they're derived once
+  // per render rather than rebuilt at each of the four places that read them.
+  const templateValue = groups ? templateText(groups.segments, groups.entry) : ''
+  const slotRanges = maskSegments ? templateRanges(maskSegments) : []
+  // Seeds an entry from whatever the field is displaying, so editing a date
+  // that's already there starts from its groups rather than from blank ones.
+  // Buddhist Era needs nothing special: the draft already holds the shifted
+  // year, and the same digits go back out through parseDateDraft.
+  function entryFromText(source: string): TemplateEntry {
+    return templateFromRaw(maskSegments as MaskSegment[], source)
+  }
+  // What the field is showing, as a draft string — the groups while they're
+  // being edited (they are the live text then, and the draft still holds the
+  // last committed date), the draft itself otherwise. Whatever reads "the
+  // value in front of the user" has to go through this, or an Arrow key would
+  // step from a date the user has already typed over.
+  function draftInProgress(): string {
+    if (!groups) return draft
+    return templateToDraft(groups.segments, templateFinalizeActive(groups.segments, groups.entry)) ?? draft
+  }
+  // Re-seeds the groups after something other than typing replaced the value
+  // (an Arrow step, a calendar pick) so they keep showing what the field now
+  // holds. The group the user was in is carried over and re-highlighted:
+  // seeding alone would leave the highlight wherever the new text happens to
+  // end, and the next digit would land in a group they never chose.
+  function reseedTemplate(text: string) {
+    if (!groups) return
+    const seeded = templateMoveTo(groups.segments, entryFromText(text), groups.entry.active)
+    setTemplateEntry(seeded)
+    if (inputElementRef.current) selectTemplateSlot(inputElementRef.current, seeded)
+  }
 
   useEffect(() => {
     if (pendingSelectionRef.current !== null && inputElementRef.current) {
@@ -178,12 +270,30 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
       if (!isControlled) setInternalValue(next)
       onChange?.(next)
     }
-    updateDraft(formatDisplay(next))
+    const text = formatDisplay(next)
+    updateDraft(text)
+    return text
   }
 
   function commitDraft() {
     if (isReadOnly) return
     mask.clearPendingAdvance()
+    if (groups) {
+      // The groups turn into a draft string first and then go through the very
+      // same parse/clamp/commit path typed text always did. That conversion
+      // only succeeds once every group is filled: an unfinished entry commits
+      // nothing, the way a native date input refuses to report a half-entered
+      // date. `null` is committed only when the user actually emptied the
+      // field, and only where null is allowed.
+      const finalized = templateFinalizeActive(groups.segments, groups.entry)
+      const asDraft = templateToDraft(groups.segments, finalized)
+      const parsedGroups = asDraft === null ? undefined : parseDateDraft(asDraft, format, yearOffset, flatpickrLocale)
+      setTemplateEntry(null)
+      if (parsedGroups instanceof Date) commit(clampDate(parsedGroups, min, max))
+      else if (isTemplateEmpty(finalized) && !isRequired) commit(null)
+      else updateDraft(formattedValue)
+      return
+    }
     // No flush-before-parse needed here — confirmed empirically that
     // flatpickr's own parseDate already accepts a bare, not-yet-finalized
     // 1-2 digit day/month value exactly like a fully-flushed one (it
@@ -203,9 +313,13 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   // behavior) — Wijmo's default day-stepping isn't opt-in, there's no
   // `step` prop for InputDate at all.
   function stepBy(direction: 1 | -1) {
-    const parsed = parseDateDraft(draft, format, yearOffset, flatpickrLocale)
+    const parsed = parseDateDraft(draftInProgress(), format, yearOffset, flatpickrLocale)
     const base = parsed ?? committedValue ?? min ?? startOfDay(new Date())
-    commit(clampDate(addDays(base, direction), min, max))
+    const next = clampDate(addDays(base, direction), min, max)
+    // commit formats the value already; reseeding from that text rather than
+    // from the Date keeps flatpickr's formatter (the most expensive step in
+    // this path) to one pass per Arrow press.
+    reseedTemplate(commit(next))
   }
 
   // All flatpickr integration (instance lifecycle, prop-sync effects, the
@@ -224,7 +338,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     flatpickrLocale,
     yearOffset,
     committedValue,
-    onPick: commit,
+    onPick: (next: Date | null) => reseedTemplate(commit(next)),
     // Internal only — the popup's open state never leaves the component;
     // this just keeps aria-expanded in step with it.
     onOpenChange: setIsOpenState,
@@ -235,11 +349,115 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     toggle()
   }
 
+  // Highlights one whole day/month/year group rather than the whole value —
+  // a native date input's sub-field selection — and moves the entry's active
+  // group to match, since that's the one the next keystroke fills. 'caret'
+  // takes the group a pointer landed in (an offset only the browser knows,
+  // which is what the deferral is for); 'start' is a keyboard tab-in, where
+  // the leading group is what a native date input highlights.
+  function selectSegment(el: HTMLInputElement, from: 'caret' | 'start', segments: MaskSegment[]) {
+    selectRangeAtCaret(el, (caret) => {
+      const index = templateSlotAt(segments, from === 'caret' ? caret : 0)
+      setTemplateEntry((prev) => (prev === null ? prev : templateMoveTo(segments, prev, index)))
+      const range = templateRanges(segments)[index] ?? null
+      // Landing in the field can change its text (an unpadded format pads out
+      // for editing), and React writing that text puts the caret back at the
+      // end — so the range is re-applied after the render as well as now.
+      if (range) pendingSelectionRef.current = range
+      return range
+    })
+  }
+
+  // Puts the highlight back on the group the entry says is active, three times
+  // over: straight away (for an edit that changes nothing and so never
+  // re-renders), from the post-render effect (once React has written the new
+  // text), and once more on a microtask — the one that survives the browser's
+  // own post-input cursor handling, same reason applySelection exists.
+  function selectTemplateSlot(el: HTMLInputElement, entry: TemplateEntry) {
+    if (!maskSegments) return
+    const range = slotRanges[entry.active]
+    if (!range) return
+    pendingSelectionRef.current = range
+    applySelection(el, range.start, range.end)
+  }
+
+  // Applies one edit to the groups and re-renders from them. A rejected edit
+  // leaves them as they were (React restores the text it had rendered), so
+  // only the highlight needs putting back.
+  function applyTemplateEdit(
+    el: HTMLInputElement,
+    segments: MaskSegment[],
+    entry: TemplateEntry,
+    edit: { start: number; removedCount: number; inserted: string },
+  ) {
+    const next = templateEdit(segments, entry, edit)
+    if (next === 'reject') {
+      selectTemplateSlot(el, entry)
+      return
+    }
+    // Wiping the whole field at once (select-all, then delete) on a required
+    // field snaps straight back to a value rather than waiting for blur, so
+    // there is always something to type over — the same immediate-snap the
+    // masker path has. Clearing groups one at a time is left alone: that's a
+    // deliberate walk towards empty, and refilling the field under the user
+    // would read as "this group can't be deleted". Blur still refuses to
+    // leave a required field with no value at all.
+    const settled =
+      isRequired && templateWipedByEdit(segments, next, edit) ? entryFromText(formatDisplay(startOfDay(new Date()))) : next
+    setTemplateEntry(settled)
+    onTextChange?.(templateText(segments, settled))
+    selectTemplateSlot(el, settled)
+  }
+
+  // The range a deletion should clear: whatever is selected, or the whole
+  // active group when the caret is collapsed (a group is the unit here, not
+  // a character).
+  function deletionRange(el: HTMLInputElement, entry: TemplateEntry): { start: number; removedCount: number } {
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? start
+    if (end > start) return { start, removedCount: end - start }
+    const active = slotRanges[entry.active]
+    return { start: active.start, removedCount: active.end - active.start }
+  }
+
+  // Typing is handled on keydown rather than from the resulting text, because
+  // padding makes that text ambiguous: a group showing "01" that gets a "0"
+  // typed over it produces "0/__/____", indistinguishable from deleting the
+  // "1". The key carries the intent, so the browser is never let near the
+  // value (every handled key is preventDefault'd) and `onChange` is left for
+  // the input this can't see — a paste, an autofill, an IME commit.
+  function handleTemplateKey(event: KeyboardEvent<HTMLInputElement>, segments: MaskSegment[], entry: TemplateEntry) {
+    const el = event.currentTarget
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      event.preventDefault()
+      applyTemplateEdit(el, segments, entry, { ...deletionRange(el, entry), inserted: '' })
+      return
+    }
+    if (event.key.length !== 1) return
+    event.preventDefault()
+    applyTemplateEdit(el, segments, entry, {
+      start: slotRanges[entry.active].start,
+      removedCount: 0,
+      inserted: event.key,
+    })
+  }
+
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const el = event.target
+    if (groups) {
+      if (isReadOnly) return
+      // Only input the keyboard path never sees reaches here: a paste, an
+      // autofill, or a soft keyboard/IME that commits text without a key.
+      // templateEdit reads a multi-character run back through the groups
+      // itself, so there is nothing to special-case on the way in.
+      applyTemplateEdit(el, groups.segments, groups.entry, diffStrings(templateValue, el.value))
+      return
+    }
     // Live-typing mask (auto-inserted separators, per-segment digit ranges,
     // the ambiguous-digit auto-advance) — null means the edit was rejected
-    // and the draft should stay as it is.
+    // and the draft should stay as it is. Reached for a format the groups
+    // can't describe, and for any edit arriving at an unfocused field.
     const next = mask.maskChange(el, el.value)
     if (next === null) return
     if (isRequired && next.trim() === '') {
@@ -256,10 +474,29 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // Left/Right/Home/End walk between groups, the keyboard counterpart to
+    // clicking one — there is no free-roaming caret to move instead while the
+    // field is edited a group at a time.
+    if (groups && event.key in GROUP_NAV_KEYS) {
+      event.preventDefault()
+      const next = templateMoveTo(groups.segments, groups.entry, GROUP_NAV_KEYS[event.key](groups.entry))
+      setTemplateEntry(next)
+      selectTemplateSlot(event.currentTarget, next)
+      return
+    }
     if (event.key === 'Enter') {
       commitDraft()
     } else if (event.key === 'Escape') {
       mask.clearPendingAdvance()
+      // Discarding an in-progress edit re-seeds the groups from the value the
+      // field still holds — it keeps focus, so it stays in group-editing mode
+      // rather than falling back to plain text.
+      if (groups) {
+        const reset = entryFromText(formattedValue)
+        setTemplateEntry(reset)
+        selectTemplateSlot(event.currentTarget, reset)
+        return
+      }
       updateDraft(formattedValue)
     } else if (event.key === 'ArrowUp' && !isReadOnly) {
       event.preventDefault()
@@ -267,10 +504,16 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     } else if (event.key === 'ArrowDown' && !isReadOnly) {
       event.preventDefault()
       stepBy(-1)
+    } else if (groups && !isReadOnly) {
+      // Everything left that could be a character or a deletion goes to the
+      // groups — see handleTemplateKey for why editing is driven from the key
+      // rather than from the text the browser would have produced.
+      handleTemplateKey(event, groups.segments, groups.entry)
     } else if (!isReadOnly) {
       // Two-press skip-then-delete over an auto-inserted separator,
       // mirroring InputNumber's own decimal-point-skip convention — see
-      // useInputMask.handleDeleteKey.
+      // useInputMask.handleDeleteKey. Only the plain-masker path needs it;
+      // groups delete a whole group at a time.
       mask.handleDeleteKey(event)
     }
   }
@@ -314,16 +557,44 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
         aria-expanded={isOpenState}
         aria-haspopup="dialog"
         aria-autocomplete="none"
-        value={draft}
+        placeholder={placeholderText}
+        // The groups stand in for the draft while the field is being edited —
+        // a display substitution, so the draft itself stays the single source
+        // of truth for everything that parses or reports it.
+        value={groups ? templateValue : draft}
         onChange={handleChange}
+        // Whether this focus came from a pointer decides which group gets
+        // highlighted, and the focus event itself can't tell — so the
+        // mousedown that precedes it is what records it.
+        onMouseDown={() => {
+          focusFromPointerRef.current = true
+        }}
         onFocus={(event) => {
           setIsFocused(true)
-          // Dates are usually edited as a whole value rather than
-          // character-by-character — selecting everything on focus lets
-          // the user just start typing to replace it. Deferred (see
-          // selectAllOnFocus's own doc comment) — a synchronous
-          // .select() here doesn't reliably work in WebKit/Safari.
+          const fromPointer = focusFromPointerRef.current
+          focusFromPointerRef.current = false
+          if (maskSegments && !isReadOnly) {
+            // Editing starts here: the field's text becomes a set of groups
+            // seeded from whatever it was displaying, and the one landed in
+            // is highlighted whole.
+            if (templateEntry === null) setTemplateEntry(entryFromText(draft))
+            selectSegment(event.currentTarget, fromPointer ? 'caret' : 'start', maskSegments)
+            return
+          }
+          // A format the groups can't describe is still edited as plain text,
+          // so it keeps the select-everything-on-focus behavior. Deferred (see
+          // selectAllOnFocus's own doc comment) — a synchronous .select()
+          // here doesn't reliably work in WebKit/Safari.
           selectAllOnFocus(event.currentTarget)
+        }}
+        onClick={(event) => {
+          // Clicking a different group of an already-focused field fires no
+          // focus event, so the highlight has to be re-derived here too. A
+          // plain click collapses the caret at the pointer, while a drag (or
+          // the highlight just applied) leaves a range — so a non-empty
+          // selection is the signal to keep out of the way.
+          const el = event.currentTarget
+          if (groups && el.selectionStart === el.selectionEnd) selectSegment(el, 'caret', groups.segments)
         }}
         onBlur={() => {
           setIsFocused(false)

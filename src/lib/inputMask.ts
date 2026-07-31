@@ -17,6 +17,14 @@ export type MaskSegment =
       width: number
       min?: number
       max?: number
+      // Which end a part-typed group fills from, when something renders it at
+      // full width (see maskTemplate's padSlot). Default 'start': a group with
+      // a range holds a number, so "3" minutes is 03. 'end' is for a group
+      // read most-significant-first — a year, where "2" means the 2000s. Set
+      // by the tokenizers, which are the only place that knows which token is
+      // which; inferring it from a missing `min` would tie the fill direction
+      // to a range that could reasonably be added later.
+      fill?: 'start' | 'end'
     }
   // The AM/PM designator (time formats' `K` token) — the one segment whose
   // content is letters rather than digits, so it gets its own kind instead
@@ -96,14 +104,17 @@ export function segmentWidth(segment: FillableSegment): number {
   return segment.type === 'ampm' ? AM_PM_WIDTH : segment.width
 }
 
-// The mask as an empty template: every fillable segment becomes one dash per
-// character it holds, literals stay as they are — "H:i" -> "--:--",
-// "h:i K" -> "--:-- --", "d/m/Y" -> "--/--/----". Meant as the default
+// The mask as an empty template: every fillable segment becomes one filler per
+// character it holds, literals stay as they are — "H:i" -> "__:__",
+// "h:i K" -> "__:__ __", "d/m/Y" -> "__/__/____". Meant as the default
 // placeholder of a masked field, so an empty one shows the shape it expects
 // instead of nothing at all, the way a native date/time input does.
-// Token-agnostic like everything else here: the dash count comes from the
+// Token-agnostic like everything else here: the filler count comes from the
 // segment's own width, never from what its token means.
-export const MASK_FILLER = '-'
+//
+// Underscore rather than a dash so a group never blends into the separators
+// around it: "Y-m-d" would otherwise render as ten identical dashes.
+export const MASK_FILLER = '_'
 
 export function maskPlaceholder(segments: MaskSegment[]): string {
   return segments

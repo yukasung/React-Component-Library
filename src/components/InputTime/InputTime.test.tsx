@@ -233,7 +233,7 @@ describe('InputTime', () => {
       // "14" is not an hour on a 12-hour clock, so the group refuses it and
       // the paste stops there rather than being corrected into something else.
       fireEvent.change(input, { target: { value: '14:30 PM' } })
-      expect(input).toHaveValue('--:-- --')
+      expect(input).toHaveValue('__:__ __')
 
       fireEvent.blur(input)
       expect(onChange).not.toHaveBeenCalled()
@@ -563,7 +563,7 @@ describe('InputTime', () => {
 
       // Emptied, and still being edited -- so the groups are showing rather
       // than the field going blank mid-edit.
-      expect(input).toHaveValue('--:--')
+      expect(input).toHaveValue('__:__')
 
       await user.tab()
       expect(input).toHaveValue('')
@@ -726,7 +726,7 @@ describe('InputTime', () => {
       })
       settleSelection()
 
-      expect(input.value).toBe('--:--')
+      expect(input.value).toBe('__:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
     })
 
@@ -740,7 +740,7 @@ describe('InputTime', () => {
       })
       settleSelection()
 
-      expect(input.value).toBe('--:-- --')
+      expect(input.value).toBe('__:__ __')
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
     })
 
@@ -772,14 +772,14 @@ describe('InputTime', () => {
       })
       input.setSelectionRange(4, 4)
       settleSelection()
-      fireEvent.change(input, { target: { value: '--:3' } })
+      fireEvent.change(input, { target: { value: '__:3' } })
 
-      expect(input).toHaveValue('--:03')
+      expect(input).toHaveValue('__:03')
       // Still in the minutes: "3" could yet become "35".
       expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
 
-      fireEvent.change(input, { target: { value: '--:5' } })
-      expect(input).toHaveValue('--:35')
+      fireEvent.change(input, { target: { value: '__:5' } })
+      expect(input).toHaveValue('__:35')
     })
 
     it('replaces the template with the typed digit, keeping the rest as fillers', () => {
@@ -792,11 +792,11 @@ describe('InputTime', () => {
       })
       settleSelection()
       // What the browser produces when a digit is typed over the highlight.
-      fireEvent.change(input, { target: { value: '9:--' } })
+      fireEvent.change(input, { target: { value: '9:__' } })
 
       // An hour of 9 can't take a second digit, so it finishes and pads,
       // and the highlight moves on to the minutes.
-      expect(input).toHaveValue('09:--')
+      expect(input).toHaveValue('09:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
     })
 
@@ -809,15 +809,15 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '1:--' } })
+      fireEvent.change(input, { target: { value: '1:__' } })
       // Reads as an hour right away, the way a native time input does.
-      expect(input).toHaveValue('01:--')
+      expect(input).toHaveValue('01:__')
       // Still the hour's group -- "1" could yet become 10-19, so the next
       // digit continues it instead of starting over.
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
 
-      fireEvent.change(input, { target: { value: '4:--' } })
-      expect(input).toHaveValue('14:--')
+      fireEvent.change(input, { target: { value: '4:__' } })
+      expect(input).toHaveValue('14:__')
     })
 
     it('rejects a digit that would push a group out of range', () => {
@@ -829,13 +829,13 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '2:--' } })
-      expect(input).toHaveValue('02:--')
+      fireEvent.change(input, { target: { value: '2:__' } })
+      expect(input).toHaveValue('02:__')
 
       // 25 is not an hour -- the same rule the draft masker applies, from the
       // same acceptDigit.
-      fireEvent.change(input, { target: { value: '5:--' } })
-      expect(input).toHaveValue('02:--')
+      fireEvent.change(input, { target: { value: '5:__' } })
+      expect(input).toHaveValue('02:__')
     })
 
     it('rebuilds a pasted time dropped onto the template', () => {
@@ -847,7 +847,7 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '9:30 PM:-- --' } })
+      fireEvent.change(input, { target: { value: '9:30 PM:__ __' } })
 
       expect(input).toHaveValue('09:30 PM')
     })
@@ -861,17 +861,40 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '1:--' } })
-      expect(input).toHaveValue('01:--')
+      fireEvent.change(input, { target: { value: '1:__' } })
+      expect(input).toHaveValue('01:__')
 
       // Leaving an ambiguous "1" settles it as the 01 it already reads as,
       // rather than losing it for being unfinished.
       fireEvent.keyDown(input, { key: 'ArrowRight' })
-      expect(input).toHaveValue('01:--')
+      expect(input).toHaveValue('01:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
 
       fireEvent.keyDown(input, { key: 'ArrowLeft' })
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    })
+
+    it('steps from the time on screen, not the one last committed', () => {
+      vi.useFakeTimers()
+      const onChange = vi.fn()
+      render(<InputTime defaultValue={at(9, 30)} onChange={onChange} step={15} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+
+      act(() => {
+        input.focus()
+      })
+      settleSelection()
+      for (const key of ['1', '1', '4', '5']) fireEvent.keyDown(input, { key })
+      expect(input).toHaveValue('11:45')
+
+      // The groups aren't written to the draft, so stepping used to read the
+      // committed 09:30 and throw the typed time away.
+      fireEvent.keyDown(input, { key: 'ArrowUp' })
+
+      expect(input).toHaveValue('12:00')
+      // Still editing as groups, with one highlighted -- dropping out would
+      // leave the next keystroke nowhere to go.
+      expect(input.selectionStart).not.toBe(input.selectionEnd)
     })
 
     it('commits a fully filled template on blur', () => {
@@ -884,7 +907,7 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '9:--' } })
+      fireEvent.change(input, { target: { value: '9:__' } })
       fireEvent.change(input, { target: { value: '09:3' } })
       fireEvent.change(input, { target: { value: '09:5' } })
       expect(input).toHaveValue('09:35')
@@ -908,8 +931,8 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '9:--' } })
-      expect(input).toHaveValue('09:--')
+      fireEvent.change(input, { target: { value: '9:__' } })
+      expect(input).toHaveValue('09:__')
 
       act(() => {
         fireEvent.blur(input)
@@ -929,12 +952,12 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '9:--' } })
-      expect(input).toHaveValue('09:--')
+      fireEvent.change(input, { target: { value: '9:__' } })
+      expect(input).toHaveValue('09:__')
 
       fireEvent.keyDown(input, { key: 'Escape' })
 
-      expect(input).toHaveValue('--:--')
+      expect(input).toHaveValue('__:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
     })
 
@@ -947,14 +970,14 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      fireEvent.change(input, { target: { value: '9:--' } })
-      expect(input).toHaveValue('09:--')
+      fireEvent.change(input, { target: { value: '9:__' } })
+      expect(input).toHaveValue('09:__')
 
       // Backspace with the (now highlighted) minutes selected steps back and
       // clears the hour, since the minutes hold nothing to clear.
       fireEvent.change(input, { target: { value: '09:' } })
 
-      expect(input).toHaveValue('--:--')
+      expect(input).toHaveValue('__:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
     })
 
@@ -968,13 +991,13 @@ describe('InputTime', () => {
       })
       settleSelection()
       // A letter is not a valid character in an H:i field.
-      fireEvent.change(input, { target: { value: 'x:--' } })
+      fireEvent.change(input, { target: { value: 'x:__' } })
       // Nothing re-renders, so the highlight is re-applied straight to the
       // element -- including the microtask re-apply that outlives React's own
       // controlled-value restoration (see applySelection).
       await Promise.resolve()
 
-      expect(input).toHaveValue('--:--')
+      expect(input).toHaveValue('__:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
     })
 
@@ -988,12 +1011,12 @@ describe('InputTime', () => {
         input.focus()
       })
       settleSelection()
-      expect(input.value).toBe('--:--')
+      expect(input.value).toBe('__:__')
 
       fireEvent.blur(input)
 
       expect(input.value).toBe('')
-      expect(input).toHaveAttribute('placeholder', '--:--')
+      expect(input).toHaveAttribute('placeholder', '__:__')
       expect(onChange).not.toHaveBeenCalled()
     })
 
@@ -1009,7 +1032,7 @@ describe('InputTime', () => {
       settleSelection()
       fireEvent.blur(input)
 
-      expect(onTextChange).not.toHaveBeenCalledWith('--:--')
+      expect(onTextChange).not.toHaveBeenCalledWith('__:__')
     })
 
     it('does not show on a required field, which is never empty', () => {
@@ -1060,17 +1083,17 @@ describe('InputTime', () => {
       await user.tab()
 
       expect(input).toHaveValue('')
-      expect(input).toHaveAttribute('placeholder', '--:--')
+      expect(input).toHaveAttribute('placeholder', '__:__')
     })
 
     it('follows the format, designator included', () => {
       render(<InputTime defaultValue={null} isRequired={false} format="h:i K" />)
-      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '--:-- --')
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '__:__ __')
     })
 
     it('falls back to the default format when the format is unusable', () => {
       render(<InputTime defaultValue={null} isRequired={false} format="H:i:S" />)
-      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '--:--')
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '__:__')
     })
 
     it('leaves a consumer-supplied placeholder alone', () => {
@@ -1201,7 +1224,7 @@ describe('InputTime', () => {
 
       // What the field is showing, groups and all -- not the raw keystrokes,
       // and not a half-formatted string the consumer would have to guess at.
-      expect(onTextChange).toHaveBeenLastCalledWith('09:--')
+      expect(onTextChange).toHaveBeenLastCalledWith('09:__')
     })
 
     it('reports the finished time once it commits', async () => {
@@ -1286,7 +1309,7 @@ describe('InputTime', () => {
 
       press(input, '9')
 
-      expect(input).toHaveValue('09:--')
+      expect(input).toHaveValue('09:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
     })
 
@@ -1294,11 +1317,11 @@ describe('InputTime', () => {
       const input = focused()
 
       press(input, '1')
-      expect(input).toHaveValue('01:--')
+      expect(input).toHaveValue('01:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
 
       press(input, '4')
-      expect(input).toHaveValue('14:--')
+      expect(input).toHaveValue('14:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
     })
 
@@ -1307,7 +1330,7 @@ describe('InputTime', () => {
 
       press(input, '2', '5')
 
-      expect(input).toHaveValue('02:--')
+      expect(input).toHaveValue('02:__')
     })
 
     it('takes the highest minute, and finishes a minute no second digit can follow', () => {
@@ -1339,11 +1362,11 @@ describe('InputTime', () => {
       // Nothing typed yet: the separator skips the hour and leaves the
       // minutes highlighted, ready for digits.
       press(input, ':')
-      expect(input).toHaveValue('--:--')
+      expect(input).toHaveValue('__:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
 
       press(input, '3')
-      expect(input).toHaveValue('--:03')
+      expect(input).toHaveValue('__:03')
     })
 
     it('finishes a short group when the separator moves off it', () => {
@@ -1352,7 +1375,7 @@ describe('InputTime', () => {
       press(input, '1', ':')
       // "1" was still open (it could have become 19); the separator settles it
       // and hands the highlight to the minutes.
-      expect(input).toHaveValue('01:--')
+      expect(input).toHaveValue('01:__')
       expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5])
     })
 
@@ -1363,11 +1386,11 @@ describe('InputTime', () => {
       expect(input).toHaveValue('09:30')
 
       press(input, 'Backspace')
-      expect(input).toHaveValue('09:--')
+      expect(input).toHaveValue('09:__')
 
       // Nothing left in the minutes, so the next press clears the hour.
       press(input, 'Backspace')
-      expect(input).toHaveValue('--:--')
+      expect(input).toHaveValue('__:__')
     })
 
     it('rebuilds a full time from a single-event paste', () => {
@@ -1376,6 +1399,20 @@ describe('InputTime', () => {
       fireEvent.change(input, { target: { value: '9:30 PM' } })
 
       expect(input).toHaveValue('09:30 PM')
+    })
+
+    it('clears the last group too, instead of snapping the field back under the user', () => {
+      render(<InputTime defaultValue={at(9, 30)} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      act(() => {
+        input.focus()
+      })
+
+      press(input, 'End')
+      press(input, 'Backspace')
+      expect(input).toHaveValue('09:__')
+      press(input, 'Backspace')
+      expect(input).toHaveValue('__:__')
     })
 
     it('snaps a required field back to a time when every group is emptied', async () => {

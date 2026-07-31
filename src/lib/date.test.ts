@@ -260,7 +260,7 @@ describe('tokenizeDateMask', () => {
 
   it('produces the exact segment shape for "Y-m-d"', () => {
     expect(tokenizeDateMask('Y-m-d')).toEqual([
-      { type: 'token', token: 'Y', width: 4 },
+      { type: 'token', token: 'Y', width: 4, fill: 'end' },
       { type: 'literal', text: '-' },
       { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
       { type: 'literal', text: '-' },
@@ -274,13 +274,13 @@ describe('tokenizeDateMask', () => {
       { type: 'literal', text: '/' },
       { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
       { type: 'literal', text: '/' },
-      { type: 'token', token: 'Y', width: 4 },
+      { type: 'token', token: 'Y', width: 4, fill: 'end' },
     ])
   })
 
   it('produces the exact segment shape for "y-m-d" (2-digit year)', () => {
     expect(tokenizeDateMask('y-m-d')).toEqual([
-      { type: 'token', token: 'y', width: 2 },
+      { type: 'token', token: 'y', width: 2, fill: 'end' },
       { type: 'literal', text: '-' },
       { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
       { type: 'literal', text: '-' },
@@ -294,13 +294,13 @@ describe('tokenizeDateMask', () => {
       { type: 'literal', text: '/' },
       { type: 'token', token: 'j', width: 2, min: 1, max: 31 },
       { type: 'literal', text: '/' },
-      { type: 'token', token: 'Y', width: 4 },
+      { type: 'token', token: 'Y', width: 4, fill: 'end' },
     ])
   })
 
   it('merges consecutive literal characters into one segment', () => {
     expect(tokenizeDateMask('Y - m - d')).toEqual([
-      { type: 'token', token: 'Y', width: 4 },
+      { type: 'token', token: 'Y', width: 4, fill: 'end' },
       { type: 'literal', text: ' - ' },
       { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
       { type: 'literal', text: ' - ' },
@@ -310,7 +310,7 @@ describe('tokenizeDateMask', () => {
 
   it('treats an escaped token character as a literal', () => {
     expect(tokenizeDateMask('Y\\Y')).toEqual([
-      { type: 'token', token: 'Y', width: 4 },
+      { type: 'token', token: 'Y', width: 4, fill: 'end' },
       { type: 'literal', text: 'Y' },
     ])
   })

@@ -254,16 +254,16 @@ describe('pendingAdvanceAtCursor', () => {
 })
 
 describe('maskPlaceholder', () => {
-  it('dashes each digit segment to its own width, keeping literals', () => {
-    expect(maskPlaceholder(tokenizeDateMask('d/m/Y')!)).toBe('--/--/----')
+  it('fills each digit segment to its own width, keeping literals', () => {
+    expect(maskPlaceholder(tokenizeDateMask('d/m/Y')!)).toBe('__/__/____')
   })
 
-  it('dashes an unpadded token to its full width, not the one digit it can hold', () => {
-    expect(maskPlaceholder(timeMaskSegments('h:i')!)).toBe('--:--')
+  it('fills an unpadded token to its full width, not the one digit it can hold', () => {
+    expect(maskPlaceholder(timeMaskSegments('h:i')!)).toBe('__:__')
   })
 
-  it('dashes the AM/PM designator like a two-character segment', () => {
-    expect(maskPlaceholder(timeMaskSegments('h:i K')!)).toBe('--:-- --')
+  it('fills the AM/PM designator like a two-character segment', () => {
+    expect(maskPlaceholder(timeMaskSegments('h:i K')!)).toBe('__:__ __')
   })
 
   it('reports where each group sits inside it', () => {

@@ -12,10 +12,12 @@ import {
   templateToDraft,
 } from './maskTemplate'
 import type { TemplateEntry } from './maskTemplate'
+import { tokenizeDateMask } from './date'
 import { timeMaskSegments } from './time'
 
 const hi = timeMaskSegments('H:i')!
 const hik = timeMaskSegments('h:i K')!
+const ymd = tokenizeDateMask('Y-m-d')!
 
 // Types a single character into the entry the way the component does: as the
 // diff between the text on screen and what the browser left behind.
@@ -25,20 +27,65 @@ function type(segments: typeof hi, entry: TemplateEntry, next: string): Template
   return result
 }
 
+// Presses one key into the active group, the way the component does it: the
+// key itself, never the text it would have produced. Padding makes that text
+// ambiguous -- typing "0" into a year showing "2000" produces "0-__-__",
+// which diffs as a deletion of the trailing zeros.
+function press(segments: typeof hi, entry: TemplateEntry, key: string): TemplateEntry {
+  const start = templateRanges(segments)[entry.active].start
+  const result = templateEdit(segments, entry, { start, removedCount: 0, inserted: key })
+  if (result === 'reject') throw new Error(`rejected: ${key}`)
+  return result
+}
+
 function expectRejected(segments: typeof hi, entry: TemplateEntry, next: string) {
   expect(templateEdit(segments, entry, diffStrings(templateText(segments, entry), next))).toBe('reject')
 }
 
 describe('templateText', () => {
   it('renders an untouched entry as the mask placeholder does', () => {
-    expect(templateText(hi, emptyTemplateEntry(hi))).toBe('--:--')
-    expect(templateText(hik, emptyTemplateEntry(hik))).toBe('--:-- --')
+    expect(templateText(hi, emptyTemplateEntry(hi))).toBe('__:__')
+    expect(templateText(hik, emptyTemplateEntry(hik))).toBe('__:__ __')
   })
 
   it('zero-pads a typed group immediately, keeping every group at full width', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '1:--')
-    expect(templateText(hi, entry)).toBe('01:--')
-    expect(templateText(hi, entry)).toHaveLength('--:--'.length)
+    const entry = type(hi, emptyTemplateEntry(hi), '1:__')
+    expect(templateText(hi, entry)).toBe('01:__')
+    expect(templateText(hi, entry)).toHaveLength('__:__'.length)
+  })
+})
+
+describe('year groups (no range)', () => {
+  it('fills out to the right rather than the left, a year being read most-significant-first', () => {
+    expect(templateText(ymd, press(ymd, emptyTemplateEntry(ymd), '2'))).toBe('2000-__-__')
+  })
+
+  it('replaces those zeros as the rest of the year is typed', () => {
+    let entry = press(ymd, emptyTemplateEntry(ymd), '2')
+    for (const [key, shown] of [
+      ['0', '2000-__-__'],
+      ['2', '2020-__-__'],
+      ['6', '2026-__-__'],
+    ] as const) {
+      entry = press(ymd, entry, key)
+      expect(templateText(ymd, entry)).toBe(shown)
+    }
+    // Four digits fill the group, so the highlight has moved to the month.
+    expect(entry.active).toBe(1)
+  })
+
+  it('commits a part-typed year as the year it was showing', () => {
+    let entry = press(ymd, emptyTemplateEntry(ymd), '2')
+    entry = press(ymd, templateMoveTo(ymd, entry, 1), '7')
+    entry = press(ymd, entry, '4')
+    // "2" showed as 2000 while being typed, so 2000 is what commits -- never
+    // the 0002 a right-aligned pad would have produced.
+    expect(templateToDraft(ymd, templateFinalizeActive(ymd, entry))).toBe('2000-07-04')
+  })
+
+  it('still right-aligns the groups that do have a range', () => {
+    const month = press(ymd, templateMoveTo(ymd, emptyTemplateEntry(ymd), 1), '7')
+    expect(templateText(ymd, month)).toBe('____-07-__')
   })
 })
 
@@ -67,86 +114,86 @@ describe('templateEdit', () => {
   it('fills a later group while the earlier one stays empty', () => {
     // The state a draft cannot represent at all.
     const minutes = templateMoveTo(hi, emptyTemplateEntry(hi), 1)
-    const entry = type(hi, minutes, '--:3')
-    expect(templateText(hi, entry)).toBe('--:03')
-    expect(templateText(hi, type(hi, entry, '--:5'))).toBe('--:35')
+    const entry = type(hi, minutes, '__:3')
+    expect(templateText(hi, entry)).toBe('__:03')
+    expect(templateText(hi, type(hi, entry, '__:5'))).toBe('__:35')
   })
 
   it('finishes and pads a group that cannot take another digit', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '9:--')
-    expect(templateText(hi, entry)).toBe('09:--')
+    const entry = type(hi, emptyTemplateEntry(hi), '9:__')
+    expect(templateText(hi, entry)).toBe('09:__')
     // The highlight has moved on to the minutes.
     expect(entry.active).toBe(1)
   })
 
   it('leaves an ambiguous group unfinished behind its padded value', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '1:--')
+    const entry = type(hi, emptyTemplateEntry(hi), '1:__')
     // Reads as an hour already, but "1" could still become 10-19, so the
     // group keeps the highlight and its next digit appends.
-    expect(templateText(hi, entry)).toBe('01:--')
+    expect(templateText(hi, entry)).toBe('01:__')
     expect(entry.active).toBe(0)
     expect(entry.slots[0]).toEqual({ chars: '1', done: false })
   })
 
   it('rejects a digit that takes a group out of range', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '2:--')
-    expectRejected(hi, entry, '5:--')
+    const entry = type(hi, emptyTemplateEntry(hi), '2:__')
+    expectRejected(hi, entry, '5:__')
   })
 
   it('continues an unfinished group even though the edit looks like a replacement', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '1:--')
+    const entry = type(hi, emptyTemplateEntry(hi), '1:__')
     // The whole group is highlighted, so every keystroke arrives as one --
     // continuing or starting over is the group's own state to decide.
     expect(templateText(hi, templateEdit(hi, entry, { start: 0, removedCount: 2, inserted: '4' }) as TemplateEntry)).toBe(
-      '14:--',
+      '14:__',
     )
   })
 
   it('starts a finished group over on the next digit', () => {
-    let entry = type(hi, emptyTemplateEntry(hi), '1:--')
-    entry = type(hi, entry, '4:--')
-    expect(templateText(hi, entry)).toBe('14:--')
+    let entry = type(hi, emptyTemplateEntry(hi), '1:__')
+    entry = type(hi, entry, '4:__')
+    expect(templateText(hi, entry)).toBe('14:__')
     expect(templateText(hi, templateEdit(hi, templateMoveTo(hi, entry, 0), { start: 0, removedCount: 2, inserted: '5' }) as TemplateEntry)).toBe(
-      '05:--',
+      '05:__',
     )
   })
 
   it('writes the whole designator from one letter', () => {
     const ampm = templateMoveTo(hik, emptyTemplateEntry(hik), 2)
-    expect(templateText(hik, type(hik, ampm, '--:-- p'))).toBe('--:-- PM')
+    expect(templateText(hik, type(hik, ampm, '__:__ p'))).toBe('__:__ PM')
   })
 
   it('finishes a short group early on its separator', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '1:--')
-    expect(templateText(hi, type(hi, entry, '::--'))).toBe('01:--')
-    expect(type(hi, entry, '::--').slots[0].done).toBe(true)
+    const entry = type(hi, emptyTemplateEntry(hi), '1:__')
+    expect(templateText(hi, type(hi, entry, '::__'))).toBe('01:__')
+    expect(type(hi, entry, '::__').slots[0].done).toBe(true)
   })
 
   it('moves on from an empty group when its separator is typed', () => {
     // The separator is how a group gets skipped, so it moves the highlight
     // even with nothing typed -- what the next digit fills is the minutes.
-    const entry = type(hi, emptyTemplateEntry(hi), '::--')
-    expect(templateText(hi, entry)).toBe('--:--')
+    const entry = type(hi, emptyTemplateEntry(hi), '::__')
+    expect(templateText(hi, entry)).toBe('__:__')
     expect(entry.active).toBe(1)
-    expect(templateText(hi, type(hi, entry, '--:3'))).toBe('--:03')
+    expect(templateText(hi, type(hi, entry, '__:3'))).toBe('__:03')
   })
 
   it('clears a group holding only a prefix when its separator is typed', () => {
     // "0" is a valid prefix of 01-09 for a 12-hour hour, not a value itself --
     // keeping it would render "00", which reads as filled but cannot commit.
-    const entry = type(hik, emptyTemplateEntry(hik), '0:-- --')
-    const moved = type(hik, entry, '::-- --')
-    expect(templateText(hik, moved)).toBe('--:-- --')
+    const entry = type(hik, emptyTemplateEntry(hik), '0:__ __')
+    const moved = type(hik, entry, '::__ __')
+    expect(templateText(hik, moved)).toBe('__:__ __')
     expect(moved.active).toBe(1)
   })
 
   it('empties the group a deletion lands on', () => {
-    const entry = templateMoveTo(hi, type(hi, emptyTemplateEntry(hi), '9:--'), 0)
-    expect(templateText(hi, type(hi, entry, ':--'))).toBe('--:--')
+    const entry = templateMoveTo(hi, type(hi, emptyTemplateEntry(hi), '9:__'), 0)
+    expect(templateText(hi, type(hi, entry, ':__'))).toBe('__:__')
   })
 
   it('steps back and clears the previous group when the target is already empty', () => {
-    const filled = type(hi, emptyTemplateEntry(hi), '9:--')
+    const filled = type(hi, emptyTemplateEntry(hi), '9:__')
     const cleared = type(hi, filled, '09:')
     expect(cleared.active).toBe(0)
   })
@@ -157,22 +204,22 @@ describe('templateEdit', () => {
   })
 
   it('stops a paste at the first group it cannot fill', () => {
-    expect(templateText(hi, templateFromRaw(hi, '9'))).toBe('09:--')
+    expect(templateText(hi, templateFromRaw(hi, '9'))).toBe('09:__')
   })
 
   it('drops a pasted group that is out of range rather than correcting it', () => {
-    expect(templateText(hi, templateFromRaw(hi, '25:30'))).toBe('--:--')
+    expect(templateText(hi, templateFromRaw(hi, '25:30'))).toBe('__:__')
   })
 })
 
 describe('templateFinalizeActive', () => {
   it('closes out the active group at what it already holds', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '1:--')
+    const entry = type(hi, emptyTemplateEntry(hi), '1:__')
     const finalized = templateFinalizeActive(hi, entry)
     // The text was already "01"; what changes is that the group now counts as
     // filled, which is what lets the entry commit.
     expect(finalized.slots[0]).toEqual({ chars: '1', done: true })
-    expect(templateText(hi, finalized)).toBe('01:--')
+    expect(templateText(hi, finalized)).toBe('01:__')
   })
 
   it('leaves an empty group alone', () => {
@@ -181,14 +228,14 @@ describe('templateFinalizeActive', () => {
   })
 
   it('clears a group holding only a prefix rather than leaving it looking filled', () => {
-    const entry = type(hik, emptyTemplateEntry(hik), '0:-- --')
-    expect(templateText(hik, templateFinalizeActive(hik, entry))).toBe('--:-- --')
+    const entry = type(hik, emptyTemplateEntry(hik), '0:__ __')
+    expect(templateText(hik, templateFinalizeActive(hik, entry))).toBe('__:__ __')
   })
 })
 
 describe('templateToDraft', () => {
   it('produces a parseable draft once every group is filled', () => {
-    let entry = type(hi, emptyTemplateEntry(hi), '9:--')
+    let entry = type(hi, emptyTemplateEntry(hi), '9:__')
     entry = type(hi, entry, '09:3')
     entry = type(hi, entry, '09:5')
     expect(templateToDraft(hi, entry)).toBe('09:35')
@@ -200,7 +247,7 @@ describe('templateToDraft', () => {
 
   it('is null while any group is unfinished', () => {
     expect(templateToDraft(hi, emptyTemplateEntry(hi))).toBeNull()
-    expect(templateToDraft(hi, type(hi, emptyTemplateEntry(hi), '9:--'))).toBeNull()
-    expect(templateToDraft(hi, type(hi, emptyTemplateEntry(hi), '1:--'))).toBeNull()
+    expect(templateToDraft(hi, type(hi, emptyTemplateEntry(hi), '9:__'))).toBeNull()
+    expect(templateToDraft(hi, type(hi, emptyTemplateEntry(hi), '1:__'))).toBeNull()
   })
 })

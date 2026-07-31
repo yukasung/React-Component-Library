@@ -13,6 +13,7 @@ import {
   templateSlotAt,
   templateText,
   templateToDraft,
+  templateWipedByEdit,
 } from '../../lib/maskTemplate'
 import type { TemplateEntry } from '../../lib/maskTemplate'
 import {
@@ -37,6 +38,15 @@ const DEFAULT_FORMAT = 'H:i'
 // month/weekday-name tokens aren't), so the fallback format's segments are
 // what an unusable `format` resolves to — computed once, not per render.
 const DEFAULT_MASK_SEGMENTS = timeMaskSegments(DEFAULT_FORMAT)!
+
+// Keys that move between groups, and where each moves to. Module scope so a
+// keydown that falls through to the dropdown branches doesn't allocate it.
+const GROUP_NAV_KEYS: Record<string, (entry: TemplateEntry) => number> = {
+  ArrowLeft: (entry) => entry.active - 1,
+  ArrowRight: (entry) => entry.active + 1,
+  Home: () => 0,
+  End: (entry) => entry.slots.length - 1,
+}
 
 export interface InputTimeProps
   extends Omit<
@@ -182,7 +192,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   const ownSegments = timeMaskSegments(format)
   const resolvedFormat = ownSegments ? format : DEFAULT_FORMAT
   const maskSegments = ownSegments ?? DEFAULT_MASK_SEGMENTS
-  // The format as an empty template ("--:--", or "--:-- --" for a 12-hour
+  // The format as an empty template ("__:__", or "__:__ __" for a 12-hour
   // format) — what a native time input shows when it has no value. It
   // follows `format` for free, being derived from the very segments the live
   // masker types into. Used two ways: as the field's placeholder at rest
@@ -293,7 +303,9 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
       if (!isControlled) setInternalValue(next)
       onChange?.(next)
     }
-    updateDraft(formatDisplay(nextMinutes))
+    const text = formatDisplay(nextMinutes)
+    updateDraft(text)
+    return text
   }
 
   function commitDraft() {
@@ -327,23 +339,42 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   // minutes, so an off-grid value snaps onto the list instead of carrying
   // its remainder forever. Gated on `step` for the same reason the dropdown
   // is: with no defined spacing there's nothing to step by.
+  // What the field is showing, as a draft string — the groups while they're
+  // being edited (they are the live text then, and the draft still holds the
+  // last committed time), the draft itself otherwise. Stepping has to read
+  // this, or an Arrow key would step from a time the user has already typed
+  // over.
+  function draftInProgress(): string {
+    if (templateEntry === null) return draft
+    return templateToDraft(maskSegments, templateFinalizeActive(maskSegments, templateEntry)) ?? draft
+  }
+
+  // Re-seeds the groups after something other than typing replaced the value
+  // (an Arrow step, a dropdown pick), keeping the group the user was in and
+  // its highlight — dropping out of group editing instead would leave the
+  // field with no highlighted group and the next keystroke nowhere to go.
+  function reseedTemplate(text: string) {
+    if (templateEntry === null) return
+    const seeded = templateMoveTo(maskSegments, templateFromRaw(maskSegments, text), templateEntry.active)
+    setTemplateEntry(seeded)
+    if (inputElementRef.current) selectTemplateSlot(inputElementRef.current, seeded)
+  }
+
   function stepBy(direction: 1 | -1) {
     if (!hasDropdown || isReadOnly) return
-    const parsed = parseTimeDraft(draft, resolvedFormat)
+    const parsed = parseTimeDraft(draftInProgress(), resolvedFormat)
     const current = typeof parsed === 'number' ? parsed : displayMinutes
     const next = stepThroughTimes(times, current, direction)
     if (next === undefined) return
-    // Stepping replaces the whole value, so any half-typed groups go with it.
-    setTemplateEntry(null)
-    commit(next)
+    reseedTemplate(commit(next))
   }
 
   function selectTime(minutes: number) {
     if (isReadOnly) return
-    setTemplateEntry(null)
-    commit(minutes)
+    const text = commit(minutes)
     dropdown.close()
     inputElementRef.current?.focus()
+    reseedTemplate(text)
   }
 
   // Highlights one whole hour/minute/designator group rather than the whole
@@ -408,10 +439,14 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
       selectTemplateSlot(el, entry)
       return
     }
-    // A required field can't be left with no value at all, so emptying every
-    // group snaps straight back to a time instead of waiting for blur —
-    // mirroring InputNumber's zero and InputDate's today.
-    const settled = isRequired && isTemplateEmpty(next) ? entryFromFallback() : next
+    // Wiping the whole field at once (select-all, then delete) on a required
+    // field snaps straight back to a value rather than waiting for blur, so
+    // there is always something to type over — mirroring InputNumber's zero
+    // and InputDate's today. Clearing groups one at a time is left alone:
+    // that's a deliberate walk towards empty, and refilling the field under
+    // the user would read as "this group can't be deleted". Blur still
+    // refuses to leave a required field with no value at all.
+    const settled = isRequired && templateWipedByEdit(maskSegments, next, edit) ? entryFromFallback() : next
     setTemplateEntry(settled)
     onTextChange?.(templateText(maskSegments, settled))
     selectTemplateSlot(el, settled)
@@ -430,7 +465,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
 
   // Typing is handled on keydown rather than from the resulting text, because
   // padding makes that text ambiguous: a group showing "01" that gets a "0"
-  // typed over it produces "0:--", which is indistinguishable from deleting
+  // typed over it produces "0:__", which is indistinguishable from deleting
   // the "1". The key itself carries the intent, so the browser is never let
   // near the value (every handled key is preventDefault'd) and `onChange`
   // below is left for the input this can't see — a paste or an IME commit.
@@ -460,31 +495,17 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     // autofill, or a soft keyboard/IME that commits text without a key. The
     // multi-character case replays the whole run through the groups, the same
     // way a pasted time is read anywhere else.
-    const edit = diffStrings(templateText(maskSegments, entry), el.value)
-    if (edit.inserted.length > 1) {
-      const next = templateFromRaw(maskSegments, edit.inserted)
-      setTemplateEntry(next)
-      onTextChange?.(templateText(maskSegments, next))
-      selectTemplateSlot(el, next)
-      return
-    }
-    applyTemplateEdit(el, entry, edit)
+    applyTemplateEdit(el, entry, diffStrings(templateText(maskSegments, entry), el.value))
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     // Left/Right/Home/End walk between groups, the keyboard counterpart to
     // clicking one — there is no free-roaming caret to move instead, since the
     // field is edited a group at a time.
-    const groupNav: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 }
-    if (templateVisible && (event.key in groupNav || ((event.key === 'Home' || event.key === 'End') && !dropdown.isOpen))) {
+    const navigates = event.key in GROUP_NAV_KEYS && (!dropdown.isOpen || (event.key !== 'Home' && event.key !== 'End'))
+    if (templateVisible && navigates) {
       event.preventDefault()
-      const target =
-        event.key in groupNav
-          ? templateEntry.active + groupNav[event.key]
-          : event.key === 'Home'
-            ? 0
-            : templateEntry.slots.length - 1
-      const next = templateMoveTo(maskSegments, templateEntry, target)
+      const next = templateMoveTo(maskSegments, templateEntry, GROUP_NAV_KEYS[event.key](templateEntry))
       setTemplateEntry(next)
       selectTemplateSlot(event.currentTarget, next)
       return

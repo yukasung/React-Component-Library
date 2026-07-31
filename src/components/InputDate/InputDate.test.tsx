@@ -1,5 +1,5 @@
 import { createRef, StrictMode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputDate } from './InputDate'
@@ -29,7 +29,7 @@ describe('InputDate', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '2026-07-15')
+    await user.type(input, '2026-07-15', { skipClick: true })
 
     expect(input).toHaveValue('2026-07-15')
     expect(onChange).not.toHaveBeenCalled()
@@ -42,7 +42,7 @@ describe('InputDate', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '2026-07-15')
+    await user.type(input, '2026-07-15', { skipClick: true })
     await user.tab()
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -56,7 +56,7 @@ describe('InputDate', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '2026-07-04')
+    await user.type(input, '2026-07-04', { skipClick: true })
     await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 4))
@@ -70,7 +70,7 @@ describe('InputDate', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '2026-07-04')
+    await user.type(input, '2026-07-04', { skipClick: true })
     await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenCalledTimes(1)
 
@@ -90,7 +90,7 @@ describe('InputDate', () => {
     // format, so "not a date" would never actually land in the draft at
     // all — an incomplete year is the realistic way to leave the field in
     // an unparseable state under masking.
-    await user.type(input, '202')
+    await user.type(input, '202', { skipClick: true })
     await user.tab()
 
     expect(onChange).not.toHaveBeenCalled()
@@ -104,7 +104,7 @@ describe('InputDate', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '2026-01-01')
+    await user.type(input, '2026-01-01', { skipClick: true })
     await user.keyboard('{Escape}')
 
     expect(input).toHaveValue('2026-07-15')
@@ -130,7 +130,7 @@ describe('InputDate', () => {
     expect(input).toHaveValue('2026-07-03')
 
     await user.clear(input)
-    await user.type(input, '2026-07-09')
+    await user.type(input, '2026-07-09', { skipClick: true })
     await user.tab()
 
     expect(input).toHaveValue('2026-07-09')
@@ -150,22 +150,40 @@ describe('InputDate', () => {
     expect(ref.current).toBeInstanceOf(HTMLInputElement)
   })
 
-  it('selects the whole value on focus', () => {
-    // selectAllOnFocus (src/lib/domSelection.ts) defers via a zero-delay
-    // setTimeout -- required for WebKit/Safari, where a synchronous
-    // .select() in the focus handler gets silently overwritten by the
-    // browser's own native click-cursor-positioning (confirmed empirically,
-    // not just reasoned about) -- so the selection isn't applied until that
-    // timer fires.
+  it('highlights the leading group on focus', () => {
+    // The selection defers via a zero-delay setTimeout -- required for
+    // WebKit/Safari, where a synchronous selection in the focus handler gets
+    // silently overwritten by the browser's own native click-cursor
+    // positioning (confirmed empirically, not just reasoned about).
     vi.useFakeTimers()
-    render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
+    render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} format="d/m/Y" />)
     const input = screen.getByRole('combobox') as HTMLInputElement
 
-    input.focus()
+    act(() => {
+      input.focus()
+    })
     act(() => {
       vi.advanceTimersByTime(0)
     })
 
+    // The day, not the whole date: the field is edited a group at a time.
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2])
+    vi.useRealTimers()
+  })
+
+  it('still selects the whole value on focus for a format the groups cannot describe', () => {
+    vi.useFakeTimers()
+    render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} format="F j, Y" />)
+    const input = screen.getByRole('combobox') as HTMLInputElement
+
+    act(() => {
+      input.focus()
+    })
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
+
+    // "July 1, 2026" has no fixed-width groups, so it stays plain text.
     expect(input.selectionStart).toBe(0)
     expect(input.selectionEnd).toBe(input.value.length)
     vi.useRealTimers()
@@ -203,7 +221,7 @@ describe('InputDate', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '2026-07-01')
+      await user.type(input, '2026-07-01', { skipClick: true })
       await user.tab()
 
       expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 10))
@@ -224,7 +242,7 @@ describe('InputDate', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '2026-07-31')
+      await user.type(input, '2026-07-31', { skipClick: true })
       await user.tab()
 
       expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 20))
@@ -310,7 +328,7 @@ describe('InputDate', () => {
       // user-event no-ops (or throws, depending on version) on a disabled
       // element rather than dispatching events through it — either way,
       // nothing should reach onChange.
-      await user.type(input, '2026-07-15').catch(() => {})
+      await user.type(input, '2026-07-15', { skipClick: true }).catch(() => {})
       await user.click(button).catch(() => {})
 
       expect(onChange).not.toHaveBeenCalled()
@@ -356,10 +374,169 @@ describe('InputDate', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      expect(input).toHaveValue('')
+      // Emptied, and still being edited -- so the groups show rather than the
+      // field going blank mid-edit.
+      expect(input).toHaveValue('____-__-__')
 
       await user.tab()
+      expect(input).toHaveValue('')
       expect(onChange).toHaveBeenCalledWith(null)
+    })
+  })
+
+  describe('group typing', () => {
+    function press(input: HTMLInputElement, ...keys: string[]) {
+      for (const key of keys) fireEvent.keyDown(input, { key })
+    }
+
+    function focused(props: Partial<Parameters<typeof InputDate>[0]> = {}) {
+      render(<InputDate defaultValue={null} isRequired={false} {...props} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      act(() => {
+        input.focus()
+      })
+      return input
+    }
+
+    it('fills a year out to the right as it is typed', () => {
+      const input = focused()
+
+      press(input, '2')
+      // A year reads most-significant-first, so "2" is the 2000s.
+      expect(input).toHaveValue('2000-__-__')
+
+      press(input, '0', '2', '6')
+      expect(input).toHaveValue('2026-__-__')
+    })
+
+    it('right-aligns the month and day, which do have a range', () => {
+      const input = focused()
+
+      press(input, '2', '0', '2', '6', '7')
+      // "7" can only be July, so the month finishes and pads on the left.
+      expect(input).toHaveValue('2026-07-__')
+
+      press(input, '4')
+      expect(input).toHaveValue('2026-07-04')
+    })
+
+    it('commits the date the groups were showing', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputDate value={null} onChange={onChange} isRequired={false} />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      act(() => {
+        input.focus()
+      })
+
+      // A year only fills at four digits, so the separator is how you leave
+      // it early -- and it commits as the 2000 it was showing.
+      press(input, '2', '-', '7', '4')
+      expect(input).toHaveValue('2000-07-04')
+
+      await user.tab()
+      expect(onChange).toHaveBeenCalledWith(new Date(2000, 6, 4))
+    })
+
+    it('clears the last group too, instead of snapping the field back under the user', () => {
+      // Reported: 30/07/2026, delete the year, delete the month, then the day
+      // refuses to go -- it was the required-field snap refilling every group
+      // the moment the last one emptied.
+      render(<InputDate defaultValue={new Date(2026, 6, 30)} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      act(() => {
+        input.focus()
+      })
+
+      press(input, 'End')
+      press(input, 'Backspace')
+      expect(input).toHaveValue('30/07/____')
+      press(input, 'Backspace')
+      expect(input).toHaveValue('30/__/____')
+      press(input, 'Backspace')
+      expect(input).toHaveValue('__/__/____')
+    })
+
+    it('still refuses to leave a required field empty once it is left', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputDate defaultValue={new Date(2026, 6, 30)} onChange={onChange} format="d/m/Y" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      act(() => {
+        input.focus()
+      })
+
+      press(input, 'End', 'Backspace', 'Backspace', 'Backspace')
+      await user.tab()
+
+      // Back to the date it held: emptying the groups doesn't commit null on
+      // a required field, it just doesn't fight the deletion while editing.
+      expect(input).toHaveValue('30/07/2026')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('keeps the group the user was in after an Arrow step', () => {
+      vi.useFakeTimers()
+      render(<InputDate defaultValue={new Date(2026, 6, 15)} format="Y-m-d" />)
+      const input = screen.getByRole('combobox') as HTMLInputElement
+      act(() => {
+        input.focus()
+      })
+      // Landing on the leading group is applied on a deferred macrotask.
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+
+      // Sitting in the month, then stepping the whole date by a day.
+      press(input, 'ArrowRight')
+      press(input, 'ArrowUp')
+      expect(input).toHaveValue('2026-07-16')
+
+      // Re-seeding used to put the highlight wherever the new text ended, so
+      // this digit landed in the day instead of the month.
+      press(input, '9')
+      expect(input).toHaveValue('2026-09-16')
+      vi.useRealTimers()
+    })
+
+    it('types a full date straight through, separators and all', () => {
+      const input = focused({ format: 'd/m/Y' })
+
+      press(input, '2', '2', '/', '0', '7', '/', '2', '0', '2', '6')
+      expect(input).toHaveValue('22/07/2026')
+    })
+  })
+
+  describe('placeholder', () => {
+    it('falls back to the format as an empty mask', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '__/__/____')
+    })
+
+    it('follows the format, separators and widths included', () => {
+      render(<InputDate defaultValue={null} isRequired={false} format="j/n/y" />)
+      // Unpadded tokens still occupy their full width, so the shape shown is
+      // the shape typing produces.
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '__/__/__')
+    })
+
+    it('renders the default format, whose own separator is also the filler', () => {
+      render(<InputDate defaultValue={null} isRequired={false} />)
+      // "Y-m-d" comes out as ten dashes: the groups and the separators are
+      // the same character, so nothing distinguishes them.
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '____-__-__')
+    })
+
+    it('shows none for a format the mask cannot describe', () => {
+      // "F j, Y" spells the month out, so there is no fixed-width shape to
+      // show -- and inventing one would promise typing this format supports.
+      render(<InputDate defaultValue={null} isRequired={false} format="F j, Y" />)
+      expect(screen.getByRole('combobox')).not.toHaveAttribute('placeholder')
+    })
+
+    it('leaves a consumer-supplied placeholder alone', () => {
+      render(<InputDate defaultValue={null} isRequired={false} placeholder="วันเกิด" />)
+      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'วันเกิด')
     })
   })
 
@@ -378,10 +555,13 @@ describe('InputDate', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '5')
+      await user.type(input, '5', { skipClick: true })
 
+      // What the field is showing, groups and all -- the "5" landed in the
+      // year, which reads most-significant-first and so fills out to 5000
+      // while it waits for the digits after it.
       expect(onTextChange).toHaveBeenCalled()
-      expect(onTextChange.mock.calls[onTextChange.mock.calls.length - 1][0]).toBe('5')
+      expect(onTextChange.mock.calls[onTextChange.mock.calls.length - 1][0]).toBe('5000-__-__')
     })
   })
 
@@ -572,7 +752,7 @@ describe('InputDate', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '2569-07-15')
+      await user.type(input, '2569-07-15', { skipClick: true })
       await user.tab()
 
       expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 15))
@@ -873,7 +1053,7 @@ describe('InputDate', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, 'not a real month 999')
+      await user.type(input, 'not a real month 999', { skipClick: true })
 
       expect(input).toHaveValue('not a real month 999')
     })
@@ -888,19 +1068,16 @@ describe('InputDate', () => {
       expect(onTextChange).toHaveBeenCalledWith('4/')
     })
 
-    it('correctly masks a digit typed over the auto-selected today text on required-empty-snap', async () => {
+    it('snaps a required field back to today when every group is emptied', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
       const input = screen.getByRole('combobox') as HTMLInputElement
 
-      await user.clear(input) // isRequired (default) snaps to today's Y-m-d text, fully selected
-      // Typing over a full selection replaces it entirely, not appends --
-      // the whole selected text is "removed" in the same edit as "9" is
-      // inserted (falls to the strip-and-rebuild path since the removal
-      // spans every segment, not just the year's).
-      fireEvent.change(input, { target: { value: '9' } })
+      // Select-all-then-delete clears every group at once; a required field
+      // can't sit with no value, so it snaps rather than waiting for blur.
+      await user.clear(input)
 
-      expect(input).toHaveValue('9')
+      expect(input.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     })
 
     it('masks a Buddhist Era year identically to a Gregorian one', () => {
@@ -911,134 +1088,6 @@ describe('InputDate', () => {
 
       expect(input).toHaveValue('2569-')
       expect(input.selectionStart).toBe(5)
-    })
-  })
-
-  describe('pending-advance timeout (ambiguous digits)', () => {
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-
-    it('auto-advances an ambiguous digit after the delay with no further typing', () => {
-      vi.useFakeTimers()
-      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-      input.focus()
-
-      fireEvent.change(input, { target: { value: '1' } })
-      expect(input).toHaveValue('1') // still open, awaiting a possible 2nd digit
-
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-
-      expect(input).toHaveValue('1/')
-      expect(input.selectionStart).toBe(2)
-    })
-
-    it('a keystroke within the delay window cancels and reschedules it', () => {
-      vi.useFakeTimers()
-      render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-      input.focus()
-
-      fireEvent.change(input, { target: { value: '1' } })
-      act(() => {
-        vi.advanceTimersByTime(300) // well within the 1200ms window
-      })
-      fireEvent.change(input, { target: { value: '12' } }) // completes day as "12"
-
-      expect(input).toHaveValue('12/')
-
-      // The original timeout must not have survived to fire on top of this.
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-      expect(input).toHaveValue('12/')
-    })
-
-    it('does not apply to a not-yet-complete year segment', () => {
-      vi.useFakeTimers()
-      render(<InputDate defaultValue={null} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-      input.focus()
-
-      fireEvent.change(input, { target: { value: '202' } }) // 3 of 4 year digits
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-
-      // Year has no "ambiguous, could stop here" state -- still incomplete,
-      // untouched by the timeout.
-      expect(input).toHaveValue('202')
-    })
-
-    it('does not schedule an advance for a single-digit segment the cursor has already moved past', () => {
-      // Regression for the reported cursor-jump bug: with format j/n/Y,
-      // day "3" force-advanced (via its own timeout) to "3/", then month
-      // "3" auto-advances to "3/3/" with the cursor at 4 (in the year). The
-      // day "3" is still a 1-digit "open-looking" segment, but the cursor
-      // is past it -- an earlier global open-segment scan scheduled a
-      // spurious advance here that fired after the delay and yanked the
-      // cursor back to 2. It must stay at 4.
-      vi.useFakeTimers()
-      render(<InputDate defaultValue={null} isRequired={false} format="j/n/Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-      input.focus()
-
-      fireEvent.change(input, { target: { value: '3' } }) // day, ambiguous
-      act(() => {
-        vi.advanceTimersByTime(1200) // day auto-advances to "3/"
-      })
-      expect(input).toHaveValue('3/')
-
-      fireEvent.change(input, { target: { value: '3/3' } }) // month "3" auto-advances
-      expect(input).toHaveValue('3/3/')
-      expect(input.selectionStart).toBe(4)
-
-      act(() => {
-        vi.advanceTimersByTime(1200) // no stale timeout may fire and move the cursor
-      })
-      expect(input).toHaveValue('3/3/')
-      expect(input.selectionStart).toBe(4)
-    })
-
-    it('clears the pending timeout on blur so it cannot fire afterward', () => {
-      vi.useFakeTimers()
-      const onChange = vi.fn()
-      render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} isRequired={false} format="d/m/Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-      input.focus()
-
-      fireEvent.change(input, { target: { value: '1' } }) // ambiguous, schedules a pending advance
-      fireEvent.blur(input) // commitDraft() cancels it
-      const callsAfterBlur = onChange.mock.calls.length
-
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-
-      // The cancelled timeout must not still fire and mutate the
-      // already-blurred field's draft out from under it later.
-      expect(onChange.mock.calls.length).toBe(callsAfterBlur)
-    })
-
-    it('clears the pending timeout on Escape so it cannot fire afterward', () => {
-      vi.useFakeTimers()
-      render(<InputDate defaultValue={new Date(2026, 6, 15)} isRequired={false} format="d-m-Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
-      input.focus()
-
-      fireEvent.change(input, { target: { value: '1' } }) // ambiguous day digit, schedules a pending advance
-      fireEvent.keyDown(input, { key: 'Escape' })
-      expect(input).toHaveValue('15-07-2026') // reverted to the formatted committed value
-
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-
-      // The cancelled timeout must not overwrite the just-reverted draft.
-      expect(input).toHaveValue('15-07-2026')
     })
   })
 

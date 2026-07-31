@@ -267,9 +267,11 @@ const DATE_TOKENS: ReadonlySet<DateToken> = new Set<DateToken>(['Y', 'y', 'm', '
 // NUMERIC_TOKEN_PATTERN above, which already treats m/n and d/j identically
 // for parsing. Y/y carry no range at all — any digit is valid at any of
 // their positions, only a width cap applies.
-const DATE_TOKEN_MASK: Record<DateToken, { width: number; min?: number; max?: number }> = {
-  Y: { width: 4 },
-  y: { width: 2 },
+const DATE_TOKEN_MASK: Record<DateToken, { width: number; min?: number; max?: number; fill?: 'start' | 'end' }> = {
+  // Years fill from the left: typing "2" into a 4-wide year means 2000, not
+  // the year 2 — see MaskSegment.fill.
+  Y: { width: 4, fill: 'end' },
+  y: { width: 2, fill: 'end' },
   m: { width: 2, min: 1, max: 12 },
   n: { width: 2, min: 1, max: 12 },
   d: { width: 2, min: 1, max: 31 },
