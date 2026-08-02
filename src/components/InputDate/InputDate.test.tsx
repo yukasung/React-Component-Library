@@ -402,11 +402,14 @@ describe('InputDate', () => {
       const input = focused()
 
       press(input, '2')
-      // A year reads most-significant-first, so "2" is the 2000s.
-      expect(input).toHaveValue('2000-__-__')
+      // A year reads most-significant-first, and the positions it hasn't
+      // reached yet stay fillers -- so typing the zeros of 2006 is visible.
+      expect(input).toHaveValue('2___-__-__')
 
-      press(input, '0', '2', '6')
-      expect(input).toHaveValue('2026-__-__')
+      press(input, '0')
+      expect(input).toHaveValue('20__-__-__')
+      press(input, '0', '6')
+      expect(input).toHaveValue('2006-__-__')
     })
 
     it('right-aligns the month and day, which do have a range', () => {
@@ -558,10 +561,9 @@ describe('InputDate', () => {
       await user.type(input, '5', { skipClick: true })
 
       // What the field is showing, groups and all -- the "5" landed in the
-      // year, which reads most-significant-first and so fills out to 5000
-      // while it waits for the digits after it.
+      // year, whose remaining positions are still fillers.
       expect(onTextChange).toHaveBeenCalled()
-      expect(onTextChange.mock.calls[onTextChange.mock.calls.length - 1][0]).toBe('5000-__-__')
+      expect(onTextChange.mock.calls[onTextChange.mock.calls.length - 1][0]).toBe('5___-__-__')
     })
   })
 

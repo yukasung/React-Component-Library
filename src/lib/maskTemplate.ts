@@ -67,20 +67,23 @@ export function emptyTemplateEntry(segments: MaskSegment[]): TemplateEntry {
 }
 
 // How a group's typed characters fill its width, from the direction its own
-// segment declares (MaskSegment.fill, set by the tokenizers). Right-aligned by
-// default — a minute typed "3" is 03, which is what makes the next digit read
-// as "35" — and left-aligned for a group read most-significant-first, where
-// "2" of a year fills out to 2000 and the digits after it replace those zeros
-// in turn: 2, 20, 202, 2026 showing as 2000, 2000, 2020, 2026.
+// segment declares (MaskSegment.fill, set by the tokenizers).
 //
-// Used for the committed string as well as the rendering (see
-// templateToDraft), so a group can never commit as something other than what
-// it was showing.
-function padSlot(segment: FillableSegment, chars: string): string {
+// Right-aligned by default, zero-padded straight away: a minute typed "3" is
+// 03, and the zero is honest because it doesn't change the value it spells.
+//
+// A group read most-significant-first — a year — fills the other way, and
+// there the padding character matters. A trailing *zero* would change the
+// value rather than spell it (2 is not 2000), and worse, it is
+// indistinguishable from a zero the user typed: filling "2" out to "2000"
+// makes the next two keystrokes of "2006" look like nothing happened. So an
+// unfinished left-filling group keeps fillers to its right — 2___, 20__,
+// 200_, 2006 — and only turns them into zeros once the group is finished,
+// which is also the form that commits.
+function padSlot(segment: FillableSegment, chars: string, done: boolean): string {
   const width = segmentWidth(segment)
-  return segment.type === 'token' && segment.fill === 'end'
-    ? chars.padEnd(width, '0')
-    : chars.padStart(width, '0')
+  if (segment.type !== 'token' || segment.fill !== 'end') return chars.padStart(width, '0')
+  return done ? chars.padEnd(width, '0') : chars + MASK_FILLER.repeat(width - chars.length)
 }
 
 // Typed characters fill their group immediately — an hour reads "01" the
@@ -91,7 +94,7 @@ function padSlot(segment: FillableSegment, chars: string): string {
 // the digits, never from the padded text.
 function renderSlot(segment: FillableSegment, slot: TemplateSlot): string {
   if (slot.chars === '') return MASK_FILLER.repeat(segmentWidth(segment))
-  return padSlot(segment, slot.chars)
+  return padSlot(segment, slot.chars, slot.done)
 }
 
 // The text the field shows: every group at full width, literals in between.
@@ -356,8 +359,10 @@ export function templateToDraft(segments: MaskSegment[], entry: TemplateEntry): 
     const slot = entry.slots[slotIndex++]
     if (!slot.done || slot.chars === '') return null
     // padSlot, not a padding of its own: what commits has to be exactly what
-    // the field was showing, including which side the zeros went on.
-    draft += padSlot(segment, slot.chars)
+    // the field was showing, including which side the zeros went on. Every
+    // group here is finished (the guard above), which is the state where a
+    // left-filling group has already turned its fillers into zeros.
+    draft += padSlot(segment, slot.chars, true)
   }
   return draft
 }

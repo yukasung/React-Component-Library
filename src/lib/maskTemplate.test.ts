@@ -29,8 +29,8 @@ function type(segments: typeof hi, entry: TemplateEntry, next: string): Template
 
 // Presses one key into the active group, the way the component does it: the
 // key itself, never the text it would have produced. Padding makes that text
-// ambiguous -- typing "0" into a year showing "2000" produces "0-__-__",
-// which diffs as a deletion of the trailing zeros.
+// ambiguous -- typing "0" over an hour showing "01" produces "0:__", which
+// diffs as a deletion of the "1".
 function press(segments: typeof hi, entry: TemplateEntry, key: string): TemplateEntry {
   const start = templateRanges(segments)[entry.active].start
   const result = templateEdit(segments, entry, { start, removedCount: 0, inserted: key })
@@ -57,15 +57,17 @@ describe('templateText', () => {
 
 describe('year groups (no range)', () => {
   it('fills out to the right rather than the left, a year being read most-significant-first', () => {
-    expect(templateText(ymd, press(ymd, emptyTemplateEntry(ymd), '2'))).toBe('2000-__-__')
+    // Fillers, not zeros: "2000" would both claim a year the user hasn't
+    // typed and hide the next two keystrokes of "2006".
+    expect(templateText(ymd, press(ymd, emptyTemplateEntry(ymd), '2'))).toBe('2___-__-__')
   })
 
-  it('replaces those zeros as the rest of the year is typed', () => {
+  it('shows every keystroke of a year, including its zeros', () => {
     let entry = press(ymd, emptyTemplateEntry(ymd), '2')
     for (const [key, shown] of [
-      ['0', '2000-__-__'],
-      ['2', '2020-__-__'],
-      ['6', '2026-__-__'],
+      ['0', '20__-__-__'],
+      ['0', '200_-__-__'],
+      ['6', '2006-__-__'],
     ] as const) {
       entry = press(ymd, entry, key)
       expect(templateText(ymd, entry)).toBe(shown)
@@ -74,9 +76,16 @@ describe('year groups (no range)', () => {
     expect(entry.active).toBe(1)
   })
 
-  it('commits a part-typed year as the year it was showing', () => {
+  it('turns a part-typed year into its zeros once the group is finished', () => {
     let entry = press(ymd, emptyTemplateEntry(ymd), '2')
-    entry = press(ymd, templateMoveTo(ymd, entry, 1), '7')
+    expect(templateText(ymd, entry)).toBe('2___-__-__')
+
+    // Leaving the group settles it, and that is when the fillers become the
+    // zeros that commit -- so what commits is still what was on screen.
+    entry = templateMoveTo(ymd, entry, 1)
+    expect(templateText(ymd, entry)).toBe('2000-__-__')
+
+    entry = press(ymd, entry, '7')
     entry = press(ymd, entry, '4')
     // "2" showed as 2000 while being typed, so 2000 is what commits -- never
     // the 0002 a right-aligned pad would have produced.
