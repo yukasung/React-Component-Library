@@ -5,6 +5,7 @@ import { applySelection, selectRangeAtCaret } from '../../lib/domSelection'
 import { diffStrings, maskPlaceholder } from '../../lib/inputMask'
 import {
   isTemplateEmpty,
+  templateClearActive,
   templateEdit,
   templateFinalizeActive,
   templateFromRaw,
@@ -13,6 +14,7 @@ import {
   templateSlotAt,
   templateText,
   templateToDraft,
+  templateTypeIntoActive,
   templateWipedByEdit,
 } from '../../lib/maskTemplate'
 import type { TemplateEntry } from '../../lib/maskTemplate'
@@ -253,6 +255,10 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   const [templateEntry, setTemplateEntry] = useState<TemplateEntry | null>(null)
   const templateVisible = templateEntry !== null
   const templateValue = templateEntry !== null ? templateText(maskSegments, templateEntry) : ''
+  // The fixed position table the groups sit at: it depends only on the format,
+  // so it's derived once per render rather than rebuilt at each place that
+  // reads it (InputDate keeps its own copy of this for the same reason).
+  const slotRanges = templateRanges(maskSegments)
   // Seeds an entry from whatever the field is displaying, so editing a time
   // that's already there starts from its groups rather than from blank ones.
   function entryFromDraft(): TemplateEntry {
@@ -391,7 +397,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     selectRangeAtCaret(el, (caret) => {
       const index = templateSlotAt(maskSegments, from === 'caret' ? caret : 0)
       setTemplateEntry((prev) => (prev === null ? prev : templateMoveTo(maskSegments, prev, index)))
-      const range = templateRanges(maskSegments)[index] ?? null
+      const range = slotRanges[index] ?? null
       // Landing in the field can change its text (a format whose display is
       // unpadded, e.g. "2:30 PM", pads out to "02:30 PM" for editing), and
       // React writing that text puts the caret back at the end — so the range
@@ -409,7 +415,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   // which is the one that survives the browser's own post-input-event cursor
   // handling, the same reason applySelection exists at all.
   function selectTemplateSlot(el: HTMLInputElement, entry: TemplateEntry) {
-    const range = templateRanges(maskSegments)[entry.active]
+    const range = slotRanges[entry.active]
     if (!range) return
     pendingSelectionRef.current = range
     applySelection(el, range.start, range.end)
@@ -426,19 +432,30 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     inputElementRef.current?.focus()
   }
 
-  // Applies one edit to the groups and re-renders from them. A rejected edit
-  // leaves them exactly as they were (React restores the text it had already
+  // Puts a new entry on screen: the state it renders from, the text it
+  // reports, and the highlight on the group it is now in. A rejected edit
+  // leaves the groups as they were (React restores the text it had already
   // rendered), so only the highlight needs putting back.
+  function showTemplate(el: HTMLInputElement, next: TemplateEntry | 'reject', was: TemplateEntry) {
+    if (next === 'reject') {
+      selectTemplateSlot(el, was)
+      return
+    }
+    setTemplateEntry(next)
+    onTextChange?.(templateText(maskSegments, next))
+    selectTemplateSlot(el, next)
+  }
+
+  // The offset-taking path, for the edits that genuinely arrive as character
+  // spans: a selection dragged across groups, and the change event carrying a
+  // paste or an IME commit. Typing goes through templateTypeIntoActive instead
+  // — same rules, without describing a group as the characters it occupies.
   function applyTemplateEdit(
     el: HTMLInputElement,
     entry: TemplateEntry,
     edit: { start: number; removedCount: number; inserted: string },
   ) {
     const next = templateEdit(maskSegments, entry, edit)
-    if (next === 'reject') {
-      selectTemplateSlot(el, entry)
-      return
-    }
     // Wiping the whole field at once (select-all, then delete) on a required
     // field snaps straight back to a value rather than waiting for blur, so
     // there is always something to type over — mirroring InputNumber's zero
@@ -446,21 +463,8 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     // that's a deliberate walk towards empty, and refilling the field under
     // the user would read as "this group can't be deleted". Blur still
     // refuses to leave a required field with no value at all.
-    const settled = isRequired && templateWipedByEdit(maskSegments, next, edit) ? entryFromFallback() : next
-    setTemplateEntry(settled)
-    onTextChange?.(templateText(maskSegments, settled))
-    selectTemplateSlot(el, settled)
-  }
-
-  // The range a deletion should clear: whatever is selected, or the whole
-  // active group when the caret is collapsed (there are no single characters
-  // to delete here — a group is the unit).
-  function deletionRange(el: HTMLInputElement, entry: TemplateEntry): { start: number; removedCount: number } {
-    const start = el.selectionStart ?? 0
-    const end = el.selectionEnd ?? start
-    if (end > start) return { start, removedCount: end - start }
-    const active = templateRanges(maskSegments)[entry.active]
-    return { start: active.start, removedCount: active.end - active.start }
+    const wiped = next !== 'reject' && isRequired && templateWipedByEdit(maskSegments, next, edit)
+    showTemplate(el, wiped ? entryFromFallback() : next, entry)
   }
 
   // Typing is handled on keydown rather than from the resulting text, because
@@ -474,16 +478,19 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     if (event.ctrlKey || event.metaKey || event.altKey) return false
     if (event.key === 'Backspace' || event.key === 'Delete') {
       event.preventDefault()
-      applyTemplateEdit(el, entry, { ...deletionRange(el, entry), inserted: '' })
+      const start = el.selectionStart ?? 0
+      const end = el.selectionEnd ?? start
+      // A dragged selection is a character span and can cover several groups,
+      // so it goes through the offset path (which is also where the
+      // required-field wipe is decided). A collapsed caret means one group,
+      // and a group is the unit deletion works in.
+      if (end > start) applyTemplateEdit(el, entry, { start, removedCount: end - start, inserted: '' })
+      else showTemplate(el, templateClearActive(entry), entry)
       return true
     }
     if (event.key.length !== 1) return false
     event.preventDefault()
-    applyTemplateEdit(el, entry, {
-      start: templateRanges(maskSegments)[entry.active].start,
-      removedCount: 0,
-      inserted: event.key,
-    })
+    showTemplate(el, templateTypeIntoActive(maskSegments, entry, event.key), entry)
     return true
   }
 

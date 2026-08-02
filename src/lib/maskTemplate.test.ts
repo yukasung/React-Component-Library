@@ -10,6 +10,7 @@ import {
   templateSlotAt,
   templateText,
   templateToDraft,
+  templateTypeIntoActive,
 } from './maskTemplate'
 import type { TemplateEntry } from './maskTemplate'
 import { tokenizeDateMask } from './date'
@@ -32,8 +33,7 @@ function type(segments: typeof hi, entry: TemplateEntry, next: string): Template
 // ambiguous -- typing "0" over an hour showing "01" produces "0:__", which
 // diffs as a deletion of the "1".
 function press(segments: typeof hi, entry: TemplateEntry, key: string): TemplateEntry {
-  const start = templateRanges(segments)[entry.active].start
-  const result = templateEdit(segments, entry, { start, removedCount: 0, inserted: key })
+  const result = templateTypeIntoActive(segments, entry, key)
   if (result === 'reject') throw new Error(`rejected: ${key}`)
   return result
 }
@@ -149,22 +149,17 @@ describe('templateEdit', () => {
     expectRejected(hi, entry, '5:__')
   })
 
-  it('continues an unfinished group even though the edit looks like a replacement', () => {
-    const entry = type(hi, emptyTemplateEntry(hi), '1:__')
-    // The whole group is highlighted, so every keystroke arrives as one --
-    // continuing or starting over is the group's own state to decide.
-    expect(templateText(hi, templateEdit(hi, entry, { start: 0, removedCount: 2, inserted: '4' }) as TemplateEntry)).toBe(
-      '14:__',
-    )
+  it('continues an unfinished group on the next digit', () => {
+    const entry = press(hi, emptyTemplateEntry(hi), '1')
+    expect(templateText(hi, press(hi, entry, '4'))).toBe('14:__')
   })
 
   it('starts a finished group over on the next digit', () => {
-    let entry = type(hi, emptyTemplateEntry(hi), '1:__')
-    entry = type(hi, entry, '4:__')
+    let entry = press(hi, emptyTemplateEntry(hi), '1')
+    entry = press(hi, entry, '4')
     expect(templateText(hi, entry)).toBe('14:__')
-    expect(templateText(hi, templateEdit(hi, templateMoveTo(hi, entry, 0), { start: 0, removedCount: 2, inserted: '5' }) as TemplateEntry)).toBe(
-      '05:__',
-    )
+    // Back on the (finished) hour, a digit replaces it rather than appending.
+    expect(templateText(hi, press(hi, templateMoveTo(hi, entry, 0), '5'))).toBe('05:__')
   })
 
   it('writes the whole designator from one letter', () => {

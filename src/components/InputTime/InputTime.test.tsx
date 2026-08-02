@@ -4,6 +4,16 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputTime } from './InputTime'
 
+// Types into the field without user-event's own click first, and that part is
+// load-bearing rather than tidiness: the field is edited a group at a time,
+// and user-event's click carries no coordinates, so it parks the caret at the
+// end of the text -- i.e. in the *last* group. Typing through it would quietly
+// exercise a different group than the test means to. Going through one helper
+// is what keeps that from being 15 chances to forget.
+function typeInto(user: ReturnType<typeof userEvent.setup>, input: HTMLElement, keys: string) {
+  return user.type(input, keys, { skipClick: true })
+}
+
 // A fixed reference day for every test that cares about the date part
 // surviving a time commit.
 const DAY = new Date(2026, 6, 22, 9, 0)
@@ -37,7 +47,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '1015', { skipClick: true })
+    await typeInto(user, input, '1015')
 
     expect(input).toHaveValue('10:15')
     expect(onChange).not.toHaveBeenCalled()
@@ -50,7 +60,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '1015', { skipClick: true })
+    await typeInto(user, input, '1015')
     await user.tab()
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -64,7 +74,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '0745', { skipClick: true })
+    await typeInto(user, input, '0745')
     await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -79,7 +89,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '0745', { skipClick: true })
+    await typeInto(user, input, '0745')
     await user.keyboard('{Enter}')
     await user.tab()
 
@@ -93,7 +103,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '9', { skipClick: true })
+    await typeInto(user, input, '9')
     await user.tab()
 
     // "9" alone isn't a complete H:i time.
@@ -108,7 +118,7 @@ describe('InputTime', () => {
     const input = screen.getByRole('combobox')
 
     await user.clear(input)
-    await user.type(input, '2233', { skipClick: true })
+    await typeInto(user, input, '2233')
     await user.keyboard('{Escape}')
 
     expect(input).toHaveValue('09:00')
@@ -133,7 +143,7 @@ describe('InputTime', () => {
     expect(input).toHaveValue('09:00')
 
     await user.clear(input)
-    await user.type(input, '1830', { skipClick: true })
+    await typeInto(user, input, '1830')
     await user.tab()
 
     expect(input).toHaveValue('18:30')
@@ -161,7 +171,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '1645', { skipClick: true })
+      await typeInto(user, input, '1645')
       await user.tab()
 
       const committed = onChange.mock.calls[0][0] as Date
@@ -183,7 +193,7 @@ describe('InputTime', () => {
       render(<InputTime value={new Date(2026, 6, 22, 9, 0, 45, 500)} onChange={onChange} isRequired={false} />)
 
       await user.clear(screen.getByRole('combobox'))
-      await user.type(screen.getByRole('combobox'), '1000', { skipClick: true })
+      await typeInto(user, screen.getByRole('combobox'), '1000')
       await user.tab()
 
       const committed = onChange.mock.calls[0][0] as Date
@@ -205,7 +215,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '230p', { skipClick: true })
+      await typeInto(user, input, '230p')
       await user.tab()
 
       expect(onChange.mock.calls[0][0]).toEqual(at(14, 30))
@@ -249,7 +259,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '0730', { skipClick: true })
+      await typeInto(user, input, '0730')
       await user.tab()
 
       expect(onChange.mock.calls[0][0]).toEqual(at(9))
@@ -262,7 +272,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '2300', { skipClick: true })
+      await typeInto(user, input, '2300')
       await user.tab()
 
       expect(onChange.mock.calls[0][0]).toEqual(at(17))
@@ -1109,7 +1119,7 @@ describe('InputTime', () => {
       render(<InputTime value={DAY} onChange={onChange} isEditable={false} min={at(9)} max={at(10)} step={30} />)
       const input = screen.getByRole('combobox')
 
-      await user.type(input, '1234', { skipClick: true })
+      await typeInto(user, input, '1234')
       expect(input).toHaveValue('09:00')
       expect(onChange).not.toHaveBeenCalled()
 
@@ -1163,7 +1173,7 @@ describe('InputTime', () => {
       const onChange = vi.fn()
       render(<InputTime value={at(9)} onChange={onChange} isDisabled />)
 
-      await user.type(screen.getByRole('combobox'), '1234', { skipClick: true })
+      await typeInto(user, screen.getByRole('combobox'), '1234')
       await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
 
       expect(onChange).not.toHaveBeenCalled()
@@ -1220,7 +1230,7 @@ describe('InputTime', () => {
       const input = screen.getByRole('combobox')
 
       await user.clear(input)
-      await user.type(input, '09', { skipClick: true })
+      await typeInto(user, input, '09')
 
       // What the field is showing, groups and all -- not the raw keystrokes,
       // and not a half-formatted string the consumer would have to guess at.

@@ -55,6 +55,47 @@ export function LocaleDemo() {
   )
 }
 
+export function PlaceholderDemo() {
+  const [maskValue, setMaskValue] = useState<Date | null>(null)
+  const [slashValue, setSlashValue] = useState<Date | null>(null)
+  const [customValue, setCustomValue] = useState<Date | null>(null)
+
+  return (
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-3">
+      <div>
+        <label htmlFor="demo-date-ph-default" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          ค่าเริ่มต้น (format Y-m-d)
+        </label>
+        <InputDate id="demo-date-ph-default" value={maskValue} onChange={setMaskValue} isRequired={false} />
+      </div>
+      <div>
+        <label htmlFor="demo-date-ph-slash" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          ค่าเริ่มต้น (format d/m/Y)
+        </label>
+        <InputDate
+          id="demo-date-ph-slash"
+          value={slashValue}
+          onChange={setSlashValue}
+          isRequired={false}
+          format="d/m/Y"
+        />
+      </div>
+      <div>
+        <label htmlFor="demo-date-ph-custom" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          กำหนดเอง
+        </label>
+        <InputDate
+          id="demo-date-ph-custom"
+          value={customValue}
+          onChange={setCustomValue}
+          isRequired={false}
+          placeholder="วันเกิด (ไม่บังคับ)"
+        />
+      </div>
+    </div>
+  )
+}
+
 export function IsRequiredDemo() {
   const [requiredValue, setRequiredValue] = useState<Date | null>(new Date())
   const [optionalValue, setOptionalValue] = useState<Date | null>(null)
@@ -71,13 +112,7 @@ export function IsRequiredDemo() {
         <label htmlFor="demo-is-optional" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
           isRequired={'{false}'}
         </label>
-        <InputDate
-          id="demo-is-optional"
-          value={optionalValue}
-          onChange={setOptionalValue}
-          isRequired={false}
-          placeholder="วันเกิด (ไม่บังคับ)"
-        />
+        <InputDate id="demo-is-optional" value={optionalValue} onChange={setOptionalValue} isRequired={false} />
       </div>
     </div>
   )

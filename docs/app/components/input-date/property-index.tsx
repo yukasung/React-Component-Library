@@ -5,6 +5,7 @@ export { PropertySignature } from '../_property-index'
 const properties = [
   { name: 'value', href: '#value' },
   { name: 'locale', href: '#locale' },
+  { name: 'placeholder', href: '#placeholder' },
   { name: 'isRequired', href: '#isrequired' },
   { name: 'min', href: '#min' },
   { name: 'max', href: '#max' },

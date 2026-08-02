@@ -1,12 +1,15 @@
-// Segment shape for the live-typing masker below — a `format` string turned
-// into an ordered list of fixed-width character groups (with a valid value
-// range, where one applies) and literal separator runs. Deliberately not
-// tied to date *or* time formats: everything in this module works purely
-// off `width`/`min`/`max`, which is what lets `InputDate` and `InputTime`
-// share one masker instead of growing two subtly different ones. The
-// per-format tokenizers that produce these live next to their own
-// parse/format logic (`tokenizeDateMask` in date.ts, `timeMaskSegments` in
-// time.ts).
+// Segment shape for group editing — a `format` string turned into an ordered
+// list of fixed-width character groups (with a valid value range, where one
+// applies) and literal separator runs. Deliberately not tied to date *or*
+// time formats: everything in this module works purely off
+// `width`/`min`/`max`, which is what lets `InputDate` and `InputTime` share
+// one vocabulary and one set of acceptance rules instead of growing two
+// subtly different ones. The per-format tokenizers that produce these live
+// next to their own parse/format logic (`tokenizeDateMask` in date.ts,
+// `timeMaskSegments` in time.ts).
+//
+// This module is the *rules*; how they get applied to a field is
+// src/lib/maskTemplate.ts's job.
 //
 // `min`/`max` are absent for Y/y (any digit is valid at any of their
 // positions, only a width cap applies).
@@ -79,23 +82,10 @@ export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-// How long to wait, with no further character typed, before an ambiguous
-// segment (e.g. a day "1" — could stay "1" or continue to "10"-"19")
-// auto-advances on its own. Pairs with (doesn't replace) the explicit-
-// separator force-advance below — matches the common pattern in native
-// browser date inputs and masked-input libraries (IMask.js, Cleave.js,
-// react-input-mask) of supporting both. Internal only, not exposed as a
-// prop, and shared by every component using this masker so they can't drift
-// apart. Set to 1200ms (up from an initial 600ms, which raced ahead of
-// typing a second digit like the "5" of "15" before the user could enter
-// it) to leave comfortable room for the second digit.
-export const AMBIGUOUS_SEGMENT_ADVANCE_DELAY_MS = 1200
-
 // The two AM/PM designators an `ampm` segment can hold. Fixed English
 // strings for now — the time formats that use them are English-only in v1.
 const AM_PM_TEXT = { a: 'AM', p: 'PM' } as const
 export const AM_PM_WIDTH = 2
-const AM_PM_CHAR_PATTERN = /[AMP]/i
 
 // The rendered width of anything the user fills in — the one place that
 // answers "how many characters does this group occupy", so the fixed-width
@@ -126,9 +116,7 @@ export function maskPlaceholder(segments: MaskSegment[]): string {
 // in order — the position table the fixed-width template editor works from,
 // and what turns a click offset into "the minutes group". Derived from the
 // widths rather than from the characters, because in a template every group
-// is rendered at full width whether it holds typed characters or fillers —
-// unlike a draft, which holds only what's been typed and so has to be
-// measured character by character (locateSegment, below).
+// is rendered at full width whether it holds typed characters or fillers.
 export function maskPlaceholderRanges(segments: MaskSegment[]): { start: number; end: number }[] {
   const ranges: { start: number; end: number }[] = []
   let pos = 0
@@ -148,8 +136,8 @@ export function maskPlaceholderRanges(segments: MaskSegment[]): { start: number;
 // common-prefix/common-suffix diff. Works uniformly for a single keystroke,
 // a Backspace/Delete, an overtyped selection, or a paste (a browser's
 // `input`/`change` event only ever hands over the resulting string, never
-// *how* it changed) — everything downstream in this file is driven by this
-// one primitive rather than trying to classify the DOM event itself.
+// *how* it changed) — which is what lets the group editor read a paste or an
+// IME commit without trying to classify the DOM event itself.
 export function diffStrings(prev: string, next: string): { start: number; removedCount: number; inserted: string } {
   const maxPrefix = Math.min(prev.length, next.length)
   let start = 0
@@ -167,51 +155,6 @@ export type TokenSegment = Extract<MaskSegment, { type: 'token' }>
 // Everything the user actually fills in, as opposed to the literal
 // separators the mask inserts for them.
 export type FillableSegment = Extract<MaskSegment, { type: 'token' | 'ampm' }>
-
-interface LocatedSegment {
-  index: number
-  digitsStart: number
-  digits: string
-  segment: FillableSegment
-}
-
-// How far a fillable segment's own characters extend from `pos`. `ampm`
-// holds letters rather than digits, and that's the only thing that differs
-// about it as far as locating and splicing go — so the difference is
-// confined to this one function, which every walk over the segment list
-// goes through (rather than each walk re-deciding it and drifting).
-function segmentCharsEnd(draft: string, segment: FillableSegment, pos: number): number {
-  const isAmPm = segment.type === 'ampm'
-  const pattern = isAmPm ? AM_PM_CHAR_PATTERN : /\d/
-  const limit = Math.min(draft.length, pos + (isAmPm ? AM_PM_WIDTH : segment.width))
-  let end = pos
-  while (end < limit && pattern.test(draft[end])) end++
-  return end
-}
-
-// Re-derives, fresh from the draft string every time (cheap — format
-// strings are ~10 chars), which token segment a draft-offset falls in and
-// what characters it already holds. No persistent typing-session state is
-// kept anywhere in this module — every call starts from the actual current
-// draft, so deleting mid-segment and later typing a replacement digit just
-// works without any special-casing.
-function locateSegment(draft: string, segments: MaskSegment[], offset: number): LocatedSegment | undefined {
-  let pos = 0
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i]
-    if (seg.type === 'literal') {
-      if (!draft.startsWith(seg.text, pos)) return undefined
-      pos += seg.text.length
-      continue
-    }
-    const digitsEnd = segmentCharsEnd(draft, seg, pos)
-    if (offset >= pos && offset <= digitsEnd) {
-      return { index: i, digitsStart: pos, digits: draft.slice(pos, digitsEnd), segment: seg }
-    }
-    pos = digitsEnd
-  }
-  return undefined
-}
 
 // The per-segment digit acceptor — the one genuinely new piece of logic
 // here, no precedent elsewhere in this codebase. Separates "does a valid
@@ -275,253 +218,4 @@ export function canFinalizeDigits(segment: TokenSegment, digits: string): boolea
   if (segment.min === undefined || segment.max === undefined) return true
   const value = Number(digits)
   return value >= segment.min && value <= segment.max
-}
-
-// Splices accepted characters (or an early force-advance) into the draft
-// and, when the segment is done, auto-inserts the next literal separator —
-// idempotently, since a redundant-separator keystroke can also route here
-// with the literal already present.
-function applyAcceptedChars(
-  prevDraft: string,
-  segments: MaskSegment[],
-  located: LocatedSegment,
-  outcome: { digits: string; done: boolean },
-): { draft: string; cursor: number } {
-  let draft = prevDraft.slice(0, located.digitsStart) + outcome.digits + prevDraft.slice(located.digitsStart + located.digits.length)
-  let cursor = located.digitsStart + outcome.digits.length
-  if (outcome.done) {
-    const next = segments[located.index + 1]
-    if (next?.type === 'literal') {
-      if (!draft.startsWith(next.text, cursor)) draft = draft.slice(0, cursor) + next.text + draft.slice(cursor)
-      cursor += next.text.length
-    }
-  }
-  return { draft, cursor }
-}
-
-// Handles a typed non-digit character, which must be exactly the next
-// literal separator to mean anything: either the common "typing through" an
-// already-auto-inserted separator (a no-op besides moving the cursor), or an
-// explicit early separator that force-advances a not-yet-full segment as-is
-// (e.g. day "7" then "/" completes day as "7", matching what
-// parseDateDraft already accepts for 1-2 digit numeric tokens).
-function applyLiteralKeystroke(
-  prevDraft: string,
-  segments: MaskSegment[],
-  edit: { start: number; removedCount: number; inserted: string },
-): { draft: string; cursor: number } | 'reject' {
-  const char = edit.inserted
-  if (edit.removedCount === 0 && prevDraft[edit.start] === char) {
-    return { draft: prevDraft, cursor: edit.start + 1 }
-  }
-  const located = locateSegment(prevDraft, segments, edit.start)
-  if (!located || located.digits.length === 0) return 'reject'
-  // A partial day/month whose typed digits aren't themselves a valid value
-  // (e.g. "0", a valid prefix of "01"-"09" but not a valid standalone
-  // month/day) can't be finalized by an early separator either — reject it
-  // so the user has to type the second digit, same rule the auto-advance
-  // timeout applies (see pendingAdvanceAtCursor). Range-less Y/y is exempt
-  // (any digits are "valid"), matching its existing force-advance behavior.
-  const { segment, digits } = located
-  if (segment.type === 'token' && digits.length < segment.width && !canFinalizeDigits(segment, digits)) {
-    return 'reject'
-  }
-  const next = segments[located.index + 1]
-  if (!next || next.type !== 'literal' || !next.text.startsWith(char)) return 'reject'
-  return applyAcceptedChars(prevDraft, segments, located, { digits, done: true })
-}
-
-// Fallback for a multi-character insert (paste, autofill, IME commit) —
-// deliberately simple: replay the raw text through the segment list from
-// scratch, filling each segment with up to `width` consecutive digits.
-// No per-segment range validation and no cursor-preserving remap here
-// (full validation still happens at commit time via the owning component's
-// own parse step, unchanged by any of this) — an intentional simplification,
-// not an oversight.
-//
-// Reads the raw text rather than a digits-only reduction of it, because a
-// separator in the input is real information about where one segment ends:
-// a pasted "9:30 PM" has a one-digit hour, and flattening it to "930" first
-// would fill a 2-wide hour segment with "93". Any *other* character between
-// segments is still skipped over, so a paste whose separators differ from
-// the format's (e.g. "2026/07/22" into "Y-m-d") still comes out in the
-// format's own punctuation.
-function rebuildFromRaw(segments: MaskSegment[], raw: string): { draft: string; cursor: number } {
-  let draft = ''
-  let pos = 0
-  for (const seg of segments) {
-    if (seg.type === 'literal') {
-      draft += seg.text
-      // Only consume the input's own copy of this separator when it
-      // actually has one there; otherwise the format's separator is being
-      // supplied, not matched.
-      if (raw.startsWith(seg.text, pos)) pos += seg.text.length
-      continue
-    }
-    if (seg.type === 'ampm') {
-      const designator = /[ap]/i.exec(raw.slice(pos))
-      if (!designator) break
-      draft += AM_PM_TEXT[designator[0].toLowerCase() as 'a' | 'p']
-      pos += designator.index + 1
-      continue
-    }
-    while (pos < raw.length && !/\d/.test(raw[pos])) pos++
-    let taken = ''
-    while (pos < raw.length && taken.length < seg.width && /\d/.test(raw[pos])) {
-      taken += raw[pos]
-      pos++
-    }
-    if (taken === '') break
-    draft += taken
-    // Stop before the next literal separator when this segment came up
-    // short and there's nothing left to fill the rest of the mask with —
-    // a short segment followed by more input (the unpadded-hour case) is
-    // complete as typed and carries on.
-    if (taken.length < seg.width && !/\d/.test(raw.slice(pos))) break
-  }
-  return { draft, cursor: draft.length }
-}
-
-// The live-typing masker's entry point — called from InputDate's and
-// InputTime's handleChange with the result of
-// diffStrings(prevDraft, rawBrowserValue). Returns the masked draft + where
-// the cursor should land, or the literal string 'reject' when the keystroke
-// can't lead anywhere valid (the caller is expected to leave the draft
-// unchanged and restore the cursor to where the rejected edit started).
-export function applyInputMask(
-  segments: MaskSegment[],
-  prevDraft: string,
-  edit: { start: number; removedCount: number; inserted: string },
-): { draft: string; cursor: number } | 'reject' {
-  // Pure deletion — no masking needed, the removal itself can't produce an
-  // invalid *typed* value (full validation stays at commit time).
-  if (edit.inserted === '') {
-    return { draft: prevDraft.slice(0, edit.start) + prevDraft.slice(edit.start + edit.removedCount), cursor: edit.start }
-  }
-
-  if (edit.inserted.length > 1) return rebuildFromRawEdit(segments, prevDraft, edit)
-
-  const inserted = edit.inserted
-  if (!/\d/.test(inserted)) {
-    // A letter typed into an AM/PM segment is the one non-digit keystroke
-    // that fills a segment rather than confirming a separator, so it's
-    // checked before the literal handling below (which would reject it).
-    const ampmLocated = locateSegment(prevDraft, segments, edit.start)
-    if (ampmLocated?.segment.type === 'ampm') {
-      const outcome = acceptAmPmChar(inserted)
-      if (outcome !== 'reject') return applyAcceptedChars(prevDraft, segments, ampmLocated, outcome)
-    }
-    const literalResult = applyLiteralKeystroke(prevDraft, segments, edit)
-    if (literalResult !== 'reject') return literalResult
-    // A single separator keystroke that doesn't cleanly confirm/force-advance
-    // is only given the bespoke interpretations above when it's a plain
-    // keystroke (nothing removed). When it's replacing a selection instead
-    // (e.g. selecting the whole draft and typing "-"), fall back to the
-    // same strip-and-rebuild path as a paste rather than silently dropping
-    // it — same reasoning as the digit case below.
-    return edit.removedCount > 0 ? rebuildFromRawEdit(segments, prevDraft, edit) : 'reject'
-  }
-
-  const located = locateSegment(prevDraft, segments, edit.start)
-  if (located && located.segment.type === 'token') {
-    const posInSegment = edit.start - located.digitsStart
-    if (posInSegment >= 0 && posInSegment + edit.removedCount <= located.digits.length) {
-      // The edit lands entirely within one segment's own digits (a plain
-      // keystroke, or a selection that never leaves this segment — e.g.
-      // overtyping just the "1" in a fully-typed day "12") — per-segment
-      // range validation applies exactly like a fresh keystroke would, and a
-      // genuinely invalid result rejects outright, no silent fix-up,
-      // regardless of whether anything was removed.
-      const removeEnd = posInSegment + edit.removedCount
-      const digitsBefore = located.digits.slice(0, posInSegment)
-      const digitsAfter = located.digits.slice(removeEnd)
-      const outcome = acceptDigit(located.segment, digitsBefore, digitsAfter, inserted)
-      return outcome === 'reject' ? 'reject' : applyAcceptedChars(prevDraft, segments, located, outcome)
-    }
-  }
-
-  // The edit doesn't fit within a single segment — most commonly, overtyping
-  // a fully auto-selected value (e.g. the required-field immediate-snap's
-  // select-all) with one digit, where the removed span crosses every
-  // segment, not just one. Not given a bespoke per-segment interpretation in
-  // v1 (see the plan's "bespoke multi-segment selection" scope-cut note);
-  // rather than blocking it outright, it falls back to the same
-  // strip-and-rebuild path a paste already uses — rebuilding from scratch is
-  // what actually keeps typing over a selection usable. A plain keystroke
-  // that doesn't land in any segment at all (only possible for a
-  // malformed/inconsistent draft) still rejects, since there's nothing
-  // sensible to rebuild from a single character in that case.
-  return edit.removedCount > 0 ? rebuildFromRawEdit(segments, prevDraft, edit) : 'reject'
-}
-
-function rebuildFromRawEdit(
-  segments: MaskSegment[],
-  prevDraft: string,
-  edit: { start: number; removedCount: number; inserted: string },
-): { draft: string; cursor: number } {
-  const rawNext = prevDraft.slice(0, edit.start) + edit.inserted + prevDraft.slice(edit.start + edit.removedCount)
-  return rebuildFromRaw(segments, rawNext)
-}
-
-// Finalizes the ambiguous day/month/hour/minute segment the cursor is
-// *currently sitting in* (finalize = force-advance it as-is, the same thing
-// applyAcceptedChars does for an explicit early separator keystroke, just
-// triggered without one), or returns null when the cursor's segment isn't an
-// ambiguous open one. Drives the owning component's pending-advance timeout:
-// after a short pause on an ambiguous digit like day "1", auto-complete it —
-// matching the common native-date-input/masked-input pattern of pairing an
-// explicit-separator path with a timeout rather than requiring one or the
-// other.
-//
-// Cursor-scoped on purpose, NOT a global "find the first open segment
-// anywhere" scan (which an earlier version was, and which was the bug): a
-// day force-advanced to a single digit — e.g. "3/" — stays a 1-digit,
-// "still technically open" segment forever, so a global scan keeps finding
-// *it* even after the user has typed past it into the month/year, and would
-// then schedule a spurious re-flush that yanks the cursor back to that old
-// day segment. Only the segment actually under the cursor is a candidate,
-// and only when the cursor sits right at the end of its single typed digit
-// (i.e. it was just typed and is waiting for a possible second digit).
-//
-// Returns null for Y/y even when open — they have no min/max, so
-// acceptDigit never leaves them in an "ambiguous, could stop here" state
-// (only a genuinely-incomplete one that must be typed out in full), and
-// there's nothing to auto-advance. Same for an AM/PM segment, which a
-// single keystroke always completes outright.
-export function pendingAdvanceAtCursor(
-  segments: MaskSegment[],
-  draft: string,
-  cursor: number,
-): { draft: string; cursor: number } | null {
-  const located = locateSegment(draft, segments, cursor)
-  if (!located) return null
-  const { segment, digits, digitsStart } = located
-  if (segment.type !== 'token') return null
-  if (segment.min === undefined || segment.max === undefined) return null
-  if (digits.length === 0 || digits.length >= segment.width) return null
-  if (cursor !== digitsStart + digits.length) return null
-  // Only auto-advance a single digit that's itself a valid value. "0" (for a
-  // min-1 month/day) is a valid *prefix* of "01"-"09" but not a valid
-  // standalone value — finalizing it to a bare "0" would commit to a wrong
-  // date (flatpickr reads month "0" as December of the previous year), so it
-  // stays open, waiting for the second digit, instead of auto-advancing.
-  if (!canFinalizeDigits(segment, digits)) return null
-  return applyAcceptedChars(draft, segments, located, { digits, done: true })
-}
-
-// Used by the Backspace/Delete handling in InputDate/InputTime to decide
-// whether the adjacent character is a separator that should be stepped over
-// rather than landed on — mirrors locateSegment's own walk so the two stay
-// consistent.
-export function isLiteralCharAt(draft: string, index: number, segments: MaskSegment[]): boolean {
-  let pos = 0
-  for (const seg of segments) {
-    if (seg.type === 'literal') {
-      if (index >= pos && index < pos + seg.text.length) return true
-      pos += seg.text.length
-      continue
-    }
-    pos = segmentCharsEnd(draft, seg, pos)
-  }
-  return false
 }

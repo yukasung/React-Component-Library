@@ -128,12 +128,17 @@ function slotAt(ranges: { start: number; end: number }[], offset: number): numbe
   return ranges.length - 1
 }
 
+// Required rather than defaulted, deliberately: `autoAdvanced` is transient
+// state whose correctness depends on every operation that isn't a fill
+// clearing it, and a default would make "cleared" the answer nobody had to
+// think about. Stating it at each call site is what makes the one place that
+// sets it true visible as the exception it is.
 function withSlot(
   entry: TemplateEntry,
   index: number,
   slot: TemplateSlot,
   active: number,
-  autoAdvanced = false,
+  autoAdvanced: boolean,
 ): TemplateEntry {
   const slots = entry.slots.slice()
   slots[index] = slot
@@ -202,59 +207,83 @@ function settleSlot(segment: FillableSegment, slot: TemplateSlot): TemplateSlot 
   return canFinalizeDigits(segment, slot.chars) ? { chars: slot.chars, done: true } : { chars: '', done: false }
 }
 
-// Applies one edit — a keystroke, a Backspace, a paste — expressed the same
-// way the masker takes it: the diff between the text on screen before and
-// after. 'reject' means the edit can't lead anywhere valid and the entry
-// should be left exactly as it is.
+// Types one character into the group the user is in — the operation the
+// keyboard actually performs, taking the group as a group rather than as a
+// character span the module would only decode back.
 //
-// Whether a digit continues a group or starts it over is decided by the
-// group's own state, not by how the browser reported the edit: a finished
-// group starts over ("14", then "5", gives "05"), an unfinished one takes the
-// digit as its next ("1", then "4", gives "14"). It can't be read off the
-// edit, because the group is highlighted as a whole either way, so every
-// keystroke arrives looking like a replacement.
+// Whether a digit continues the group or starts it over is decided by the
+// group's own state, not by anything about the keystroke: a finished group
+// starts over ("14", then "5", gives "05"), an unfinished one takes the digit
+// as its next ("1", then "4", gives "14"). 'reject' means the character can't
+// lead anywhere valid and the entry should be left exactly as it is.
+export function templateTypeIntoActive(
+  segments: MaskSegment[],
+  entry: TemplateEntry,
+  char: string,
+): TemplateEntry | 'reject' {
+  return typeIntoSlot(segments, entry, entry.active, char)
+}
+
+// Clears the group the user is in. An already-empty group steps back and
+// clears the one before it instead — the only way to walk backwards through a
+// half-filled template with the keyboard alone.
+export function templateClearActive(entry: TemplateEntry): TemplateEntry {
+  return clearSlot(entry, entry.active)
+}
+
+// Applies an edit expressed as a character span: the diff between the text on
+// screen before and after. Only for the two callers that genuinely hold
+// offsets rather than a group — a selection dragged across groups, and the
+// change event that carries a paste, an autofill or an IME commit. Typing goes
+// through templateTypeIntoActive above, which is the same rules without the
+// round trip through character positions.
 export function templateEdit(
   segments: MaskSegment[],
   entry: TemplateEntry,
   edit: { start: number; removedCount: number; inserted: string },
 ): TemplateEntry | 'reject' {
-  const fillable = fillableSegments(segments)
   const ranges = maskPlaceholderRanges(segments)
   const index = slotAt(ranges, edit.start)
-  const segment = fillable[index]
-  if (!segment) return 'reject'
+  if (index < 0) return 'reject'
 
-  // Deleting inside a template deletes typed characters, never the fillers
-  // or separators holding the shape together: it empties the groups the
-  // removal covered and leaves the highlight on the first of them, ready to
-  // be retyped.
+  // Deleting inside a template deletes typed characters, never the fillers or
+  // separators holding the shape together: it empties the groups the removal
+  // covered and leaves the highlight on the first of them.
   if (edit.inserted === '') {
     const covered = coveredSlots(ranges, edit.start, edit.removedCount)
     // More than one group only happens for a span (select-all-then-delete,
-    // dragging across the separator) — a single Backspace over a highlighted
-    // group covers just that one.
-    if (covered.length > 1) return clearSlots(entry, covered)
-    const slot = entry.slots[index]
-    if (slot.chars !== '') return withSlot(entry, index, { chars: '', done: false }, index)
-    // Backspacing an already-empty group steps back to the previous one and
-    // empties that instead — the only way to walk backwards through a
-    // half-filled template with the keyboard alone.
-    if (index === 0) return { ...entry, active: 0 }
-    return withSlot(entry, index - 1, { chars: '', done: false }, index - 1)
+    // dragging across a separator).
+    return covered.length > 1 ? clearSlots(entry, covered) : clearSlot(entry, index)
   }
-
   if (edit.inserted.length > 1) return templateFromRaw(segments, edit.inserted)
+  return typeIntoSlot(segments, entry, index, edit.inserted)
+}
 
-  const char = edit.inserted
+function clearSlot(entry: TemplateEntry, index: number): TemplateEntry {
+  if (entry.slots[index]?.chars !== '') return withSlot(entry, index, { chars: '', done: false }, index, false)
+  // Nothing to clear before the first group; the flag still goes, because a
+  // deletion is never the fill that sets it.
+  if (index === 0) return { ...entry, active: 0, autoAdvanced: false }
+  return withSlot(entry, index - 1, { chars: '', done: false }, index - 1, false)
+}
+
+function typeIntoSlot(
+  segments: MaskSegment[],
+  entry: TemplateEntry,
+  index: number,
+  char: string,
+): TemplateEntry | 'reject' {
+  const segment = fillableSegments(segments)[index]
   const slot = entry.slots[index]
-  const existing = slot.done ? '' : slot.chars
+  if (!segment || !slot) return 'reject'
+
   if (segment.type === 'ampm') {
     const outcome = acceptAmPmChar(char)
     if (outcome === 'reject') return 'reject'
     return withSlot(entry, index, { chars: outcome.digits, done: true }, nextActive(entry, index), true)
   }
   if (/\d/.test(char)) {
-    const outcome = acceptDigit(segment, existing, '', char)
+    const outcome = acceptDigit(segment, slot.done ? '' : slot.chars, '', char)
     if (outcome === 'reject') return 'reject'
     return withSlot(
       entry,
@@ -275,7 +304,7 @@ export function templateEdit(
     // one: the separator is the one the user would type next anyway, so it
     // confirms that move instead of making a second one.
     if (entry.autoAdvanced) return { ...entry, autoAdvanced: false }
-    return withSlot(entry, index, settleSlot(segment, slot), nextActive(entry, index))
+    return withSlot(entry, index, settleSlot(segment, slot), nextActive(entry, index), false)
   }
   return 'reject'
 }
@@ -292,7 +321,7 @@ export function templateEdit(
 export function templateFinalizeActive(segments: MaskSegment[], entry: TemplateEntry): TemplateEntry {
   const segment = fillableSegments(segments)[entry.active]
   if (!segment) return entry
-  return withSlot(entry, entry.active, settleSlot(segment, entry.slots[entry.active]), entry.active)
+  return withSlot(entry, entry.active, settleSlot(segment, entry.slots[entry.active]), entry.active, false)
 }
 
 // Moves the highlight to another group, finishing the one being left.
