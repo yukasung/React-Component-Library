@@ -32,13 +32,13 @@ if (typeof styleTarget !== 'string' || !existsSync(resolve(root, styleTarget))) 
 }
 
 const verifyStyle = (style) => {
-  for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar']) {
+  for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar', ':where(.dark,.dark *)']) {
     if (!style.includes(marker)) {
       fail(`style.css is missing required ${marker} output`)
     }
   }
 
-  for (const marker of ['@layer base', 'html,:host{line-height:1.5', '.mx-auto', '.first\\\\:mt-8']) {
+  for (const marker of ['@layer base', 'html,:host{line-height:1.5', '@media(prefers-color-scheme:dark)', '.mx-auto', '.first\\\\:mt-8']) {
     if (style.includes(marker)) {
       fail(`style.css contains forbidden global or non-component output: ${marker}`)
     }
