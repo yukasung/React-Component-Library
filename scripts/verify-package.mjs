@@ -32,9 +32,15 @@ if (typeof styleTarget !== 'string' || !existsSync(resolve(root, styleTarget))) 
 }
 
 const style = readFileSync(resolve(root, styleTarget), 'utf8')
-for (const marker of ['.rounded-lg', '--rc-color-primary']) {
+for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar']) {
   if (!style.includes(marker)) {
     fail(`style.css is missing required ${marker} output`)
+  }
+}
+
+for (const marker of ['html{line-height:1.5', '.mx-auto', '.first\\\\:mt-8']) {
+  if (style.includes(marker)) {
+    fail(`style.css contains forbidden global or non-component output: ${marker}`)
   }
 }
 

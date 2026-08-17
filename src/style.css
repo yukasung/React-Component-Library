@@ -1,6 +1,6 @@
-@import "tailwindcss/theme";
-@import "tailwindcss/utilities";
+@import "tailwindcss/theme" source(none);
+@import "tailwindcss/utilities" source(none);
 @import "flatpickr/dist/flatpickr.css";
 @import "./components/InputDate/flatpickr-theme.css";
 
-@source "./";
+@source "./components";
