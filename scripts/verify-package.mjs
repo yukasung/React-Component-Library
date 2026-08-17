@@ -31,18 +31,34 @@ if (typeof styleTarget !== 'string' || !existsSync(resolve(root, styleTarget))) 
   fail(`style export target is missing: ${styleTarget ?? '(undefined)'}`)
 }
 
-const style = readFileSync(resolve(root, styleTarget), 'utf8')
-for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar']) {
-  if (!style.includes(marker)) {
-    fail(`style.css is missing required ${marker} output`)
+const verifyStyle = (style) => {
+  for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar']) {
+    if (!style.includes(marker)) {
+      fail(`style.css is missing required ${marker} output`)
+    }
+  }
+
+  for (const marker of ['@layer base', 'html,:host{line-height:1.5', '.mx-auto', '.first\\\\:mt-8']) {
+    if (style.includes(marker)) {
+      fail(`style.css contains forbidden global or non-component output: ${marker}`)
+    }
   }
 }
 
-for (const marker of ['html{line-height:1.5', '.mx-auto', '.first\\\\:mt-8']) {
-  if (style.includes(marker)) {
-    fail(`style.css contains forbidden global or non-component output: ${marker}`)
+if (process.argv.includes('--self-test')) {
+  const preflightFixture = '.rounded-lg{}--rc-color-primary{}.flatpickr-calendar{}@layer base{html,:host{line-height:1.5}}'
+  try {
+    verifyStyle(preflightFixture)
+  } catch {
+    console.log('Package verifier self-test passed.')
+    process.exit(0)
   }
+
+  fail('style.css guard did not reject the real Tailwind Preflight signature')
 }
+
+const style = readFileSync(resolve(root, styleTarget), 'utf8')
+verifyStyle(style)
 
 const findTestDeclarations = (directory) =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
