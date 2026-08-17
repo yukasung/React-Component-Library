@@ -35,6 +35,36 @@ describe('InputTime', () => {
     expect(input.className).toContain('custom')
   })
 
+  it('uses custom dropdown labels and icon while retaining keyboard selection', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <InputTime
+        value={at(9)}
+        onChange={onChange}
+        dropdownIcon={<span data-testid="time-icon">time</span>}
+        dropdownAriaLabel="Open appointment times"
+        optionsAriaLabel="Appointment times"
+      />,
+    )
+    const input = screen.getByRole('combobox')
+    const button = screen.getByRole('button', { name: 'Open appointment times' })
+
+    expect(button).toContainElement(screen.getByTestId('time-icon'))
+    await user.click(button)
+    expect(screen.getByRole('listbox', { name: 'Appointment times' })).toBeInTheDocument()
+
+    input.focus()
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith(at(9, 15))
+  })
+
+  it('uses the primary theme hook for focus and selected options', () => {
+    render(<InputTime value={at(9)} onChange={() => {}} />)
+    expect(screen.getByRole('combobox').className).toContain('var(--rc-color-primary,#465fff)')
+    expect(screen.getByRole('combobox').className).toContain('color-mix')
+  })
+
   it('displays a controlled value', () => {
     render(<InputTime value={at(14, 30)} onChange={() => {}} />)
     expect(screen.getByRole('combobox')).toHaveValue('14:30')

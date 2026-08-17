@@ -24,6 +24,7 @@ export interface UseFlatpickrCalendarOptions {
   // in InputDate.tsx; this hook only consumes the resolved number.
   yearOffset: number
   committedValue: Date | null
+  calendarId: string
   // Called when a day is picked in the calendar, with the picked date
   // normalized to the start of day. Kept latest-in-a-ref internally, so the
   // once-bound flatpickr onChange always calls the current closure.
@@ -59,6 +60,7 @@ export function useFlatpickrCalendar({
   flatpickrLocale,
   yearOffset,
   committedValue,
+  calendarId,
   onPick,
   onOpenChange,
 }: UseFlatpickrCalendarOptions): UseFlatpickrCalendarResult {
@@ -165,6 +167,8 @@ export function useFlatpickrCalendar({
         onOpenChangeRef.current(false)
       },
     })
+    instance.calendarContainer.id = calendarId
+    instance.calendarContainer.setAttribute('role', 'dialog')
     instanceRef.current = instance
     return () => {
       instance.destroy()

@@ -196,7 +196,7 @@
 .flatpickr-months .flatpickr-prev-month:hover svg,
 .flatpickr-months .flatpickr-next-month:hover svg {
   fill: none;
-  stroke: #465fff;
+  stroke: var(--rc-color-primary, #465fff);
 }
 
 .flatpickr-months > .flatpickr-month,
@@ -283,8 +283,8 @@
 .flatpickr-day.selected,
 .flatpickr-day.selected:hover,
 .flatpickr-day.selected:focus {
-  border-color: #465fff;
-  background-color: #465fff;
+  border-color: var(--rc-color-primary, #465fff);
+  background-color: var(--rc-color-primary, #465fff);
 }
 
 :is(.dark *) .flatpickr-calendar {

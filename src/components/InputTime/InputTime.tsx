@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
+import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { applySelection, selectRangeAtCaret } from '../../lib/domSelection'
 import { diffStrings, maskPlaceholder } from '../../lib/inputMask'
@@ -104,6 +104,9 @@ export interface InputTimeProps
   // Height cap (px) for the scrollable list. A real necessity rather than a
   // nicety here: a full day at the default 15-minute step is 96 entries.
   maxDropdownHeight?: number
+  dropdownIcon?: ReactNode
+  dropdownAriaLabel?: string
+  optionsAriaLabel?: string
 }
 
 // Same layout as InputDate — see the note on its own copy of these: the
@@ -117,9 +120,9 @@ function inputStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
     return 'cursor-not-allowed border-gray-300 bg-gray-100 text-gray-500 opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
   }
   if (isReadOnly) {
-    return 'cursor-default border-gray-300 bg-gray-50 text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800/60 dark:focus:border-blue-800'
+    return 'cursor-default border-gray-300 bg-gray-50 text-gray-800 focus:border-[var(--rc-color-primary,#465fff)] focus:ring-[color-mix(in_srgb,var(--rc-color-primary,#465fff)_20%,transparent)] dark:border-gray-700 dark:bg-gray-800/60 dark:focus:border-[var(--rc-color-primary,#465fff)]'
   }
-  return 'border-gray-300 bg-transparent text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-blue-800'
+  return 'border-gray-300 bg-transparent text-gray-800 focus:border-[var(--rc-color-primary,#465fff)] focus:ring-[color-mix(in_srgb,var(--rc-color-primary,#465fff)_20%,transparent)] dark:border-gray-700 dark:bg-gray-900 dark:focus:border-[var(--rc-color-primary,#465fff)]'
 }
 
 // No hover treatment, matching InputDate and the reference it came from —
@@ -139,7 +142,7 @@ const listClassName =
 // definition already visible. The keyboard highlight stays real state.
 function optionClassName(isSelected: boolean, isHighlighted: boolean): string {
   const base = 'cursor-pointer px-3 py-1.5 text-sm'
-  if (isSelected) return `${base} bg-blue-600 font-medium text-white`
+  if (isSelected) return `${base} bg-[var(--rc-color-primary,#465fff)] font-medium text-white`
   const hover = 'hover:bg-gray-100 dark:hover:bg-white/5'
   if (isHighlighted) return `${base} ${hover} bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/90`
   return `${base} ${hover} text-gray-700 dark:text-gray-300`
@@ -172,6 +175,9 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     handleWheel = false,
     showDropdownButton = true,
     maxDropdownHeight = 200,
+    dropdownIcon,
+    dropdownAriaLabel = 'Toggle time list',
+    optionsAriaLabel = 'Time options',
     // Native passthrough (it arrives via InputHTMLAttributes, not as a prop
     // of this component's own), pulled out of `rest` only so an empty field
     // can fall back to the mask's own shape — see placeholderText below.
@@ -685,26 +691,26 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
         <button
           type="button"
           tabIndex={-1}
-          aria-label="Toggle time list"
+          aria-label={dropdownAriaLabel}
           disabled={isDisabled || isReadOnly}
           onMouseDown={(event) => event.preventDefault()}
           onClick={handleToggleDropdown}
           className={dropdownButtonClassName}
         >
-          <ClockIcon />
+          {dropdownIcon ?? <ClockIcon />}
         </button>
       )}
       {dropdown.isOpen && hasDropdown && (
-        <ul
+        <div
           ref={dropdown.listRef}
           id={listId}
           role="listbox"
-          aria-label="Time options"
+          aria-label={optionsAriaLabel}
           style={{ maxHeight: maxDropdownHeight }}
           className={listClassName}
         >
           {times.map((minutes, index) => (
-            <li
+            <div
               key={minutes}
               id={`${listId}-${index}`}
               role="option"
@@ -717,9 +723,9 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
               className={optionClassName(minutes === displayMinutes, index === dropdown.highlightedIndex)}
             >
               {timeLabels[index]}
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )

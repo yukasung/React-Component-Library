@@ -1,5 +1,5 @@
-import { forwardRef, useEffect, useRef, useState } from 'react'
-import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
+import { forwardRef, useEffect, useId, useRef, useState } from 'react'
+import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 import 'flatpickr/dist/flatpickr.css'
 import { Thai } from 'flatpickr/dist/l10n/th.js'
 import './flatpickr-theme.css'
@@ -82,14 +82,16 @@ export interface InputDateProps
   closeOnSelection?: boolean
   showDropdownButton?: boolean
   monthCount?: number
+  dropdownIcon?: ReactNode
+  dropdownAriaLabel?: string
 }
 
 // Layout ported from references/tailadmin-react/src/components/form/date-picker.tsx:
 // the border, background and focus ring live on the <input> itself, and the
 // calendar icon is an overlay positioned over its right edge — not a
 // bordered button in its own cell beside it. Only the palette is
-// translated: the reference's `brand-*` scale and `shadow-theme-xs` become
-// this project's stock `blue-*` and `shadow-sm`.
+// translated: the reference's `brand-*` scale is exposed through the
+// --rc-color-primary theme hook, while its `shadow-theme-xs` becomes shadow-sm.
 const inputBaseClassName =
   'h-11 w-full appearance-none rounded-lg border px-4 py-2.5 text-sm shadow-sm outline-none placeholder:text-gray-400 focus:ring-3 dark:text-white/90 dark:placeholder:text-white/30'
 
@@ -98,9 +100,9 @@ function inputStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
     return 'cursor-not-allowed border-gray-300 bg-gray-100 text-gray-500 opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
   }
   if (isReadOnly) {
-    return 'cursor-default border-gray-300 bg-gray-50 text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800/60 dark:focus:border-blue-800'
+    return 'cursor-default border-gray-300 bg-gray-50 text-gray-800 focus:border-[var(--rc-color-primary,#465fff)] focus:ring-[color-mix(in_srgb,var(--rc-color-primary,#465fff)_20%,transparent)] dark:border-gray-700 dark:bg-gray-800/60 dark:focus:border-[var(--rc-color-primary,#465fff)]'
   }
-  return 'border-gray-300 bg-transparent text-gray-800 focus:border-blue-300 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-blue-800'
+  return 'border-gray-300 bg-transparent text-gray-800 focus:border-[var(--rc-color-primary,#465fff)] focus:ring-[color-mix(in_srgb,var(--rc-color-primary,#465fff)_20%,transparent)] dark:border-gray-700 dark:bg-gray-900 dark:focus:border-[var(--rc-color-primary,#465fff)]'
 }
 
 // Unlike the reference's icon — a `pointer-events-none` <span>, purely
@@ -139,6 +141,8 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     showDropdownButton = true,
     monthCount = 1,
     locale = 'en',
+    dropdownIcon,
+    dropdownAriaLabel = 'Toggle calendar',
     // Native passthrough (it arrives via InputHTMLAttributes, not as a prop of
     // this component's own), pulled out of `rest` only so an empty field can
     // fall back to the format's own shape — see placeholderText below.
@@ -152,6 +156,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   const [internalValue, setInternalValue] = useState<Date | null>(defaultValue)
   const [isFocused, setIsFocused] = useState(false)
   const [isOpenState, setIsOpenState] = useState(false)
+  const calendarId = useId()
   const committedValue = isControlled ? value : internalValue
   const yearOffset = locale === 'th' ? BUDDHIST_ERA_OFFSET : 0
   const flatpickrLocale = locale === 'th' ? Thai : undefined
@@ -331,6 +336,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     flatpickrLocale,
     yearOffset,
     committedValue,
+    calendarId,
     onPick: (next: Date | null) => reseedTemplate(commit(next)),
     // Internal only — the popup's open state never leaves the component;
     // this just keeps aria-expanded in step with it.
@@ -549,6 +555,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
         role="combobox"
         aria-expanded={isOpenState}
         aria-haspopup="dialog"
+        aria-controls={calendarId}
         aria-autocomplete="none"
         placeholder={placeholderText}
         // The groups stand in for the draft while the field is being edited —
@@ -609,19 +616,18 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
       {showDropdownButton && (
         <button
           type="button"
-          tabIndex={-1}
-          aria-label="Toggle calendar"
+          aria-label={dropdownAriaLabel}
           disabled={isDisabled || isReadOnly}
           onMouseDown={(event) => event.preventDefault()}
           onClick={handleToggleDropdown}
           className={dropdownButtonClassName}
         >
-          <CalendarIcon />
+          {dropdownIcon ?? <CalendarIcon />}
         </button>
       )}
       {/* React-opaque host for flatpickr's popup — see the DOM-ownership
           escape-hatch note above; must stay empty in JSX. */}
-      <div ref={containerRef} className="absolute inset-x-0 bottom-0 h-0 w-0" aria-hidden="true" />
+      <div ref={containerRef} className="absolute inset-x-0 bottom-0 h-0 w-0" />
     </div>
   )
 })

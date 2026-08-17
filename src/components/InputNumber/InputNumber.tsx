@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
-import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
+import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
 import {
@@ -67,6 +67,10 @@ export interface InputNumberProps
   // changes don't echo back through `onChange`.
   text?: string
   onTextChange?: (text: string) => void
+  decreaseIcon?: ReactNode
+  increaseIcon?: ReactNode
+  decreaseAriaLabel?: string
+  increaseAriaLabel?: string
 }
 
 const REPEAT_INITIAL_DELAY_MS = 400
@@ -79,7 +83,7 @@ const REPEAT_INTERVAL_MS = 80
 // flex child; :focus-within (rather than the input's own :focus) puts the
 // ring on the whole wrapper when the input inside it is focused.
 const wrapperBaseClassName =
-  'flex items-stretch overflow-hidden rounded-lg border shadow-sm focus-within:border-blue-300 focus-within:ring-3 focus-within:ring-blue-500/20'
+  'flex items-stretch overflow-hidden rounded-lg border shadow-sm focus-within:border-[var(--rc-color-primary,#465fff)] focus-within:ring-3 focus-within:ring-[color-mix(in_srgb,var(--rc-color-primary,#465fff)_20%,transparent)]'
 
 function wrapperStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
   if (isDisabled) {
@@ -113,6 +117,7 @@ function SpinButton({
   onClick,
   borderSide,
   path,
+  icon,
 }: {
   ariaLabel: string
   disabled: boolean
@@ -121,6 +126,7 @@ function SpinButton({
   onClick: () => void
   borderSide: 'border-l' | 'border-r'
   path: string
+  icon?: ReactNode
 }) {
   return (
     <button
@@ -137,9 +143,11 @@ function SpinButton({
       onClick={onClick}
       className={`${spinButtonClassName} ${borderSide}`}
     >
-      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
-        <path d={path} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      {icon ?? (
+        <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
+          <path d={path} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
     </button>
   )
 }
@@ -161,6 +169,10 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     repeatButtons = true,
     handleWheel = false,
     truncate = false,
+    decreaseIcon,
+    increaseIcon,
+    decreaseAriaLabel = 'Decrease value',
+    increaseAriaLabel = 'Increase value',
     className,
     ...rest
   },
@@ -587,13 +599,14 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     >
       {hasStep && (
         <SpinButton
-          ariaLabel="Decrease value"
+          ariaLabel={decreaseAriaLabel}
           disabled={spinButtonsDisabled || atMin}
           onStart={() => startRepeat(-1)}
           onEnd={clearRepeat}
           onClick={() => handleSpinClick(-1)}
           borderSide="border-r"
           path="M2 6h8"
+          icon={decreaseIcon}
         />
       )}
       <input
@@ -640,13 +653,14 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       />
       {hasStep && (
         <SpinButton
-          ariaLabel="Increase value"
+          ariaLabel={increaseAriaLabel}
           disabled={spinButtonsDisabled || atMax}
           onStart={() => startRepeat(1)}
           onEnd={clearRepeat}
           onClick={() => handleSpinClick(1)}
           borderSide="border-l"
           path="M6 2v8M2 6h8"
+          icon={increaseIcon}
         />
       )}
     </div>

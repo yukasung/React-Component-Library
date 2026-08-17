@@ -15,10 +15,14 @@ function typeInto(user: ReturnType<typeof userEvent.setup>, input: HTMLElement, 
   return user.type(input, keys, { skipClick: true })
 }
 
+function getDateInput(): HTMLInputElement {
+  return document.querySelector<HTMLInputElement>('input[role="combobox"]')!
+}
+
 describe('InputDate', () => {
   it('passes through id, name, placeholder, and className', () => {
     render(<InputDate id="dob" name="dateOfBirth" placeholder="Pick a date" className="custom" />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
     expect(input).toHaveAttribute('id', 'dob')
     expect(input).toHaveAttribute('name', 'dateOfBirth')
     expect(input).toHaveAttribute('placeholder', 'Pick a date')
@@ -28,16 +32,37 @@ describe('InputDate', () => {
     expect(input.className).toContain('custom')
   })
 
+  it('uses a consumer-supplied calendar icon and accessible name', () => {
+    render(
+      <InputDate
+        value={new Date(2026, 6, 1)}
+        onChange={() => {}}
+        dropdownIcon={<span data-testid="calendar-icon">calendar</span>}
+        dropdownAriaLabel="Open booking calendar"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Open booking calendar' })).toContainElement(
+      screen.getByTestId('calendar-icon'),
+    )
+  })
+
+  it('uses the primary theme hook for its focus treatment', () => {
+    render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
+    expect(getDateInput().className).toContain('var(--rc-color-primary,#465fff)')
+    expect(getDateInput().className).toContain('color-mix')
+  })
+
   it('displays a controlled value', () => {
     render(<InputDate value={new Date(2026, 6, 22)} onChange={() => {}} />)
-    expect(screen.getByRole('combobox')).toHaveValue('2026-07-22')
+    expect(getDateInput()).toHaveValue('2026-07-22')
   })
 
   it('updates the displayed value while typing without committing', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
 
     await user.clear(input)
     await typeInto(user, input, '2026-07-15')
@@ -50,7 +75,7 @@ describe('InputDate', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
 
     await user.clear(input)
     await typeInto(user, input, '2026-07-15')
@@ -64,7 +89,7 @@ describe('InputDate', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
 
     await user.clear(input)
     await typeInto(user, input, '2026-07-04')
@@ -78,7 +103,7 @@ describe('InputDate', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
 
     await user.clear(input)
     await typeInto(user, input, '2026-07-04')
@@ -93,7 +118,7 @@ describe('InputDate', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
 
     await user.clear(input)
     // The live-typing mask (see the "typed-digit masking" describe block
@@ -112,7 +137,7 @@ describe('InputDate', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
 
     await user.clear(input)
     await typeInto(user, input, '2026-01-01')
@@ -126,7 +151,7 @@ describe('InputDate', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
 
     await user.clear(input)
     await user.tab()
@@ -137,7 +162,7 @@ describe('InputDate', () => {
   it('works uncontrolled via defaultValue', async () => {
     const user = userEvent.setup()
     render(<InputDate defaultValue={new Date(2026, 6, 3)} isRequired={false} />)
-    const input = screen.getByRole('combobox')
+    const input = getDateInput()
     expect(input).toHaveValue('2026-07-03')
 
     await user.clear(input)
@@ -149,10 +174,10 @@ describe('InputDate', () => {
 
   it('resyncs the displayed value when the external value prop changes', () => {
     const { rerender } = render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
-    expect(screen.getByRole('combobox')).toHaveValue('2026-07-01')
+    expect(getDateInput()).toHaveValue('2026-07-01')
 
     rerender(<InputDate value={new Date(2026, 6, 9)} onChange={() => {}} />)
-    expect(screen.getByRole('combobox')).toHaveValue('2026-07-09')
+    expect(getDateInput()).toHaveValue('2026-07-09')
   })
 
   it('forwards the ref to the underlying input element', () => {
@@ -168,7 +193,7 @@ describe('InputDate', () => {
     // positioning (confirmed empirically, not just reasoned about).
     vi.useFakeTimers()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} format="d/m/Y" />)
-    const input = screen.getByRole('combobox') as HTMLInputElement
+    const input = getDateInput() as HTMLInputElement
 
     act(() => {
       input.focus()
@@ -185,7 +210,7 @@ describe('InputDate', () => {
   it('still selects the whole value on focus for a format the groups cannot describe', () => {
     vi.useFakeTimers()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} format="F j, Y" />)
-    const input = screen.getByRole('combobox') as HTMLInputElement
+    const input = getDateInput() as HTMLInputElement
 
     act(() => {
       input.focus()
@@ -203,7 +228,7 @@ describe('InputDate', () => {
   it('does not select on focus if the field is blurred before the deferred timer fires', () => {
     vi.useFakeTimers()
     render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
-    const input = screen.getByRole('combobox') as HTMLInputElement
+    const input = getDateInput() as HTMLInputElement
 
     input.focus()
     input.blur()
@@ -229,7 +254,7 @@ describe('InputDate', () => {
           isRequired={false}
         />,
       )
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       await user.clear(input)
       await typeInto(user, input, '2026-07-01')
@@ -250,7 +275,7 @@ describe('InputDate', () => {
           isRequired={false}
         />,
       )
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       await user.clear(input)
       await typeInto(user, input, '2026-07-31')
@@ -265,7 +290,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       input.focus()
       await user.keyboard('{ArrowUp}')
@@ -277,7 +302,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       input.focus()
       await user.keyboard('{ArrowDown}')
@@ -295,7 +320,7 @@ describe('InputDate', () => {
           max={new Date(2026, 6, 20)}
         />,
       )
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       input.focus()
       await user.keyboard('{ArrowUp}')
@@ -309,7 +334,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       input.focus()
       await user.keyboard('{ArrowUp}')
@@ -323,7 +348,7 @@ describe('InputDate', () => {
   describe('isDisabled', () => {
     it('renders as a disabled input with disabled styling', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} isDisabled />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       expect(input).toBeDisabled()
       expect(input.className).toContain('opacity-40')
     })
@@ -332,7 +357,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} isDisabled />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       const button = screen.getByRole('button', { name: 'Toggle calendar' })
 
       expect(button).toBeDisabled()
@@ -349,7 +374,7 @@ describe('InputDate', () => {
   describe('isReadOnly', () => {
     it('renders as read-only, distinct from disabled, and stays focusable', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} isReadOnly />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       expect(input).toHaveAttribute('readonly')
       expect(input).not.toBeDisabled()
     })
@@ -358,7 +383,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} isReadOnly showDropdownButton={false} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       input.focus()
       await user.keyboard('{Enter}')
@@ -371,7 +396,7 @@ describe('InputDate', () => {
     it("snaps to today's date immediately (not the previous value) when cleared", async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       await user.clear(input)
 
@@ -382,7 +407,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} isRequired={false} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       await user.clear(input)
       // Emptied, and still being edited -- so the groups show rather than the
@@ -402,7 +427,7 @@ describe('InputDate', () => {
 
     function focused(props: Partial<Parameters<typeof InputDate>[0]> = {}) {
       render(<InputDate defaultValue={null} isRequired={false} {...props} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
       act(() => {
         input.focus()
       })
@@ -438,7 +463,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={null} onChange={onChange} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
       act(() => {
         input.focus()
       })
@@ -457,7 +482,7 @@ describe('InputDate', () => {
       // refuses to go -- it was the required-field snap refilling every group
       // the moment the last one emptied.
       render(<InputDate defaultValue={new Date(2026, 6, 30)} format="d/m/Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
       act(() => {
         input.focus()
       })
@@ -475,7 +500,7 @@ describe('InputDate', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate defaultValue={new Date(2026, 6, 30)} onChange={onChange} format="d/m/Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
       act(() => {
         input.focus()
       })
@@ -492,7 +517,7 @@ describe('InputDate', () => {
     it('keeps the group the user was in after an Arrow step', () => {
       vi.useFakeTimers()
       render(<InputDate defaultValue={new Date(2026, 6, 15)} format="Y-m-d" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
       act(() => {
         input.focus()
       })
@@ -524,40 +549,40 @@ describe('InputDate', () => {
   describe('placeholder', () => {
     it('falls back to the format as an empty mask', () => {
       render(<InputDate defaultValue={null} isRequired={false} format="d/m/Y" />)
-      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '__/__/____')
+      expect(getDateInput()).toHaveAttribute('placeholder', '__/__/____')
     })
 
     it('follows the format, separators and widths included', () => {
       render(<InputDate defaultValue={null} isRequired={false} format="j/n/y" />)
       // Unpadded tokens still occupy their full width, so the shape shown is
       // the shape typing produces.
-      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '__/__/__')
+      expect(getDateInput()).toHaveAttribute('placeholder', '__/__/__')
     })
 
     it('renders the default format, whose own separator is also the filler', () => {
       render(<InputDate defaultValue={null} isRequired={false} />)
       // "Y-m-d" comes out as ten dashes: the groups and the separators are
       // the same character, so nothing distinguishes them.
-      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', '____-__-__')
+      expect(getDateInput()).toHaveAttribute('placeholder', '____-__-__')
     })
 
     it('shows none for a format the mask cannot describe', () => {
       // "F j, Y" spells the month out, so there is no fixed-width shape to
       // show -- and inventing one would promise typing this format supports.
       render(<InputDate defaultValue={null} isRequired={false} format="F j, Y" />)
-      expect(screen.getByRole('combobox')).not.toHaveAttribute('placeholder')
+      expect(getDateInput()).not.toHaveAttribute('placeholder')
     })
 
     it('leaves a consumer-supplied placeholder alone', () => {
       render(<InputDate defaultValue={null} isRequired={false} placeholder="วันเกิด" />)
-      expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'วันเกิด')
+      expect(getDateInput()).toHaveAttribute('placeholder', 'วันเกิด')
     })
   })
 
   describe('text (two-way binding for the displayed draft)', () => {
     it('displays the controlled text prop instead of the formatted value', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} text="not-a-real-date" />)
-      expect(screen.getByRole('combobox')).toHaveValue('not-a-real-date')
+      expect(getDateInput()).toHaveValue('not-a-real-date')
     })
 
     it('calls onTextChange as the user types', async () => {
@@ -566,7 +591,7 @@ describe('InputDate', () => {
       render(
         <InputDate value={new Date(2026, 6, 1)} onChange={() => {}} onTextChange={onTextChange} isRequired={false} />,
       )
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       await user.clear(input)
       await typeInto(user, input, '5')
@@ -582,7 +607,7 @@ describe('InputDate', () => {
     it('does not step on wheel by default', () => {
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
@@ -593,7 +618,7 @@ describe('InputDate', () => {
     it('steps by one day per wheel notch while focused when enabled', () => {
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} handleWheel />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
@@ -604,7 +629,7 @@ describe('InputDate', () => {
     it('ignores wheel events while unfocused even when enabled', () => {
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} handleWheel />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       fireEvent.wheel(input, { deltaY: -100 })
 
@@ -616,7 +641,7 @@ describe('InputDate', () => {
     it('tracks the popup state on aria-expanded as the user opens and closes it', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       const button = screen.getByRole('button', { name: 'Toggle calendar' })
       expect(input).toHaveAttribute('aria-expanded', 'false')
 
@@ -656,7 +681,7 @@ describe('InputDate', () => {
   describe('ARIA', () => {
     it('exposes combobox role with haspopup/expanded/autocomplete attributes', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       expect(input).toHaveAttribute('aria-haspopup', 'dialog')
       expect(input).toHaveAttribute('aria-autocomplete', 'none')
       expect(input).toHaveAttribute('aria-expanded', 'false')
@@ -664,12 +689,12 @@ describe('InputDate', () => {
 
     it('passes a consumer-supplied aria-describedby straight through', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} aria-describedby="external-id" />)
-      expect(screen.getByRole('combobox')).toHaveAttribute('aria-describedby', 'external-id')
+      expect(getDateInput()).toHaveAttribute('aria-describedby', 'external-id')
     })
 
     it('omits aria-describedby entirely when the consumer supplies none', () => {
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
-      expect(screen.getByRole('combobox')).not.toHaveAttribute('aria-describedby')
+      expect(getDateInput()).not.toHaveAttribute('aria-describedby')
     })
   })
 
@@ -690,6 +715,27 @@ describe('InputDate', () => {
   // suite so a break here is easy to attribute to the dependency, not a
   // regression in this component's own logic.
   describe('calendar popup (flatpickr integration)', () => {
+    it('connects the combobox to an exposed popup and keeps its toggle tabbable', async () => {
+      const user = userEvent.setup()
+      render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
+      const input = getDateInput()
+      const button = screen.getByRole('button', { name: 'Toggle calendar' })
+      const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')
+
+      expect(calendar).not.toBeNull()
+      expect(input).toHaveAttribute('aria-controls', calendar!.id)
+      expect(calendar!.closest('[aria-hidden="true"]')).toBeNull()
+      expect(button.tabIndex).toBe(0)
+
+      await user.tab()
+      expect(input).toHaveFocus()
+      await user.tab()
+      expect(button).toHaveFocus()
+      await user.keyboard('{Enter}')
+
+      expect(input).toHaveAttribute('aria-expanded', 'true')
+    })
+
     it('opens the calendar and commits the clicked day', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
@@ -697,7 +743,7 @@ describe('InputDate', () => {
       const button = screen.getByRole('button', { name: 'Toggle calendar' })
 
       await user.click(button)
-      expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'true')
+      expect(getDateInput()).toHaveAttribute('aria-expanded', 'true')
 
       const day = document.querySelector(
         '.flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label="July 4, 2026"]',
@@ -711,7 +757,7 @@ describe('InputDate', () => {
     it('closes the popup after selection when closeOnSelection is true (default)', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       const button = screen.getByRole('button', { name: 'Toggle calendar' })
 
       await user.click(button)
@@ -726,7 +772,7 @@ describe('InputDate', () => {
     it('keeps the popup open after selection when closeOnSelection is false', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} closeOnSelection={false} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       const button = screen.getByRole('button', { name: 'Toggle calendar' })
 
       await user.click(button)
@@ -741,7 +787,7 @@ describe('InputDate', () => {
     it('toggles closed when clicking the button again', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 1)} onChange={() => {}} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
       const button = screen.getByRole('button', { name: 'Toggle calendar' })
 
       await user.click(button)
@@ -755,14 +801,14 @@ describe('InputDate', () => {
   describe('locale (Thai + Buddhist Era)', () => {
     it('displays the committed value in Buddhist Era in the text field', () => {
       render(<InputDate value={new Date(2026, 6, 22)} onChange={() => {}} locale="th" />)
-      expect(screen.getByRole('combobox')).toHaveValue('2569-07-22')
+      expect(getDateInput()).toHaveValue('2569-07-22')
     })
 
     it('commits a typed Buddhist year to the correct Gregorian date', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} locale="th" isRequired={false} />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       await user.clear(input)
       await typeInto(user, input, '2569-07-15')
@@ -773,7 +819,7 @@ describe('InputDate', () => {
 
     it('does not affect English locale (default) formatting', () => {
       render(<InputDate value={new Date(2026, 6, 22)} onChange={() => {}} />)
-      expect(screen.getByRole('combobox')).toHaveValue('2026-07-22')
+      expect(getDateInput()).toHaveValue('2026-07-22')
     })
 
     it('renders Thai weekday names in the calendar popup', async () => {
@@ -854,7 +900,7 @@ describe('InputDate', () => {
     it('accepts an autofilled date and commits it', () => {
       const onChange = vi.fn()
       render(<InputDate value={null} onChange={onChange} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
 
       fireEvent.change(input, { target: { value: '2026-07-22' } })
       expect(input).toHaveValue('2026-07-22')
@@ -866,7 +912,7 @@ describe('InputDate', () => {
     it('reverts autofilled text that is not a date in this format', () => {
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} isRequired={false} />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
 
       fireEvent.change(input, { target: { value: 'not a date' } })
       fireEvent.blur(input)
@@ -877,7 +923,7 @@ describe('InputDate', () => {
 
     it('snaps a required field back when it is emptied', () => {
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} format="F j, Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
 
       fireEvent.change(input, { target: { value: '' } })
 
@@ -889,7 +935,7 @@ describe('InputDate', () => {
     it('refuses text entry but keeps the calendar live', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} format="F j, Y" />)
-      const input = screen.getByRole('combobox') as HTMLInputElement
+      const input = getDateInput() as HTMLInputElement
 
       // "July 15, 2026" can't be read back by the parser, so accepting
       // keystrokes would only ever produce text that fails to commit.
@@ -906,7 +952,7 @@ describe('InputDate', () => {
     it('still steps with the Arrow keys', () => {
       const onChange = vi.fn()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} format="F j, Y" />)
-      const input = screen.getByRole('combobox')
+      const input = getDateInput()
 
       fireEvent.keyDown(input, { key: 'ArrowUp' })
 
@@ -916,7 +962,7 @@ describe('InputDate', () => {
 
     it('leaves a format the groups can describe typeable', () => {
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} format="d/m/Y" />)
-      expect(screen.getByRole('combobox')).not.toHaveAttribute('readonly')
+      expect(getDateInput()).not.toHaveAttribute('readonly')
     })
   })
 

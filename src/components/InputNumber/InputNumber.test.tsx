@@ -18,6 +18,29 @@ describe('InputNumber', () => {
     expect(input.parentElement?.className).toContain('custom')
   })
 
+  it('uses consumer-supplied spin button icons and accessible names', () => {
+    render(
+      <InputNumber
+        value={5}
+        step={1}
+        onChange={() => {}}
+        decreaseIcon={<span data-testid="decrease-icon">less</span>}
+        increaseIcon={<span data-testid="increase-icon">more</span>}
+        decreaseAriaLabel="Lower quantity"
+        increaseAriaLabel="Raise quantity"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Lower quantity' })).toContainElement(screen.getByTestId('decrease-icon'))
+    expect(screen.getByRole('button', { name: 'Raise quantity' })).toContainElement(screen.getByTestId('increase-icon'))
+  })
+
+  it('uses the primary theme hook for its focus treatment', () => {
+    render(<InputNumber value={5} onChange={() => {}} />)
+    expect(screen.getByRole('spinbutton').parentElement?.className).toContain('var(--rc-color-primary,#465fff)')
+    expect(screen.getByRole('spinbutton').parentElement?.className).toContain('color-mix')
+  })
+
   it('displays a controlled value', () => {
     render(<InputNumber value={42} onChange={() => {}} />)
     expect(screen.getByRole('spinbutton')).toHaveValue('42')

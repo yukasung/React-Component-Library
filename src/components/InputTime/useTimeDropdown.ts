@@ -17,8 +17,8 @@ export interface UseTimeDropdownResult {
   // click anywhere inside it (including on the dropdown button itself)
   // must not count as a click-away.
   rootRef: RefObject<HTMLDivElement | null>
-  // The scrollable <ul>; used to keep the highlighted entry in view.
-  listRef: RefObject<HTMLUListElement | null>
+  // The scrollable listbox; used to keep the highlighted entry in view.
+  listRef: RefObject<HTMLDivElement | null>
   open: () => void
   close: () => void
   toggle: () => void
@@ -37,7 +37,7 @@ export interface UseTimeDropdownResult {
 // sync; the hook only owns the state the markup renders from.
 export function useTimeDropdown({ itemCount, selectedIndex }: UseTimeDropdownOptions): UseTimeDropdownResult {
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const listRef = useRef<HTMLUListElement | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [storedIndex, setHighlightedIndex] = useState(selectedIndex)
   // Clamped on read rather than corrected by an effect: a shrinking list (a
