@@ -8,13 +8,18 @@ import dts from 'vite-plugin-dts'
 export default defineConfig({
   plugins: [
     react(),
-    dts({ include: ['src'], insertTypesEntry: true, tsconfigPath: './tsconfig.lib.json' }),
+    dts({ bundleTypes: true, include: ['src'], insertTypesEntry: true, tsconfigPath: './tsconfig.lib.json' }),
   ],
   build: {
     lib: {
-      entry: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
+      entry: {
+        index: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
+        'input-number': fileURLToPath(new URL('./src/input-number.ts', import.meta.url)),
+        'input-date': fileURLToPath(new URL('./src/input-date.ts', import.meta.url)),
+        'input-time': fileURLToPath(new URL('./src/input-time.ts', import.meta.url)),
+      },
       formats: ['es'],
-      fileName: 'index',
+      fileName: (_format, entryName) => entryName,
       // InputDate imports flatpickr's CSS + our own theme override — Vite
       // extracts that into a standalone asset since a bundled ESM library
       // can't auto-inject a <style> tag. Named explicitly (rather than
@@ -24,6 +29,10 @@ export default defineConfig({
     },
     rollupOptions: {
       external: ['react', 'react-dom', 'react/jsx-runtime'],
+      output: {
+        entryFileNames: '[name].js',
+        chunkFileNames: 'chunks/[name]-[hash].js',
+      },
     },
   },
   test: {

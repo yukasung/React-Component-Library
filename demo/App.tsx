@@ -8,7 +8,7 @@ import {
   parseDraft,
   parseFormattedInput,
   parseNumericFormat,
-} from 'react-component-library'
+} from '@yukasung/react-components'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

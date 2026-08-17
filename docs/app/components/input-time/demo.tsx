@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { InputTime, formatTimeValue } from 'react-component-library'
+import { InputTime, formatTimeValue } from '@yukasung/react-components'
 
 // Only the time part of these matters — the date they carry is arbitrary,
 // but keeping them at module scope keeps them referentially stable across

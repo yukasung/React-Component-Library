@@ -1,5 +1,5 @@
 {
-  "name": "react-component-library-docs",
+  "name": "@yukasung/react-components-docs",
   "private": true,
   "version": "0.1.0",
   "scripts": {
@@ -13,7 +13,7 @@
     "nextra": "^4.6.1",
     "nextra-theme-docs": "^4.6.1",
     "react": "^19.2.7",
-    "react-component-library": "file:..",
+    "@yukasung/react-components": "file:..",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {

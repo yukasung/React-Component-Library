@@ -1,6 +1,5 @@
 {
-  "name": "react-component-library",
-  "private": true,
+  "name": "@yukasung/react-components",
   "version": "0.1.0",
   "type": "module",
   "license": "UNLICENSED",
@@ -11,7 +10,17 @@
   "files": [
     "dist"
   ],
-  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yukasung/React-Component-Library.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,11 +29,24 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./input-number": {
+      "types": "./dist/input-number.d.ts",
+      "import": "./dist/input-number.js"
+    },
+    "./input-date": {
+      "types": "./dist/input-date.d.ts",
+      "import": "./dist/input-date.js"
+    },
+    "./input-time": {
+      "types": "./dist/input-time.d.ts",
+      "import": "./dist/input-time.js"
+    },
     "./style.css": "./dist/style.css"
   },
   "scripts": {
     "dev": "vite --config demo/vite.config.ts",
-    "build": "vite build",
+    "build": "vite build && npm run verify:package",
+    "verify:package": "node scripts/verify-package.mjs",
     "typecheck": "tsc --build",
     "lint": "eslint .",
     "test": "vitest run",
@@ -40,6 +62,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
+    "@microsoft/api-extractor": "^7.58.12",
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

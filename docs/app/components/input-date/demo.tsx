@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { InputDate, formatDateValue } from 'react-component-library'
+import { InputDate, formatDateValue } from '@yukasung/react-components'
 
 function formatCommitted(value: Date | null) {
   return value === null ? 'null' : formatDateValue(value, 'Y-m-d')

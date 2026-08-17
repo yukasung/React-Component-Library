@@ -18,7 +18,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "paths": {
-      "react-component-library": ["../src/index.ts"]
+      "@yukasung/react-components": ["../src/index.ts"]
     },
     "plugins": [
       {

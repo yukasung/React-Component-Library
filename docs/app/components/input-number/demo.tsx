@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { InputNumber, parseDraft, parseFormattedInput, parseNumericFormat } from 'react-component-library'
+import { InputNumber, parseDraft, parseFormattedInput, parseNumericFormat } from '@yukasung/react-components'
 
 function formatCommitted(value: number | null) {
   return value === null ? 'null' : String(value)

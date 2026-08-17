@@ -136,8 +136,8 @@ The one piece that can't be fixed by wrapping flatpickr's documented `formatDate
 
 ### `demo/` vs. `docs/`: two different consumers of the library
 
-- `demo/vite.config.ts` aliases the package name `react-component-library` straight to `src/index.ts` — it imports library source directly for live dev, never `dist/`.
-- `docs/next.config.mjs` aliases `react-component-library` straight to `src/index.ts` too (via `transpilePackages` + a `webpack`/`turbopack` `resolveAlias`), the same live-source pattern as `demo/` — **not** the built `dist/` output, despite `docs/package.json` still listing `"react-component-library": "file:.."` as a dependency (kept only as a type-resolution fallback). Editing `src/` shows up in `docs/`'s dev server immediately, with no `npm run build` step needed in between.
+- `demo/vite.config.ts` aliases the package name `@yukasung/react-components` straight to `src/index.ts` — it imports library source directly for live dev, never `dist/`.
+- `docs/next.config.mjs` aliases `@yukasung/react-components` straight to `src/index.ts` too (via `transpilePackages` + a `webpack`/`turbopack` `resolveAlias`), the same live-source pattern as `demo/` — **not** the built `dist/` output, despite `docs/package.json` still listing `"@yukasung/react-components": "file:.."` as a dependency (kept only as a type-resolution fallback). Editing `src/` shows up in `docs/`'s dev server immediately, with no `npm run build` step needed in between.
 
 ### `vite-plugin-dts` tsconfig gotcha
 

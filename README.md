@@ -1,4 +1,4 @@
-# React Component Library
+# React Components
 
 Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `Grid`) styled with Tailwind CSS v4.
 
@@ -12,14 +12,26 @@ React, ReactDOM, and Tailwind CSS are peer dependencies — this package does no
 
 ## Installation
 
+Create an access token with the `read:packages` scope, then add the GitHub Packages registry and token to your user or project `.npmrc`:
+
+```ini
+@yukasung:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+```
+
+Install the published version:
+
 ```bash
-npm install react-component-library
+npm install @yukasung/react-components@0.1.0
 ```
 
 ## Usage
 
 ```tsx
-import { InputNumber } from 'react-component-library'
+// Import this stylesheet exactly once from your application entry point.
+import '@yukasung/react-components/style.css'
+
+import { InputNumber } from '@yukasung/react-components/input-number'
 
 function Example() {
   const [value, setValue] = useState<number | null>(0)
@@ -27,11 +39,15 @@ function Example() {
 }
 ```
 
-Tailwind CSS v4 must be configured to scan this package's compiled output for utility classes, e.g.:
+The package compiles the component utilities itself. Do not add its source or `dist/` directory to your Tailwind scanner; importing the stylesheet above is mandatory.
 
-```css
-@import "tailwindcss";
-@source "../node_modules/react-component-library/dist";
+Published entry points at version `0.1.0` are:
+
+```ts
+import { InputNumber } from '@yukasung/react-components/input-number'
+import { InputDate } from '@yukasung/react-components/input-date'
+import { InputTime } from '@yukasung/react-components/input-time'
+// Or import every public API from '@yukasung/react-components'.
 ```
 
 ## Development

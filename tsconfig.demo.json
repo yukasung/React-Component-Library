@@ -19,7 +19,7 @@
     "noUncheckedSideEffectImports": true,
     "types": ["vite/client"],
     "paths": {
-      "react-component-library": ["./src/index.ts"]
+      "@yukasung/react-components": ["./src/index.ts"]
     }
   },
   "include": ["demo"]

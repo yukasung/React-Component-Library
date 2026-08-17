@@ -1,8 +1,6 @@
 import { forwardRef, useEffect, useId, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
-import 'flatpickr/dist/flatpickr.css'
 import { Thai } from 'flatpickr/dist/l10n/th.js'
-import './flatpickr-theme.css'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { addDays, clampDate, formatDateValue, isSameDay, parseDateDraft, startOfDay, tokenizeDateMask } from '../../lib/date'
 import { applySelection, selectAllOnFocus, selectRangeAtCaret } from '../../lib/domSelection'

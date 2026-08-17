@@ -1,3 +1,5 @@
+import './style.css'
+
 export { InputNumber } from './components/InputNumber'
 export type { InputNumberProps } from './components/InputNumber'
 export { parseDraft, parseFormattedInput, parseNumericFormat } from './lib/number'

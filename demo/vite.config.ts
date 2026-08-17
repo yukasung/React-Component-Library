@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      'react-component-library': fileURLToPath(
+      '@yukasung/react-components': fileURLToPath(
         new URL('../src/index.ts', import.meta.url),
       ),
     },

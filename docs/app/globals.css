@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* react-component-library is aliased straight to its TS source here (see
+/* @yukasung/react-components is aliased straight to its TS source here (see
    next.config.mjs), not the compiled dist bundle — Tailwind must scan
    that source directly for classNames, the same way demo/index.css scans
    src/ in the component library itself. */

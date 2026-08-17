@@ -4,8 +4,8 @@ layer(base);
 @import "tailwindcss";
 
 /* Library source is imported directly (not from dist) during dev, so Tailwind
-   v4 must scan it for utility classes — mirrors what a real consumer project
-   will need via `@source "../node_modules/react-component-library/dist"`. */
+   v4 scans it for utilities. Published consumers import the package's
+   already-compiled style.css once instead. */
 @source "../src";
 
 @custom-variant dark (&:is(.dark *));
