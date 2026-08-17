@@ -715,6 +715,18 @@ describe('InputDate', () => {
   // suite so a break here is easy to attribute to the dependency, not a
   // regression in this component's own logic.
   describe('calendar popup (flatpickr integration)', () => {
+    it('labels the calendar dialog by default and supports a custom label', () => {
+      const { rerender } = render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
+      const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')!
+
+      expect(calendar).toHaveAttribute('aria-label', 'Calendar')
+
+      rerender(
+        <InputDate value={new Date(2026, 6, 15)} onChange={() => {}} calendarAriaLabel="Booking date calendar" />,
+      )
+      expect(calendar).toHaveAttribute('aria-label', 'Booking date calendar')
+    })
+
     it('connects the combobox to an exposed popup and keeps its toggle tabbable', async () => {
       const user = userEvent.setup()
       render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)

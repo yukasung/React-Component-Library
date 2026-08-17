@@ -84,6 +84,7 @@ export interface InputDateProps
   monthCount?: number
   dropdownIcon?: ReactNode
   dropdownAriaLabel?: string
+  calendarAriaLabel?: string
 }
 
 // Layout ported from references/tailadmin-react/src/components/form/date-picker.tsx:
@@ -143,6 +144,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     locale = 'en',
     dropdownIcon,
     dropdownAriaLabel = 'Toggle calendar',
+    calendarAriaLabel = 'Calendar',
     // Native passthrough (it arrives via InputHTMLAttributes, not as a prop of
     // this component's own), pulled out of `rest` only so an empty field can
     // fall back to the format's own shape — see placeholderText below.
@@ -337,6 +339,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     yearOffset,
     committedValue,
     calendarId,
+    calendarAriaLabel,
     onPick: (next: Date | null) => reseedTemplate(commit(next)),
     // Internal only — the popup's open state never leaves the component;
     // this just keeps aria-expanded in step with it.

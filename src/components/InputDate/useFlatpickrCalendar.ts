@@ -25,6 +25,7 @@ export interface UseFlatpickrCalendarOptions {
   yearOffset: number
   committedValue: Date | null
   calendarId: string
+  calendarAriaLabel: string
   // Called when a day is picked in the calendar, with the picked date
   // normalized to the start of day. Kept latest-in-a-ref internally, so the
   // once-bound flatpickr onChange always calls the current closure.
@@ -61,6 +62,7 @@ export function useFlatpickrCalendar({
   yearOffset,
   committedValue,
   calendarId,
+  calendarAriaLabel,
   onPick,
   onOpenChange,
 }: UseFlatpickrCalendarOptions): UseFlatpickrCalendarResult {
@@ -198,6 +200,10 @@ export function useFlatpickrCalendar({
   useEffect(() => {
     instanceRef.current?.set('showMonths', monthCount)
   }, [monthCount])
+
+  useEffect(() => {
+    instanceRef.current?.calendarContainer.setAttribute('aria-label', calendarAriaLabel)
+  }, [calendarAriaLabel])
 
   // Confirmed via spike (not assumed): flatpickr's own `set('locale', ...)`
   // runs both setupLocale and updateWeekdays before redraw(), so this
