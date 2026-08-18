@@ -138,6 +138,7 @@ The one piece that can't be fixed by wrapping flatpickr's documented `formatDate
 
 - `demo/vite.config.ts` aliases the package name `@yukasung/react-components` straight to `src/index.ts` — it imports library source directly for live dev, never `dist/`.
 - `docs/next.config.mjs` aliases `@yukasung/react-components` straight to `src/index.ts` too (via `transpilePackages` + a `webpack`/`turbopack` `resolveAlias`), the same live-source pattern as `demo/` — **not** the built `dist/` output, despite `docs/package.json` still listing `"@yukasung/react-components": "file:.."` as a dependency (kept only as a type-resolution fallback). Editing `src/` shows up in `docs/`'s dev server immediately, with no `npm run build` step needed in between.
+- **`docs/` has to import the calendar CSS itself** (`docs/app/globals.css` imports `flatpickr/dist/flatpickr.css` and `src/components/InputDate/flatpickr-theme.css` directly). The library funnels both through `src/style.css`, which `src/index.ts` imports as a side effect — but Next's barrel optimization (`optimizePackageImports`, on by default) resolves this site's named imports straight to the source modules and never pulls in `src/index.ts`, so that CSS side effect is dropped and the flatpickr popup renders completely unstyled (in-flow, one weekday letter per line). `demo/` doesn't hit this because Vite keeps the side-effect import. Keep the two `@import`s in sync with `src/style.css` if that file's list changes.
 
 ### `vite-plugin-dts` tsconfig gotcha
 
