@@ -1,0 +1,432 @@
+import { Callout } from 'nextra/components'
+import {
+  CloseOnSelectionDemo,
+  DefaultDemo,
+  DisabledDemo,
+  FormatDemo,
+  HandleWheelDemo,
+  IsRequiredDemo,
+  LocaleDemo,
+  MaxDropdownHeightDemo,
+  MinMaxDemo,
+  MonthCountDemo,
+  NoTimeStepDemo,
+  PlaceholderDemo,
+  RangeDemo,
+  ReadOnlyDemo,
+  ShowDropdownButtonDemo,
+  TextDemo,
+  TimeFormatDemo,
+  TimeRangeDemo,
+  TimeStepDemo,
+  ValueDemo,
+} from './demo'
+import { PropertyIndex, PropertySignature } from './property-index'
+
+export const metadata = {
+  title: 'InputDateTime',
+  description: 'Input สำหรับกรอกวันที่และเวลาในช่องเดียว พร้อมปฏิทินและรายการเวลาแบบ dropdown',
+}
+
+# InputDateTime
+
+InputDateTime คือ input สำหรับกรอกและแก้ไข**วันที่และเวลาในช่องเดียวกัน** พร้อม dropdown สองแบบให้เลือก — ปฏิทินสำหรับวันที่ และรายการเวลาสำหรับเวลา
+
+<DefaultDemo />
+
+## Import
+
+```tsx
+import { InputDateTime } from '@your-scope/components'
+```
+
+## Properties
+
+<PropertyIndex />
+
+### value
+
+<PropertySignature name="value" type="Date | null" />
+
+กำหนดค่าปัจจุบันของ control
+
+<ValueDemo />
+
+```tsx
+const [value, setValue] = useState<Date | null>(new Date())
+<InputDateTime value={value} onChange={setValue} />
+```
+
+<Callout type="info">
+  **Note**
+
+  ค่าจะถูกประมวลผล (parse, จำกัดช่วง, และยิง onChange) เฉพาะตอนออกจากฟิลด์ (blur), กด Enter, เลือกจากปฏิทินหรือรายการเวลา, กดปุ่มลูกศร หรือเลื่อนล้อเมาส์เท่านั้น — ไม่ใช่ทุกครั้งที่พิมพ์ ทำให้พิมพ์ข้อความที่ยังไม่สมบูรณ์ได้โดยไม่ถูกบล็อกระหว่างทาง
+</Callout>
+
+#### ค่าเดียว ครบทั้งวันที่และเวลา
+
+ต่างจาก InputDate (ที่อ่าน/เขียนเฉพาะส่วนวันที่) และ InputTime (ที่อ่าน/เขียนเฉพาะส่วนเวลา) — control นี้เป็นเจ้าของ `Date` ทั้งก้อน จึงไม่ต้องประกอบค่าจากสองช่องเอง
+
+- เลือกวันจากปฏิทิน → เวลาเดิมถูกเก็บไว้
+- เลือกเวลาจากรายการ → วันเดิมถูกเก็บไว้
+- วินาทีและมิลลิวินาทีถูกตัดออกเสมอ — ทำงานที่ระดับความละเอียดเป็นนาที ค่าที่ต่างกันต่ำกว่าหนึ่งนาทีถือว่าเป็นค่าเดียวกัน
+
+### locale
+
+<PropertySignature name="locale" type='"en" | "th"' />
+
+กำหนดภาษาและระบบปีของ control ค่าเริ่มต้น (default): `"en"`
+
+`"th"` จะเปลี่ยนทั้งชื่อเดือน/ชื่อวันเป็นภาษาไทย และปีเป็นพุทธศักราช (พ.ศ. = ค.ศ. + 543) พร้อมกัน ทั้งในช่องกรอกและในปฏิทิน รวมถึงช่องปีบนหัวปฏิทินด้วย
+
+<LocaleDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} />
+<InputDateTime value={value} onChange={setValue} locale="th" />
+```
+
+<Callout type="info">
+  **Note**
+
+  ค่าที่ได้จาก onChange ยังเป็น `Date` ปีคริสต์ศักราชตามปกติเสมอ — พ.ศ. เป็นเรื่องการแสดงผลและการรับค่าที่พิมพ์เท่านั้น จึงส่งค่าไปหลังบ้านต่อได้โดยไม่ต้องแปลงกลับ
+</Callout>
+
+### placeholder
+
+<PropertySignature name="placeholder" type="string" />
+
+กำหนดข้อความที่แสดงเป็น hint เมื่อ control ว่างเปล่า
+
+ถ้าไม่ระบุ จะแสดงรูปแบบของ format นั้นเป็นขีดล่างแทน — `____-__-__ __:__` สำหรับ format เริ่มต้น (`Y-m-d H:i`) และ `__/__/____ __:__ __` เมื่อ format มีตัวระบุ AM/PM (เช่น `d/m/Y h:i K`) จึงบอกผู้ใช้ได้ว่าช่องนี้รอข้อมูลรูปแบบไหนโดยไม่ต้องเขียน placeholder เอง
+
+<PlaceholderDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} isRequired={false} />
+<InputDateTime value={value} onChange={setValue} isRequired={false} format="d/m/Y h:i K" />
+<InputDateTime value={value} onChange={setValue} isRequired={false} placeholder="เลือกวันและเวลา" />
+```
+
+<Callout type="info">
+  **Note**
+
+  ต้องตั้ง isRequired เป็น false ด้วย ไม่เช่นนั้นฟิลด์จะไม่มีทางว่างเปล่า (บังคับแสดงค่าเสมอ) และจะไม่เห็น placeholder เลย
+</Callout>
+
+#### การกรอกเป็นกลุ่ม
+
+เมื่อคลิกหรือ tab เข้าไปในช่อง เนื้อหาจะถูกแบ่งเป็นกลุ่ม (ปี / เดือน / วัน / ชั่วโมง / นาที และ AM-PM ถ้ามี) และกลุ่มที่คลิกจะถูกไฮไลต์ทั้งกลุ่มให้พิมพ์ทับได้ทันที (tab เข้ามาจะเริ่มที่กลุ่มแรก) ทุกกลุ่มจองที่ของตัวเองไว้ตลอด กลุ่มที่ยังไม่ได้กรอกจะแสดงเป็นขีดล่าง จึงกรอกเวลาก่อนวันที่ได้:
+
+```
+คลิกที่กลุ่มนาที → ____-__-__ __:__   พิมพ์ 3 → ____-__-__ __:03   พิมพ์ 0 → ____-__-__ __:30
+```
+
+กลุ่มวันที่และกลุ่มเวลาเดินด้วยปุ่มชุดเดียวกัน ไม่มีเส้นแบ่งระหว่างสองฝั่ง:
+
+- ← → ย้ายไปกลุ่มก่อนหน้า/ถัดไป, Home ไปกลุ่มแรก, End ไปกลุ่มสุดท้าย
+- ตัวคั่น (`-`, `/`, `:`, เว้นวรรค) ก็ย้ายไปกลุ่มถัดไปเช่นกัน จึงพิมพ์ `2026-08-18 09:30` รวดเดียวได้
+- กลุ่มที่กรอกครบจะเลื่อนไปกลุ่มถัดไปให้เอง
+- ปีจะเติมจากซ้ายไปขวา (`2___` → `20__` → `202_` → `2026`) ส่วนกลุ่มอื่นเติมขวาไปซ้าย (พิมพ์ `3` ในกลุ่มนาทีได้ `03`)
+
+ค่าจะถูกบันทึกก็ต่อเมื่อกรอกครบทุกกลุ่มเท่านั้น — กรอกค้างไว้แล้วออกจากช่อง ค่าจะกลับไปเป็นค่าเดิม เหมือนช่องวันที่/เวลาของเบราว์เซอร์เอง
+
+### isRequired
+
+<PropertySignature name="isRequired" type="boolean" />
+
+กำหนดว่าฟิลด์ต้องมีค่าเสมอหรือไม่ ค่าเริ่มต้น (default): true
+
+เมื่อเป็น true ฟิลด์จะไม่ยอมว่าง — ถ้าลบค่าทั้งหมดพร้อมกัน (เลือกทั้งช่องแล้วลบ) จะเด้งกลับเป็นวันเวลาปัจจุบันทันทีเพื่อให้มีค่าให้พิมพ์ทับ และการออกจากช่องทั้งที่ยังว่างจะคืนค่าเดิมกลับมา
+
+เมื่อเป็น false ฟิลด์ว่างได้ และ onChange จะได้รับ `null`
+
+<IsRequiredDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} />
+<InputDateTime value={value} onChange={setValue} isRequired={false} />
+```
+
+### min
+
+<PropertySignature name="min" type="Date | null" />
+
+กำหนดวันและเวลาที่เร็วที่สุดที่เลือกได้ ค่าที่ต่ำกว่านี้จะถูกดึงขึ้นมาที่ min ตอนบันทึกค่า และวันก่อนหน้าจะถูกปิดในปฏิทิน
+
+### max
+
+<PropertySignature name="max" type="Date | null" />
+
+กำหนดวันและเวลาที่ช้าที่สุดที่เลือกได้ ทำงานแบบเดียวกับ min
+
+<MinMaxDemo />
+
+```tsx
+<InputDateTime
+  value={value}
+  onChange={setValue}
+  min={new Date(2026, 6, 1, 8, 0)}
+  max={new Date(2026, 6, 31, 18, 0)}
+/>
+```
+
+<Callout type="info">
+  **Note**
+
+  min/max เทียบกันที่ระดับ**นาที ทั้งวันและเวลา** ไม่ใช่แค่วัน — max เป็น `2026-07-31 18:00` จะดึง `2026-07-31 18:30` ลงมาเป็น 18:00 ด้วย
+
+  ถ้าต้องการจำกัดเฉพาะ*ช่วงเวลาในแต่ละวัน* (เช่น 09:00-17:00 ของทุกวัน) ให้ใช้ [timeMin](#timemin) / [timeMax](#timemax) แทน
+</Callout>
+
+#### ช่วงวันเวลา (เริ่มต้น / สิ้นสุด)
+
+ผูกสองช่องเข้าหากันได้ด้วยการส่งค่าของอีกฝั่งเป็น min/max
+
+<RangeDemo />
+
+```tsx
+<InputDateTime value={start} onChange={setStart} max={end} />
+<InputDateTime value={end} onChange={setEnd} min={start} />
+```
+
+### format
+
+<PropertySignature name="format" type="string" />
+
+รูปแบบการแสดงผลและพิมพ์วันที่และเวลา ค่าเริ่มต้นคือ `"Y-m-d H:i"`
+
+โทเค็นฝั่งวันที่:
+
+| โทเค็น | ความหมาย | ตัวอย่าง (22 กรกฎาคม 2026) |
+| :---: | --- | --- |
+| Y | ปี 4 หลัก | 2026 |
+| y | ปี 2 หลัก | 26 |
+| m | เดือน 2 หลัก (มี 0 นำหน้า) | 07 |
+| n | เดือน ไม่มี 0 นำหน้า | 7 |
+| d | วันที่ 2 หลัก (มี 0 นำหน้า) | 22 |
+| j | วันที่ ไม่มี 0 นำหน้า | 22 |
+| F | ชื่อเดือนเต็ม | July |
+| M | ชื่อเดือนย่อ | Jul |
+| l | ชื่อวันในสัปดาห์เต็ม | Wednesday |
+| D | ชื่อวันในสัปดาห์ย่อ | Wed |
+
+โทเค็นฝั่งเวลา:
+
+| โทเค็น | ความหมาย | ตัวอย่าง (14:30) |
+| :---: | --- | --- |
+| H | ชั่วโมงแบบ 24 ชั่วโมง (มี 0 นำหน้า) | 14 |
+| h | ชั่วโมงแบบ 12 ชั่วโมง (ไม่มี 0 นำหน้า) | 2 |
+| G | ชั่วโมงแบบ 12 ชั่วโมง (มี 0 นำหน้า) | 02 |
+| i | นาที (มี 0 นำหน้า) | 30 |
+| K | ตัวระบุ AM/PM | PM |
+
+<FormatDemo />
+
+```tsx
+<InputDateTime format="Y-m-d H:i" value={value} onChange={setValue} />
+<InputDateTime format="d/m/Y H:i" value={value} onChange={setValue} />
+<InputDateTime format="d/m/Y h:i K" value={value} onChange={setValue} />
+<InputDateTime format="j/n/y G:i" value={value} onChange={setValue} />
+```
+
+<Callout type="warning">
+  **Note**
+
+  format ที่มีโทเค็นชื่อ (F, M, D, l) หรือโทเค็นวินาที (S, s) จะ**พิมพ์ไม่ได้** — ช่องจะรับค่าจาก dropdown อย่างเดียว (คลิกที่ช่องเพื่อเปิดปฏิทิน) เพราะข้อความอย่าง "July 22, 2026" แยกวิเคราะห์กลับไม่ได้แม่นยำ ส่วนวินาทีไม่รองรับเลยเพราะ control ทำงานที่ระดับนาที
+
+  ช่องยังใช้งานได้เต็มที่ในทางอื่น — dropdown ทั้งสอง ปุ่มลูกศร และล้อเมาส์ยังทำงานตามปกติ (ต่างจาก isReadOnly ที่ปิดทุกอย่าง)
+
+  อีกกรณีที่ไม่รองรับคือใช้ `H` คู่กับ `K` (เช่น `"Y-m-d H:i K"`) — ชั่วโมงแบบ 24 ชั่วโมงบอกครึ่งวันอยู่แล้ว ตัวระบุ AM/PM จึงไม่มีความหมาย ("14:30 PM" ไม่ใช่เวลา) format แบบนี้จะถูกปฏิเสธทั้งอัน
+</Callout>
+
+### timeStep
+
+<PropertySignature name="timeStep" type="number | null" />
+
+ระยะห่าง (นาที) ระหว่างรายการในรายการเวลา ค่าเริ่มต้นของ property นี้คือ 15
+
+<TimeStepDemo />
+
+```tsx
+<InputDateTime timeStep={10} value={value} onChange={setValue} />
+<InputDateTime timeStep={30} value={value} onChange={setValue} />
+<InputDateTime timeStep={60} value={value} onChange={setValue} />
+```
+
+timeStep ยังเป็นตัวตัดสินว่าจะ**มีรายการเวลาหรือไม่**ด้วย — `null`, 0 หรือค่าติดลบ แปลว่าไม่มีระยะห่างที่นิยามไว้ จึงไม่มีรายการให้เลือก: ปุ่มนาฬิกาจะหายไป และการกดลูกศร/เลื่อนล้อขณะอยู่ในกลุ่มเวลาจะไม่ทำอะไร เหลือฝั่งวันที่ทำงานเต็มที่ตามเดิม
+
+<NoTimeStepDemo />
+
+```tsx
+<InputDateTime timeStep={null} value={value} onChange={setValue} />
+```
+
+### timeMin
+
+<PropertySignature name="timeMin" type="Date | null" />
+
+เวลาที่เร็วที่สุดในรายการเวลา อ่านเฉพาะ**ส่วนเวลา**ของ `Date` ที่ส่งมา (ส่วนวันที่ถูกละไว้) จึงใช้ค่าอย่าง `new Date(2026, 0, 1, 9, 0)` เพื่อหมายถึง "09:00 ของทุกวัน" ได้
+
+### timeMax
+
+<PropertySignature name="timeMax" type="Date | null" />
+
+เวลาที่ช้าที่สุดในรายการเวลา ทำงานแบบเดียวกับ timeMin
+
+<TimeRangeDemo />
+
+```tsx
+<InputDateTime
+  value={value}
+  onChange={setValue}
+  timeMin={new Date(2026, 0, 1, 9, 0)}
+  timeMax={new Date(2026, 0, 1, 17, 0)}
+  timeStep={30}
+/>
+```
+
+<Callout type="info">
+  **Note**
+
+  timeMin/timeMax กำหนด**รายการที่มีให้เลือก**ใน dropdown เท่านั้น ต่างจาก [min](#min)/[max](#max) ที่จำกัดค่าทั้งก้อน (วัน+เวลา) และบังคับตอนบันทึกค่าด้วย
+</Callout>
+
+### timeFormat
+
+<PropertySignature name="timeFormat" type="string" />
+
+รูปแบบของเวลาที่แสดงใน dropdown แยกจาก format ของช่องกรอก ค่าเริ่มต้นคือ `"H:i"` ใช้โทเค็นชุดเดียวกับฝั่งเวลาของ [format](#format)
+
+<TimeFormatDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} timeFormat="h:i K" timeStep={30} />
+```
+
+### text
+
+<PropertySignature name="text" type="string" />
+
+ค่าข้อความดิบที่แสดงอยู่ในช่องกรอกจริง ๆ แยกจาก value (ซึ่งเป็นวันเวลาที่ประมวลผลแล้ว) ใช้คู่กับ onTextChange เพื่อควบคุมหรือสังเกตข้อความที่กำลังพิมพ์แบบสองทาง
+
+ระหว่างกรอก onTextChange จะรายงานข้อความตามที่เห็นในช่องจริง ๆ รวมขีดล่างของกลุ่มที่ยังว่าง (เช่น `"2026-08-18 __:__"`) และรายงานค่าที่จัดรูปแบบแล้วอีกครั้งเมื่อค่าถูกบันทึก — ดูรายละเอียดการกรอกเป็นกลุ่มในหัวข้อ [placeholder](#placeholder)
+
+<TextDemo />
+
+```tsx
+const [text, setText] = useState('2026-07-22 09:30')
+<InputDateTime text={text} onTextChange={setText} value={value} onChange={setValue} />
+```
+
+### handleWheel
+
+<PropertySignature name="handleWheel" type="boolean" />
+
+กำหนดว่าจะให้เลื่อนล้อเมาส์ตอน focus อยู่ที่ฟิลด์เพื่อขยับค่าได้หรือไม่ ค่าเริ่มต้น (default): false
+
+<HandleWheelDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} handleWheel />
+```
+
+#### ลูกศรและล้อเมาส์ทำตามกลุ่มที่อยู่
+
+ทั้งปุ่มลูกศรและล้อเมาส์ขยับค่าตาม**กลุ่มที่เคอร์เซอร์อยู่**:
+
+- อยู่ในกลุ่มวันที่ (ปี/เดือน/วัน) → ขยับทีละ 1 วัน
+- อยู่ในกลุ่มเวลา (ชั่วโมง/นาที/AM-PM) → ขยับไปยังรายการเวลาถัดไปตาม timeStep ค่าที่ไม่ตรงกับรายการจะถูกดึงเข้าหารายการที่ใกล้ที่สุดในทิศทางนั้น
+
+Alt + ลูกศรขึ้น/ลง จะเปิด-ปิด dropdown ของกลุ่มที่อยู่เช่นกัน (กลุ่มวันที่เปิดปฏิทิน, กลุ่มเวลาเปิดรายการเวลา)
+
+<Callout type="info">
+  **Note**
+
+  ทำงานเฉพาะตอนฟิลด์ focus อยู่เท่านั้น ไม่ทำงานถ้า isDisabled หรือ isReadOnly
+</Callout>
+
+### closeOnSelection
+
+<PropertySignature name="closeOnSelection" type="boolean" />
+
+กำหนดว่าปฏิทินจะปิดทันทีหลังเลือกวันหรือไม่ ค่าเริ่มต้น (default): true
+
+<CloseOnSelectionDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} closeOnSelection={false} />
+```
+
+### showDropdownButton
+
+<PropertySignature name="showDropdownButton" type="boolean" />
+
+กำหนดว่าจะแสดงปุ่มเปิด dropdown หรือไม่ ค่าเริ่มต้น (default): true
+
+<ShowDropdownButtonDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} showDropdownButton={false} />
+```
+
+#### ปุ่ม dropdown สองปุ่ม
+
+control นี้มีปุ่มสองปุ่มที่ขอบขวาของช่อง — ปุ่มปฏิทินสำหรับเลือกวัน และปุ่มนาฬิกาสำหรับเลือกเวลา เปิดได้ครั้งละหนึ่ง (เปิดอันหนึ่งอีกอันจะปิดเอง) เพื่อไม่ให้ทับกันใต้ช่องกรอก
+
+- `showDropdownButton={false}` ซ่อนทั้งสองปุ่ม (ยังเปิด dropdown ด้วย Alt + ลูกศร ได้)
+- ปุ่มนาฬิกาจะหายไปเองเมื่อ [timeStep](#timestep) ไม่ได้สร้างรายการเวลา โดยปุ่มปฏิทินยังอยู่
+
+### monthCount
+
+<PropertySignature name="monthCount" type="number" />
+
+จำนวนเดือนที่แสดงพร้อมกันในปฏิทิน ค่าเริ่มต้นของ property นี้คือ 1
+
+<MonthCountDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} monthCount={2} />
+```
+
+### maxDropdownHeight
+
+<PropertySignature name="maxDropdownHeight" type="number" />
+
+ความสูงสูงสุด (พิกเซล) ของรายการเวลา ถ้ารายการยาวกว่านี้จะเลื่อนดูได้ ค่าเริ่มต้นของ property นี้คือ 200
+
+<MaxDropdownHeightDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} maxDropdownHeight={120} />
+```
+
+### isReadOnly
+
+<PropertySignature name="isReadOnly" type="boolean" />
+
+เมื่อเป็น true ผู้ใช้แก้ไขค่าไม่ได้ แต่ยังคง focus เลือกข้อความ และคัดลอกค่าได้ตามปกติ (มักใช้คู่กับ showDropdownButton={'{false}'})
+
+ค่าเริ่มต้น (default): false
+
+<ReadOnlyDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} />
+<InputDateTime value={value} onChange={setValue} isReadOnly showDropdownButton={false} />
+```
+
+### isDisabled
+
+<PropertySignature name="isDisabled" type="boolean" />
+
+เมื่อเป็น true ปิดการใช้งานทั้งหมด พิมพ์, เปิด dropdown, และ focus ไม่ได้ แสดงผลจางลงเพื่อสื่อว่าใช้งานไม่ได้
+
+ค่าเริ่มต้น (default): false
+
+<DisabledDemo />
+
+```tsx
+<InputDateTime value={value} onChange={setValue} />
+<InputDateTime value={value} onChange={setValue} isDisabled />
+```
