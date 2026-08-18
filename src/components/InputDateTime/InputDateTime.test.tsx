@@ -440,6 +440,43 @@ describe('InputDateTime', () => {
       expect(input).toHaveValue('2026-07-22 09:30')
     })
 
+    it('reaches both drop-down toggles with Tab', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)
+      const input = getInput()
+      const calendarButton = screen.getByRole('button', { name: 'Toggle calendar' })
+      const clockButton = screen.getByRole('button', { name: 'Toggle time list' })
+
+      // Skipping either would hide a whole input method from keyboard users:
+      // the field has two popups and only one caret to open them from.
+      await user.tab()
+      expect(input).toHaveFocus()
+      await user.tab()
+      expect(calendarButton).toHaveFocus()
+      await user.tab()
+      expect(clockButton).toHaveFocus()
+    })
+
+    it('closes the calendar on Escape, and only then discards the edit', () => {
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)
+      const input = getInput()
+      const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')!
+
+      focusInput(input)
+      press(input, 'Home', '1', '9', '9', '9')
+      fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true })
+      expect(calendar.classList.contains('open')).toBe(true)
+
+      // First Escape closes the popup and leaves the edit alone…
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(calendar.classList.contains('open')).toBe(false)
+      expect(input).toHaveValue('1999-07-22 09:30')
+
+      // …a second one discards it, the order a native combobox uses.
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input).toHaveValue('2026-07-22 09:30')
+    })
+
     it('closes the time list on Escape without discarding the value', async () => {
       const user = userEvent.setup()
       render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)

@@ -274,7 +274,13 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
       return
     }
     if (event.key === 'Escape') {
+      // Whichever popup is showing closes first — flatpickr's own Escape
+      // handling never fires here, since it listens for its own (hidden) input
+      // and this field's visible one is a different element. Only once both
+      // are closed does Escape discard the in-progress edit, the way a native
+      // combobox orders the two.
       if (dropdown.isOpen) dropdown.close()
+      else if (isCalendarOpen) toggleCalendar()
       else field.discardEdit(event.currentTarget)
       return
     }
@@ -354,7 +360,12 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
           {showsTimeButton && (
             <button
               type="button"
-              tabIndex={-1}
+              // Tabbable, unlike InputTime's copy of this button: there the
+              // list is one field's only popup and Alt+Arrow reaches it, but
+              // here skipping it would leave a keyboard user tabbing past the
+              // calendar toggle straight out of the field, with no sign the
+              // time list exists at all. Both toggles on one field behave the
+              // same way — InputDate's own suite pins its toggle as tabbable.
               aria-label={timeDropdownAriaLabel}
               aria-expanded={dropdown.isOpen}
               aria-controls={listId}
