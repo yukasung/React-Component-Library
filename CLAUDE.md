@@ -142,6 +142,8 @@ What it reuses, verbatim and by import: `useFlatpickrCalendar` (the whole calend
 
 The React wiring around the fixed-width groups is a third copy, deliberately — same rule as `InputDate`/`InputTime` above ("the React half is duplicated, not shared"), so each control stays usable on its own.
 
+It is split across the folder rather than held in one file, which is organizational only — the copy is still a copy: `useDateTimeField.ts` holds the commit model, the draft and the group editing (everything that works on the `<input>` alone); `InputDateTime.tsx` holds the props, the two popups' coordination and the markup; `TimeList.tsx` and `styles.ts`/`icons.tsx` hold what is purely rendered. The popups reach the field's value only through `pickDate`/`pickTime`/`currentValue`, which is what keeps "a calendar pick never resets the time" in one place instead of two.
+
 Wijmo's four added properties are the whole added prop surface: `timeStep` (default 15; null/zero/negative means no list at all, exactly as `step` does in `InputTime`), `timeMin`, `timeMax` and `timeFormat` (how the *list* labels its entries, distinct from the field's own `format`). `min`/`max` bound the whole value and clamp at minute granularity — `clampDate`'s day-granularity clamp would let 18:30 past a `max` of 18:00 on the same day.
 
 Arrow keys (and the wheel, and Alt+Arrow's popup gesture) follow **the group the caret is in**: a date group steps a day, `InputDate`-style; a time group steps through the generated time list, `InputTime`-style. Both parent behaviors are wanted, and standing in a group is what says which one applies.
