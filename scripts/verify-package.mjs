@@ -32,7 +32,7 @@ if (typeof styleTarget !== 'string' || !existsSync(resolve(root, styleTarget))) 
 }
 
 const verifyStyle = (style) => {
-  for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar', ':where(.dark,.dark *)']) {
+  for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar', ':where(.dark,.dark *)', 'position:absolute!important']) {
     if (!style.includes(marker)) {
       fail(`style.css is missing required ${marker} output`)
     }

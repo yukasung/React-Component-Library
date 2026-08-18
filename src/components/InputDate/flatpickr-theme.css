@@ -98,6 +98,21 @@
    under the input like the reference design. */
 .flatpickr-calendar.static {
   left: 0;
+  /* `position` is restated here — flatpickr's own base CSS already sets it on
+     this selector — and it is `!important` for one specific reason, not as a
+     specificity hammer: flatpickr names its static-mode class literally
+     `static`, which collides with Tailwind's own `.static { position: static }`
+     utility. A Tailwind app that emits that utility overrides flatpickr's
+     positioning, and specificity cannot save it — a consumer importing this
+     stylesheet into a cascade layer (`@import "…/style.css" layer(components)`,
+     which is the arrangement that keeps app utility classes able to override
+     component styles) puts every rule here *below* the utilities layer, where
+     even a more specific selector loses. Important declarations reverse layer
+     order, so this is the one form that survives. Confirmed against the
+     MatterSolv frontend, where the popup rendered in flow at width 0 until
+     this landed. Only `position` is affected — `.static` is a single-property
+     utility — so nothing else here needs the same treatment. */
+  position: absolute !important;
 }
 
 /* Neither the source nor flatpickr's own base CSS handles this — a real
