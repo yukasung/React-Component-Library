@@ -147,6 +147,29 @@ describe('InputDate', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('closes an open calendar on Escape, and only then discards the edit', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<InputDate value={new Date(2026, 6, 15)} onChange={onChange} />)
+    const input = getDateInput()
+    const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')!
+
+    await user.clear(input)
+    await typeInto(user, input, '2026-01-01')
+    await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+    expect(calendar.classList.contains('open')).toBe(true)
+
+    // First Escape takes the popup and leaves the edit alone…
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(calendar.classList.contains('open')).toBe(false)
+    expect(input).toHaveValue('2026-01-01')
+
+    // …the second discards it.
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(input).toHaveValue('2026-07-15')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('commits null when the field is cleared and blurred while isRequired is false', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

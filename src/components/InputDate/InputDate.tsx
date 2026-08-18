@@ -494,6 +494,15 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     if (event.key === 'Enter') {
       commitDraft()
     } else if (event.key === 'Escape') {
+      // An open calendar closes first, and only then does Escape discard the
+      // edit — the order a native combobox uses. flatpickr's own Escape
+      // handling never fires for this field: it listens on the hidden input it
+      // was bound to (see the DOM-ownership escape hatch), not on the visible
+      // one the user is typing in, so without this the popup stayed open.
+      if (isOpenState) {
+        toggle()
+        return
+      }
       // Discarding an in-progress edit re-seeds the groups from the value the
       // field still holds — it keeps focus, so it stays in group-editing mode
       // rather than falling back to plain text.
