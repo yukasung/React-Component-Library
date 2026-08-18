@@ -3,6 +3,7 @@ import {
   clampDateTime,
   isSameDateTime,
   isTimeSegment,
+  isTimeToken,
   parseDateTimeDraft,
   startOfMinute,
   tokenizeDateTimeMask,
@@ -37,6 +38,34 @@ describe('tokenizeDateTimeMask', () => {
 
   it('refuses a 24-hour hour paired with a designator', () => {
     expect(tokenizeDateTimeMask('Y-m-d H:i K')).toBeUndefined()
+  })
+
+  it('treats an escaped token letter as a literal separator', () => {
+    // `\\H` is the letter H itself, not the hour token — the escape is the
+    // shared tokenizer's, so it behaves the same here as in either half.
+    expect(tokenizeDateTimeMask('d/m/Y \\a\\t H:i')).toEqual([
+      { type: 'token', token: 'd', width: 2, min: 1, max: 31 },
+      { type: 'literal', text: '/' },
+      { type: 'token', token: 'm', width: 2, min: 1, max: 12 },
+      { type: 'literal', text: '/' },
+      { type: 'token', token: 'Y', width: 4, fill: 'end' },
+      { type: 'literal', text: ' at ' },
+      { type: 'token', token: 'H', width: 2, min: 0, max: 23 },
+      { type: 'literal', text: ':' },
+      { type: 'token', token: 'i', width: 2, min: 0, max: 59 },
+    ])
+  })
+
+  it('describes a format that names only one half', () => {
+    expect(tokenizeDateTimeMask('Y-m-d')?.length).toBe(5)
+    expect(tokenizeDateTimeMask('H:i')?.length).toBe(3)
+  })
+})
+
+describe('isTimeToken', () => {
+  it('separates the two vocabularies', () => {
+    expect(['H', 'h', 'G', 'i', 'K'].every(isTimeToken)).toBe(true)
+    expect(['Y', 'y', 'm', 'n', 'd', 'j'].some(isTimeToken)).toBe(false)
   })
 })
 
@@ -98,6 +127,27 @@ describe('parseDateTimeDraft', () => {
     expect(parseDateTimeDraft('18/08/26 09:30', 'd/m/y H:i')).toEqual(new Date(2026, 7, 18, 9, 30))
   })
 
+  it('reads a 12-hour format with no designator as the morning', () => {
+    // No designator means the format cannot express the afternoon at all, so
+    // 12 is midnight and 1-11 are the morning hours.
+    expect(parseDateTimeDraft('2026-08-18 12:30', 'Y-m-d h:i')).toEqual(new Date(2026, 7, 18, 0, 30))
+    expect(parseDateTimeDraft('2026-08-18 11:30', 'Y-m-d h:i')).toEqual(new Date(2026, 7, 18, 11, 30))
+  })
+
+  it('parses the same format twice through its compiled pattern', () => {
+    // The pattern is cached per format string; a second parse must not see a
+    // stale match from the first.
+    expect(parseDateTimeDraft('2026-08-18 09:30', 'Y-m-d H:i')).toEqual(new Date(2026, 7, 18, 9, 30))
+    expect(parseDateTimeDraft('2027-01-02 23:59', 'Y-m-d H:i')).toEqual(new Date(2027, 0, 2, 23, 59))
+    expect(parseDateTimeDraft('nonsense', 'Y-m-d H:i')).toBeUndefined()
+  })
+
+  it('rejects a year the Date constructor would reinterpret', () => {
+    // `new Date(26, ...)` means 1926, so a 4-digit year typed as "0026" is
+    // refused rather than silently committed as a different century.
+    expect(parseDateTimeDraft('0026-08-18 09:30', 'Y-m-d H:i')).toBeUndefined()
+  })
+
   it('takes today for a format that names no date part', () => {
     const parsed = parseDateTimeDraft('09:30', 'H:i')
     const today = new Date()
@@ -116,6 +166,18 @@ describe('startOfMinute / isSameDateTime / clampDateTime', () => {
     expect(isSameDateTime(new Date(2026, 7, 18, 9, 30), new Date(2026, 7, 19, 9, 30))).toBe(false)
     // Same day, different time.
     expect(isSameDateTime(new Date(2026, 7, 18, 9, 30), new Date(2026, 7, 18, 9, 31))).toBe(false)
+  })
+
+  it('leaves a value alone when neither bound is given, but still drops seconds', () => {
+    expect(clampDateTime(new Date(2026, 7, 18, 9, 30, 45))).toEqual(new Date(2026, 7, 18, 9, 30))
+    expect(clampDateTime(new Date(2026, 7, 18, 9, 30), null, null)).toEqual(new Date(2026, 7, 18, 9, 30))
+  })
+
+  it('clamps across days, not only within one', () => {
+    const min = new Date(2026, 7, 18, 9, 0)
+    const max = new Date(2026, 7, 20, 18, 0)
+    expect(clampDateTime(new Date(2026, 7, 17, 23, 0), min, max)).toEqual(min)
+    expect(clampDateTime(new Date(2026, 7, 21, 1, 0), min, max)).toEqual(max)
   })
 
   it('clamps on the whole timestamp, not just the day', () => {

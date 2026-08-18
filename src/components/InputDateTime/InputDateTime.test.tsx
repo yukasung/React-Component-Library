@@ -24,6 +24,13 @@ function focusInput(input: HTMLInputElement) {
   })
 }
 
+// Drives typing from keydown, which is where the groups are actually edited
+// (the browser is never let near the value) — the same approach InputDate's
+// own group-typing suite uses.
+function press(input: HTMLElement, ...keys: string[]) {
+  for (const key of keys) fireEvent.keyDown(input, { key })
+}
+
 // Moves the caret into a group by index, the way an Arrow-key walk would.
 function moveToGroup(input: HTMLElement, index: number) {
   fireEvent.keyDown(input, { key: 'Home' })
@@ -322,6 +329,294 @@ describe('InputDateTime', () => {
       fireEvent.keyDown(input, { key: 'Enter' })
 
       expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 15, 9, 45))
+    })
+  })
+
+  describe('uncontrolled use', () => {
+    it('keeps its own value when no `value` prop is given', () => {
+      const onChange = vi.fn()
+      render(<InputDateTime defaultValue={new Date(2026, 6, 22, 9, 30)} onChange={onChange} />)
+      const input = getInput()
+
+      focusInput(input)
+      moveToGroup(input, 2)
+      fireEvent.keyDown(input, { key: 'ArrowUp' })
+
+      expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 23, 9, 30))
+      // The field follows its own state rather than waiting to be told.
+      expect(input).toHaveValue('2026-07-23 09:30')
+    })
+
+    it('starts empty when defaultValue is null and the field is optional', () => {
+      render(<InputDateTime defaultValue={null} isRequired={false} />)
+      expect(getInput()).toHaveValue('')
+    })
+  })
+
+  describe('text / onTextChange', () => {
+    it('reports the group text as it is typed, fillers included', () => {
+      const onTextChange = vi.fn()
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} onTextChange={onTextChange} />)
+      const input = getInput()
+
+      focusInput(input)
+      // Home first: the focus handler picks its group from a deferred caret
+      // read, so a synchronous keydown chain has to say which group it means.
+      press(input, 'Home', 'Delete', '2', '0', '2', '7')
+
+      expect(onTextChange).toHaveBeenCalledWith('2___-07-22 09:30')
+      expect(onTextChange).toHaveBeenLastCalledWith('2027-07-22 09:30')
+    })
+
+    it('shows the text it is given rather than the formatted value', () => {
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} text="whatever the parent says" />)
+      expect(getInput()).toHaveValue('whatever the parent says')
+    })
+  })
+
+  describe('keyboard', () => {
+    it('walks between groups with Left/Right/Home/End', () => {
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)
+      const input = getInput()
+
+      focusInput(input)
+      // End lands in the minutes group, so a digit typed there fills minutes.
+      press(input, 'End', '4', '5')
+      expect(input).toHaveValue('2026-07-22 09:45')
+
+      // Left from there is the hour; Home is back to the year.
+      press(input, 'ArrowLeft', '0', '8')
+      expect(input).toHaveValue('2026-07-22 08:45')
+      press(input, 'Home', '1', '9', '9', '9')
+      expect(input).toHaveValue('1999-07-22 08:45')
+    })
+
+    it('discards an in-progress edit on Escape', () => {
+      const onChange = vi.fn()
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={onChange} />)
+      const input = getInput()
+
+      focusInput(input)
+      press(input, 'Home', '1', '9', '9', '9')
+      expect(input).toHaveValue('1999-07-22 09:30')
+
+      press(input, 'Escape')
+      expect(input).toHaveValue('2026-07-22 09:30')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('opens the popup belonging to the group the caret is in (Alt+Arrow)', () => {
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)
+      const input = getInput()
+      const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')!
+
+      focusInput(input)
+      moveToGroup(input, 2) // a date group
+      fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true })
+      expect(calendar.classList.contains('open')).toBe(true)
+      expect(screen.queryByRole('listbox')).toBeNull()
+
+      fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true })
+      moveToGroup(input, 4) // a time group
+      fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true })
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+      expect(calendar.classList.contains('open')).toBe(false)
+    })
+
+    it('gives Home/End to the time list while it is open', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)
+      const input = getInput()
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      const listId = screen.getByRole('listbox').id
+
+      fireEvent.keyDown(input, { key: 'Home' })
+      expect(input).toHaveAttribute('aria-activedescendant', `${listId}-0`)
+      fireEvent.keyDown(input, { key: 'End' })
+      // 96 entries at the default 15-minute step, so the last is index 95.
+      expect(input).toHaveAttribute('aria-activedescendant', `${listId}-95`)
+      // …and the groups stayed where they were, rather than following Home.
+      expect(input).toHaveValue('2026-07-22 09:30')
+    })
+
+    it('closes the time list on Escape without discarding the value', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)
+      const input = getInput()
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      fireEvent.keyDown(input, { key: 'Escape' })
+
+      expect(screen.queryByRole('listbox')).toBeNull()
+      expect(input).toHaveValue('2026-07-22 09:30')
+    })
+
+    it('ignores the wheel unless handleWheel is on and the field has focus', () => {
+      const onChange = vi.fn()
+      const { rerender } = render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={onChange} />)
+      const input = getInput()
+
+      focusInput(input)
+      fireEvent.wheel(input, { deltaY: -100 })
+      expect(onChange).not.toHaveBeenCalled()
+
+      rerender(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={onChange} handleWheel />)
+      fireEvent.blur(input)
+      fireEvent.wheel(input, { deltaY: -100 })
+      expect(onChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('text the field is given rather than typed', () => {
+    it('takes an autofilled value and commits it', () => {
+      const onChange = vi.fn()
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={onChange} format="F j, Y H:i" />)
+      const input = getInput()
+
+      // An alphabetic format is pick-only, so this is the one path where text
+      // arrives without ever going through the groups.
+      fireEvent.change(input, { target: { value: 'August 18, 2026 14:00' } })
+      fireEvent.blur(input)
+
+      expect(input).toHaveValue('July 22, 2026 09:30')
+      // Unparseable in that format (a month name can't be read back), so the
+      // field reverts rather than committing something it cannot round-trip.
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('snaps a required field back when it is handed an empty string', () => {
+      render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} format="F j, Y H:i" />)
+      const input = getInput()
+
+      fireEvent.change(input, { target: { value: '' } })
+
+      expect(getInput().value).not.toBe('')
+    })
+  })
+
+  describe('popup configuration', () => {
+    it('keeps the calendar open after a pick when closeOnSelection is false', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} closeOnSelection={false} />)
+      const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')!
+
+      await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      const day = document.querySelector(
+        '.flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label="July 4, 2026"]',
+      )
+      fireEvent.click(day!)
+
+      expect(calendar.classList.contains('open')).toBe(true)
+    })
+
+    it('shows as many months as monthCount asks for', () => {
+      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} monthCount={2} />)
+      expect(document.querySelectorAll('.flatpickr-calendar .flatpickr-month').length).toBe(2)
+    })
+
+    it('disables days outside min/max in the calendar', async () => {
+      const user = userEvent.setup()
+      render(
+        <InputDateTime
+          value={new Date(2026, 6, 15, 9, 30)}
+          onChange={() => {}}
+          min={new Date(2026, 6, 10, 0, 0)}
+          max={new Date(2026, 6, 20, 23, 59)}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      const outside = document.querySelector(
+        '.flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label="July 4, 2026"]',
+      )
+      const inside = document.querySelector(
+        '.flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)[aria-label="July 15, 2026"]',
+      )
+      expect(outside!.classList.contains('flatpickr-disabled')).toBe(true)
+      expect(inside!.classList.contains('flatpickr-disabled')).toBe(false)
+    })
+
+    it('clamps a picked time to max', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(
+        <InputDateTime
+          value={new Date(2026, 6, 15, 9, 0)}
+          onChange={onChange}
+          max={new Date(2026, 6, 15, 12, 0)}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: '14:00' }))
+
+      expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 15, 12, 0))
+    })
+
+    it('marks the entry matching the current value as selected', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} />)
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      const selected = within(screen.getByRole('listbox')).getAllByRole('option', { selected: true })
+      expect(selected.map((option) => option.textContent)).toEqual(['09:30'])
+    })
+
+    it('caps the list height with maxDropdownHeight', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} maxDropdownHeight={120} />)
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      expect(screen.getByRole('listbox')).toHaveStyle({ maxHeight: '120px' })
+    })
+
+    it('hides both buttons when showDropdownButton is false, keeping the keyboard route', () => {
+      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} showDropdownButton={false} />)
+      const input = getInput()
+
+      expect(screen.queryByRole('button')).toBeNull()
+
+      focusInput(input)
+      moveToGroup(input, 4)
+      fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true })
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+    })
+
+    it('uses consumer-supplied icons and accessible names', () => {
+      render(
+        <InputDateTime
+          value={new Date(2026, 6, 15, 9, 30)}
+          onChange={() => {}}
+          dropdownIcon={<span data-testid="calendar-icon">calendar</span>}
+          dropdownAriaLabel="Open booking calendar"
+          timeDropdownIcon={<span data-testid="clock-icon">clock</span>}
+          timeDropdownAriaLabel="Open booking times"
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: 'Open booking calendar' })).toContainElement(
+        screen.getByTestId('calendar-icon'),
+      )
+      expect(screen.getByRole('button', { name: 'Open booking times' })).toContainElement(
+        screen.getByTestId('clock-icon'),
+      )
+    })
+
+    it('labels the calendar dialog and the time list', async () => {
+      const user = userEvent.setup()
+      render(
+        <InputDateTime
+          value={new Date(2026, 6, 15, 9, 30)}
+          onChange={() => {}}
+          calendarAriaLabel="Booking calendar"
+          optionsAriaLabel="Booking times"
+        />,
+      )
+
+      expect(document.querySelector('.flatpickr-calendar')).toHaveAttribute('aria-label', 'Booking calendar')
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      expect(screen.getByRole('listbox', { name: 'Booking times' })).toBeInTheDocument()
     })
   })
 
