@@ -32,13 +32,17 @@ export type TimeToken = 'H' | 'h' | 'G' | 'i' | 'K'
 
 export type TimeFormatSegment = FormatSegment<TimeToken>
 
-const TIME_TOKENS: ReadonlySet<TimeToken> = new Set<TimeToken>(['H', 'h', 'G', 'i', 'K'])
+// Exported (with TIME_TOKEN_MASK below) for src/lib/dateTime.ts, which
+// tokenizes a combined date+time format against the union of this set and
+// date.ts's DATE_TOKENS — so which letters are time tokens, and what each
+// one's width and range are, stay stated once.
+export const TIME_TOKENS: ReadonlySet<TimeToken> = new Set<TimeToken>(['H', 'h', 'G', 'i', 'K'])
 
 // The mask shape of each digit token (width plus the range each segment's
 // value must land in) — consumed by timeMaskSegments below and, through it,
 // by the shared masker in inputMask.ts. `K` has no entry here because it
 // isn't a digit segment at all; it maps to the masker's own `ampm` kind.
-const TOKEN_MASK: Record<Exclude<TimeToken, 'K'>, { width: number; min: number; max: number }> = {
+export const TIME_TOKEN_MASK: Record<Exclude<TimeToken, 'K'>, { width: number; min: number; max: number }> = {
   H: { width: 2, min: 0, max: 23 },
   h: { width: 2, min: 1, max: 12 },
   G: { width: 2, min: 1, max: 12 },
@@ -86,7 +90,7 @@ export function timeMaskSegments(format: string): MaskSegment[] | undefined {
   return segments.map((segment) => {
     if (segment.type === 'literal') return { type: 'literal', text: segment.text }
     if (segment.token === 'K') return { type: 'ampm' }
-    const { width, min, max } = TOKEN_MASK[segment.token]
+    const { width, min, max } = TIME_TOKEN_MASK[segment.token]
     return { type: 'token', token: segment.token, width, min, max }
   })
 }
@@ -139,7 +143,7 @@ export function formatTimeValue(value: Date | null, format: string): string {
 // where one variable-width digit group ends and the next begins when they
 // sit next to each other without a separator. Every digit token accepts the
 // same one-or-two digits (their differing ranges are checked afterward,
-// against TOKEN_MASK, where the real distinction lives).
+// against TIME_TOKEN_MASK, where the real distinction lives).
 const DIGIT_TOKEN_PATTERN = '(\\d\\d|\\d)'
 const AM_PM_TOKEN_PATTERN = '([AaPp])[Mm]?'
 
@@ -212,7 +216,7 @@ export function parseTimeDraft(raw: string, format: string): number | null | und
       continue
     }
     const value = Number(text)
-    const { min, max } = TOKEN_MASK[token]
+    const { min, max } = TIME_TOKEN_MASK[token]
     if (value < min || value > max) return undefined
     if (token === 'i') {
       minutes = value

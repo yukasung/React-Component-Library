@@ -10,7 +10,7 @@ const fail = (message) => {
   throw new Error(`Package verification failed: ${message}`)
 }
 
-const expectedEntries = ['.', './input-number', './input-date', './input-time']
+const expectedEntries = ['.', './input-number', './input-date', './input-time', './input-date-time']
 
 for (const entry of expectedEntries) {
   const target = manifest.exports?.[entry]

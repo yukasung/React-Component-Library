@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `InputTime`, `Grid`) styled with Tailwind CSS v4. Ships as an ESM package built from `src/` into `dist/`. React and Tailwind CSS are peer dependencies, not bundled.
+Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `InputTime`, `InputDateTime`, `Grid`) styled with Tailwind CSS v4. Ships as an ESM package built from `src/` into `dist/`. React and Tailwind CSS are peer dependencies, not bundled.
 
 The repo contains **two independent npm projects**:
 - **Root** (`package.json`) — the component library itself, plus a `demo/` playground app.
@@ -133,6 +133,24 @@ The fix, and the pattern `InputDate` must use: render an **empty, React-opaque `
 The one piece that can't be fixed by wrapping flatpickr's documented `formatDate`/`parseDate` config hooks (which the day-cell aria-labels do use): the calendar popup's own year-navigation spinner. flatpickr writes its value **directly** from the raw Gregorian year — `self.currentYearElement[type] = dateObj.getFullYear().toString()` — from *four* separate internal call sites (`jumpToDate`, `clear`, `changeYear`, generic `set()`), none of which route through any override hook. `InputDate` hides this native spinner (`instance.yearElements[0]`, scoped to `locale === 'th'`) and replaces it with a small plain-DOM control (not JSX/a portal — flatpickr's popup DOM lives entirely outside React's tree, same reasoning as the hidden-input escape hatch above) driven by flatpickr's own public `instance.currentYear`/`instance.changeYear()` API.
 
 **A related flatpickr quirk this replacement's own effect has to route around**: calling `instance.set('showMonths', n)` — which `InputDate`'s own `monthCount` prop effect does, including redundantly on every mount, regardless of whether the value actually changed — triggers flatpickr's internal `buildMonths()`, which rebuilds `instance.yearElements` with fresh DOM nodes but **never reassigns the separately-cached `instance.currentYearElement`** (assigned once, only during the very first build). Read `instance.currentYearElement` after any `set('showMonths', ...)` call and you get a silently-detached, stale reference. The fix: always use `instance.yearElements[0]` instead (which *does* get refreshed), and make the custom-year-control effect depend on `[locale, monthCount]` together so it re-anchors itself whenever a `showMonths` rebuild could have invalidated its reference.
+
+### `InputDateTime` is composed from the other two, not a fourth implementation
+
+`InputDateTime` is Wijmo's control of the same name: its `InputDate` extended with an inner `InputTime`, so the field holds one `Date` carrying both halves and the control has **two** drop-down buttons — a calendar for the day, a list of times for the time of day. Both popups belong to one field, so opening either closes the other; that is the only coordination between them.
+
+What it reuses, verbatim and by import: `useFlatpickrCalendar` (the whole calendar integration, Buddhist-Era year header included — its `onPick` already hands back the picked day at `startOfDay`, which is exactly the "day only, the time comes from the field" shape this control wants), `useTimeDropdown`, and the list-building/stepping helpers in `src/lib/time.ts`. Display formatting is `formatDateValue` unchanged: flatpickr's own formatter already renders the time tokens (`H h G i K`, whose meanings match `time.ts`'s token doc exactly), and the year-offset splice works the same with a time in the format.
+
+The React wiring around the fixed-width groups is a third copy, deliberately — same rule as `InputDate`/`InputTime` above ("the React half is duplicated, not shared"), so each control stays usable on its own.
+
+Wijmo's four added properties are the whole added prop surface: `timeStep` (default 15; null/zero/negative means no list at all, exactly as `step` does in `InputTime`), `timeMin`, `timeMax` and `timeFormat` (how the *list* labels its entries, distinct from the field's own `format`). `min`/`max` bound the whole value and clamp at minute granularity — `clampDate`'s day-granularity clamp would let 18:30 past a `max` of 18:00 on the same day.
+
+Arrow keys (and the wheel, and Alt+Arrow's popup gesture) follow **the group the caret is in**: a date group steps a day, `InputDate`-style; a time group steps through the generated time list, `InputTime`-style. Both parent behaviors are wanted, and standing in a group is what says which one applies.
+
+### `src/lib/dateTime.ts` has its own parser on purpose
+
+The one thing `InputDateTime` couldn't borrow. Neither existing parser can read a combined draft: flatpickr's (which `parseDateDraft` delegates to) has an **empty** `tokenRegex.K`, so `"2026-08-18 02:30 PM"` comes back as 02:30 — the same limitation that made `time.ts` write its own — and splitting the typed text into a date part and a time part to hand each to its own parser needs exactly the "which digits belong to which token" answer that only a regex over the whole format has (see `unshiftYearInDraft`'s note on `"26/01/26"`). So the format is compiled into one cached regex across every token and the components are assembled here, with the Buddhist-Era shift becoming a single subtraction on the captured year rather than a splice back into the text.
+
+What it does *not* restate: the token sets and their widths/ranges come from `date.ts` (`DATE_TOKENS`, `DATE_TOKEN_MASK`) and `time.ts` (`TIME_TOKENS`, `TIME_TOKEN_MASK`), which are exported for this and nothing else. Adding a token to either belongs there, not here.
 
 ### `demo/` vs. `docs/`: two different consumers of the library
 

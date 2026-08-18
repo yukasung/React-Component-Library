@@ -47,6 +47,7 @@ Published entry points at version `0.1.0` are:
 import { InputNumber } from '@yukasung/react-components/input-number'
 import { InputDate } from '@yukasung/react-components/input-date'
 import { InputTime } from '@yukasung/react-components/input-time'
+import { InputDateTime } from '@yukasung/react-components/input-date-time'
 // Or import every public API from '@yukasung/react-components'.
 ```
 

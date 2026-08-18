@@ -254,9 +254,12 @@ export function unshiftYearInDraft(raw: string, format: string, yearOffset: numb
   return trimmed.slice(0, yearStart) + replacement + trimmed.slice(yearStart + rawYear.length)
 }
 
-type DateToken = 'Y' | 'y' | 'm' | 'n' | 'd' | 'j'
+export type DateToken = 'Y' | 'y' | 'm' | 'n' | 'd' | 'j'
 
-const DATE_TOKENS: ReadonlySet<DateToken> = new Set<DateToken>(['Y', 'y', 'm', 'n', 'd', 'j'])
+// Exported for src/lib/dateTime.ts, which tokenizes a combined date+time
+// format against the union of these and time.ts's own token set — one shared
+// table rather than a third statement of which letters are date tokens.
+export const DATE_TOKENS: ReadonlySet<DateToken> = new Set<DateToken>(['Y', 'y', 'm', 'n', 'd', 'j'])
 
 // Each token's masking shape. n/j deliberately get the same width (2) and
 // value range as m/d — masking treats padded and unpadded tokens identically
@@ -267,7 +270,10 @@ const DATE_TOKENS: ReadonlySet<DateToken> = new Set<DateToken>(['Y', 'y', 'm', '
 // NUMERIC_TOKEN_PATTERN above, which already treats m/n and d/j identically
 // for parsing. Y/y carry no range at all — any digit is valid at any of
 // their positions, only a width cap applies.
-const DATE_TOKEN_MASK: Record<DateToken, { width: number; min?: number; max?: number; fill?: 'start' | 'end' }> = {
+export const DATE_TOKEN_MASK: Record<
+  DateToken,
+  { width: number; min?: number; max?: number; fill?: 'start' | 'end' }
+> = {
   // Years fill from the left: typing "2" into a 4-wide year means 2000, not
   // the year 2 — see MaskSegment.fill.
   Y: { width: 4, fill: 'end' },

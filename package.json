@@ -37,6 +37,10 @@
       "types": "./dist/input-time.d.ts",
       "import": "./dist/input-time.js"
     },
+    "./input-date-time": {
+      "types": "./dist/input-date-time.d.ts",
+      "import": "./dist/input-date-time.js"
+    },
     "./style.css": "./dist/style.css"
   },
   "scripts": {

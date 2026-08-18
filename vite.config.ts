@@ -17,6 +17,7 @@ export default defineConfig({
         'input-number': fileURLToPath(new URL('./src/input-number.ts', import.meta.url)),
         'input-date': fileURLToPath(new URL('./src/input-date.ts', import.meta.url)),
         'input-time': fileURLToPath(new URL('./src/input-time.ts', import.meta.url)),
+        'input-date-time': fileURLToPath(new URL('./src/input-date-time.ts', import.meta.url)),
       },
       formats: ['es'],
       fileName: (_format, entryName) => entryName,

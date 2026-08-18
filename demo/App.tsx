@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   InputDate,
+  InputDateTime,
   InputNumber,
   InputTime,
   formatTimeValue,
@@ -66,6 +67,12 @@ const weekRange = currentWeekRange()
 // handed to InputTime stay referentially stable across re-renders. Only the
 // time-of-day part of these is read, so the date they carry is arbitrary.
 const businessHours = { start: new Date(2026, 0, 1, 9, 0), end: new Date(2026, 0, 1, 17, 0) }
+
+// Both halves of the committed value, in one fixed form regardless of the
+// field's own `format` — the same reason the time note below fixes on 24-hour.
+function formatDateTimeCommitted(value: Date | null) {
+  return value === null ? 'null' : `${value.toDateString()} ${formatTimeValue(value, 'H:i')}`
+}
 
 // Always shown in 24-hour form, whatever the field's own `format` is — the
 // note is reporting the underlying committed value, the same way the Thai
@@ -132,6 +139,10 @@ export function App() {
   const [meetingTime, setMeetingTime] = useState<Date | null>(businessHours.start)
   const [alarmTime, setAlarmTime] = useState<Date | null>(new Date(2026, 0, 1, 6, 30))
   const [freeTime, setFreeTime] = useState<Date | null>(null)
+  const [defaultDateTime, setDefaultDateTime] = useState<Date | null>(new Date())
+  const [appointment, setAppointment] = useState<Date | null>(businessHours.start)
+  const [deadline, setDeadline] = useState<Date | null>(new Date())
+  const [thaiDateTime, setThaiDateTime] = useState<Date | null>(new Date())
 
   const liveDefault = useLiveText(defaultVal)
   const liveQuantity = useLiveText(quantity)
@@ -441,6 +452,83 @@ export function App() {
 
         <Field label="Fixed time (disabled)" htmlFor="time-disabled">
           <InputTime id="time-disabled" value={new Date(2026, 0, 1, 8, 0)} onChange={() => {}} isDisabled />
+        </Field>
+      </Section>
+
+      <Section title="InputDateTime">
+        <Field
+          label="Default InputDateTime (calendar + 15-minute time list)"
+          htmlFor="default-input-date-time"
+          note={`The current value is ${formatDateTimeCommitted(defaultDateTime)}`}
+        >
+          <InputDateTime
+            id="default-input-date-time"
+            value={defaultDateTime}
+            onChange={setDefaultDateTime}
+          />
+        </Field>
+
+        <Field
+          label="Appointment (12-hour format, times 09:00-17:00 every 30 min)"
+          htmlFor="appointment-date-time"
+          note={`The current value is ${formatDateTimeCommitted(appointment)}`}
+        >
+          <InputDateTime
+            id="appointment-date-time"
+            value={appointment}
+            onChange={setAppointment}
+            format="d/m/Y h:i K"
+            timeMin={businessHours.start}
+            timeMax={businessHours.end}
+            timeStep={30}
+            timeFormat="h:i K"
+          />
+        </Field>
+
+        <Field
+          label="Deadline (this week only, wheel-steppable — day or time, whichever group you are in)"
+          htmlFor="deadline-date-time"
+          note={`The current value is ${formatDateTimeCommitted(deadline)}`}
+        >
+          <InputDateTime
+            id="deadline-date-time"
+            value={deadline}
+            onChange={setDeadline}
+            min={weekRange.start}
+            max={weekRange.end}
+            handleWheel
+          />
+        </Field>
+
+        <Field
+          label="Thai (พ.ศ. + Thai month names)"
+          htmlFor="thai-date-time"
+          note={`The current value is ${formatDateTimeCommitted(thaiDateTime)}`}
+        >
+          <InputDateTime
+            id="thai-date-time"
+            value={thaiDateTime}
+            onChange={setThaiDateTime}
+            locale="th"
+          />
+        </Field>
+
+        <Field label="Fixed moment (read-only)" htmlFor="date-time-readonly">
+          <InputDateTime
+            id="date-time-readonly"
+            value={new Date(2026, 0, 1, 8, 0)}
+            onChange={() => {}}
+            isReadOnly
+          />
+        </Field>
+
+        <Field label="Fixed moment (disabled)" htmlFor="date-time-disabled">
+          <InputDateTime
+            id="date-time-disabled"
+            value={new Date(2026, 0, 1, 8, 0)}
+            onChange={() => {}}
+            isDisabled
+          />
         </Field>
       </Section>
     </div>
