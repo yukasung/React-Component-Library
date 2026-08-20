@@ -1,8 +1,2 @@
-@import "tailwindcss/theme" source(none);
-@import "tailwindcss/utilities" source(none);
 @import "flatpickr/dist/flatpickr.css";
 @import "./components/InputDate/flatpickr-theme.css";
-
-@custom-variant dark (&:where(.dark, .dark *));
-
-@source "./components";

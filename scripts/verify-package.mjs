@@ -32,13 +32,13 @@ if (typeof styleTarget !== 'string' || !existsSync(resolve(root, styleTarget))) 
 }
 
 const verifyStyle = (style) => {
-  for (const marker of ['.rounded-lg', '--rc-color-primary', '.flatpickr-calendar', ':where(.dark,.dark *)', 'position:absolute!important']) {
+  for (const marker of ['.flatpickr-calendar', ':is(.dark *)', 'position:absolute!important']) {
     if (!style.includes(marker)) {
       fail(`style.css is missing required ${marker} output`)
     }
   }
 
-  for (const marker of ['@layer base', 'html,:host{line-height:1.5', '@media(prefers-color-scheme:dark)', '.mx-auto', '.first\\\\:mt-8']) {
+  for (const marker of ['@layer base', 'html,:host{line-height:1.5', '@media(prefers-color-scheme:dark)', '.mx-auto', '.first\\\\:mt-8', '.flex{display:flex}', '.hidden{display:none}', ':root,:host{--color-gray']) {
     if (style.includes(marker)) {
       fail(`style.css contains forbidden global or non-component output: ${marker}`)
     }
@@ -46,7 +46,7 @@ const verifyStyle = (style) => {
 }
 
 if (process.argv.includes('--self-test')) {
-  const preflightFixture = '.rounded-lg{}--rc-color-primary{}.flatpickr-calendar{}@layer base{html,:host{line-height:1.5}}'
+  const preflightFixture = '.flatpickr-calendar{}@layer base{html,:host{line-height:1.5}}'
   try {
     verifyStyle(preflightFixture)
   } catch {
