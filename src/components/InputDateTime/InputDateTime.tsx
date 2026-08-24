@@ -196,6 +196,7 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
     flatpickrLocale,
     yearOffset,
     committedValue: field.committedValue,
+    positionElementRef: field.inputRef,
     calendarId,
     calendarAriaLabel,
     onPick: field.pickDate,
@@ -394,7 +395,7 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
       )}
       {/* React-opaque host for flatpickr's popup — see the DOM-ownership
           escape-hatch note in CLAUDE.md; must stay empty in JSX. */}
-      <div ref={containerRef} className="absolute inset-x-0 bottom-0 h-0 w-0" />
+      <div ref={containerRef} />
     </div>
   )
 })

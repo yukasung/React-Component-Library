@@ -738,6 +738,17 @@ describe('InputDate', () => {
   // suite so a break here is easy to attribute to the dependency, not a
   // regression in this component's own logic.
   describe('calendar popup (flatpickr integration)', () => {
+    it('appends an opened calendar to document body so card overflow cannot clip it', async () => {
+      const user = userEvent.setup()
+      const { container } = render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
+
+      await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+
+      const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')!
+      expect(calendar.parentElement).toBe(document.body)
+      expect(container).not.toContainElement(calendar)
+    })
+
     it('labels the calendar dialog by default and supports a custom label', () => {
       const { rerender } = render(<InputDate value={new Date(2026, 6, 15)} onChange={() => {}} />)
       const calendar = document.querySelector<HTMLElement>('.flatpickr-calendar')!

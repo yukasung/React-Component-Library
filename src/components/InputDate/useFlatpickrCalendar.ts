@@ -24,6 +24,7 @@ export interface UseFlatpickrCalendarOptions {
   // in InputDate.tsx; this hook only consumes the resolved number.
   yearOffset: number
   committedValue: Date | null
+  positionElementRef: RefObject<HTMLInputElement | null>
   calendarId: string
   calendarAriaLabel: string
   // Called when a day is picked in the calendar, with the picked date
@@ -61,6 +62,7 @@ export function useFlatpickrCalendar({
   flatpickrLocale,
   yearOffset,
   committedValue,
+  positionElementRef,
   calendarId,
   calendarAriaLabel,
   onPick,
@@ -118,7 +120,8 @@ export function useFlatpickrCalendar({
     })
     container.appendChild(input)
     const instance = flatpickr(input, {
-      static: true,
+      positionElement: positionElementRef.current ?? undefined,
+      static: false,
       dateFormat: format,
       minDate: min ?? undefined,
       maxDate: max ?? undefined,

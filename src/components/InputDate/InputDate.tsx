@@ -336,6 +336,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     flatpickrLocale,
     yearOffset,
     committedValue,
+    positionElementRef: inputElementRef,
     calendarId,
     calendarAriaLabel,
     onPick: (next: Date | null) => reseedTemplate(commit(next)),
@@ -637,7 +638,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
       )}
       {/* React-opaque host for flatpickr's popup — see the DOM-ownership
           escape-hatch note above; must stay empty in JSX. */}
-      <div ref={containerRef} className="absolute inset-x-0 bottom-0 h-0 w-0" />
+      <div ref={containerRef} />
     </div>
   )
 })
