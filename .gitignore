@@ -4,6 +4,7 @@ dist-demo
 *.tsbuildinfo
 .DS_Store
 coverage
+.worktrees/
 
 # Third-party reference template (TailAdmin) — visual reference only, not
 # part of this library; kept out of version control to avoid redistributing
