@@ -608,6 +608,14 @@ describe('InputDateTime', () => {
       expect(screen.getByRole('listbox')).toHaveStyle({ maxHeight: '120px' })
     })
 
+    it('keeps the time list as wide as its date-time field', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} />)
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      expect(screen.getByRole('listbox')).toHaveStyle({ minWidth: '100%', width: '100%' })
+    })
+
     it('hides both buttons when showDropdownButton is false, keeping the keyboard route', () => {
       render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} showDropdownButton={false} />)
       const input = getInput()

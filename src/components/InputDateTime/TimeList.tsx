@@ -35,7 +35,7 @@ export function TimeList({
       id={id}
       role="listbox"
       aria-label={ariaLabel}
-      style={{ maxHeight }}
+      style={{ maxHeight, minWidth: '100%', width: '100%' }}
       className={listClassName}
     >
       {times.map((minutes, index) => {
