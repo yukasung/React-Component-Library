@@ -12,6 +12,7 @@ export interface TimeListProps {
   maxHeight: number
   times: number[]
   labels: string[]
+  disabled: boolean[]
   // Minutes of the committed value, or null — which entry reads as selected.
   selectedMinutes: number | null
   highlightedIndex: number
@@ -25,6 +26,7 @@ export function TimeList({
   maxHeight,
   times,
   labels,
+  disabled,
   selectedMinutes,
   highlightedIndex,
   onPick,
@@ -39,19 +41,23 @@ export function TimeList({
       className={listClassName}
     >
       {times.map((minutes, index) => {
-        const isSelected = minutes === selectedMinutes
+        const isDisabled = disabled[index] ?? false
+        const isSelected = !isDisabled && minutes === selectedMinutes
         return (
           <div
             key={minutes}
             id={`${id}-${index}`}
             role="option"
             aria-selected={isSelected}
+            aria-disabled={isDisabled || undefined}
             // Keeps focus in the text field: without this the mousedown blurs
             // the input, which commits the draft and can close the list before
             // the click that picks an entry ever lands.
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onPick(minutes)}
-            className={optionClassName(isSelected, index === highlightedIndex)}
+            onClick={() => {
+              if (!isDisabled) onPick(minutes)
+            }}
+            className={optionClassName(isSelected, index === highlightedIndex, isDisabled)}
           >
             {labels[index]}
           </div>

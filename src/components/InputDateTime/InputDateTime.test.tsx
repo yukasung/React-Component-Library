@@ -265,7 +265,7 @@ describe('InputDateTime', () => {
       const user = userEvent.setup()
       render(
         <InputDateTime
-          value={new Date(2026, 6, 15, 9, 30)}
+          value={new Date(2026, 6, 15, 9, 0)}
           onChange={() => {}}
           timeMin={new Date(2026, 0, 1, 9, 0)}
           timeMax={new Date(2026, 0, 1, 10, 0)}
@@ -284,6 +284,77 @@ describe('InputDateTime', () => {
         '9:30 AM',
         '10:00 AM',
       ])
+    })
+
+    it('disables time options outside same-day bounds', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(
+        <InputDateTime
+          value={new Date(2026, 6, 15, 9, 30)}
+          min={new Date(2026, 6, 15, 9, 30)}
+          max={new Date(2026, 6, 15, 9, 30)}
+          onChange={onChange}
+          timeMin={new Date(2026, 0, 1, 9, 0)}
+          timeMax={new Date(2026, 0, 1, 10, 0)}
+          timeStep={30}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      const list = within(screen.getByRole('listbox'))
+      expect(list.getByRole('option', { name: '09:00' })).toHaveAttribute('aria-disabled', 'true')
+      expect(list.getByRole('option', { name: '09:30' })).not.toHaveAttribute('aria-disabled')
+      expect(list.getByRole('option', { name: '10:00' })).toHaveAttribute('aria-disabled', 'true')
+
+      await user.click(list.getByRole('option', { name: '09:00' }))
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('keeps time options enabled on a day without a timestamp bound', async () => {
+      const user = userEvent.setup()
+      render(
+        <InputDateTime
+          value={new Date(2026, 6, 16, 9, 30)}
+          min={new Date(2026, 6, 15, 9, 30)}
+          max={new Date(2026, 6, 15, 9, 30)}
+          onChange={() => {}}
+          timeMin={new Date(2026, 0, 1, 9, 0)}
+          timeMax={new Date(2026, 0, 1, 10, 0)}
+          timeStep={30}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      const list = within(screen.getByRole('listbox'))
+      expect(list.getByRole('option', { name: '09:00' })).not.toHaveAttribute('aria-disabled')
+      expect(list.getByRole('option', { name: '10:00' })).not.toHaveAttribute('aria-disabled')
+    })
+
+    it('keeps keyboard selection on enabled time options', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(
+        <InputDateTime
+          value={new Date(2026, 6, 15, 9, 0)}
+          min={new Date(2026, 6, 15, 9, 30)}
+          max={new Date(2026, 6, 15, 9, 30)}
+          onChange={onChange}
+          timeMin={new Date(2026, 0, 1, 9, 0)}
+          timeMax={new Date(2026, 0, 1, 10, 0)}
+          timeStep={30}
+        />,
+      )
+      const input = getInput()
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+      fireEvent.keyDown(input, { key: 'Home' })
+      expect(input).toHaveAttribute('aria-activedescendant', `${screen.getByRole('listbox').id}-1`)
+      fireEvent.keyDown(input, { key: 'End' })
+      expect(input).toHaveAttribute('aria-activedescendant', `${screen.getByRole('listbox').id}-1`)
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 15, 9, 30))
     })
 
     it('closes the calendar when the time list opens, and the other way round', async () => {
@@ -574,7 +645,7 @@ describe('InputDateTime', () => {
       expect(inside!.classList.contains('flatpickr-disabled')).toBe(false)
     })
 
-    it('clamps a picked time to max', async () => {
+    it('prevents picking a time after max', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(
@@ -586,9 +657,11 @@ describe('InputDateTime', () => {
       )
 
       await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
-      await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: '14:00' }))
+      const option = within(screen.getByRole('listbox')).getByRole('option', { name: '14:00' })
+      expect(option).toHaveAttribute('aria-disabled', 'true')
+      await user.click(option)
 
-      expect(onChange).toHaveBeenCalledWith(new Date(2026, 6, 15, 12, 0))
+      expect(onChange).not.toHaveBeenCalled()
     })
 
     it('marks the entry matching the current value as selected', async () => {

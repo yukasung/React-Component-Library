@@ -45,8 +45,9 @@ export const listClassName =
 
 // Hover is styled rather than tracked — see InputTime's copy for why the
 // keyboard highlight is state and the pointer one isn't.
-export function optionClassName(isSelected: boolean, isHighlighted: boolean): string {
+export function optionClassName(isSelected: boolean, isHighlighted: boolean, isDisabled: boolean): string {
   const base = 'cursor-pointer px-3 py-1.5 text-sm'
+  if (isDisabled) return `${base} cursor-not-allowed text-gray-400 dark:text-gray-600`
   if (isSelected) return `${base} bg-[var(--rc-color-primary,#465fff)] font-medium text-white`
   const hover = 'hover:bg-gray-100 dark:hover:bg-white/5'
   if (isHighlighted) return `${base} ${hover} bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/90`

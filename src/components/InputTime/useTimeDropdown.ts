@@ -9,6 +9,9 @@ export interface UseTimeDropdownOptions {
   // isn't one of the listed times. Where the highlight starts from each
   // time the list opens.
   selectedIndex: number
+  // InputDateTime can keep entries visible while making timestamp-invalid
+  // ones unavailable. InputTime supplies none, so its list is unchanged.
+  disabledIndices?: readonly number[]
 }
 
 export interface UseTimeDropdownResult {
@@ -35,7 +38,7 @@ export interface UseTimeDropdownResult {
 // DOM. This popup is ordinary React-rendered markup, so there's no
 // DOM-ownership escape hatch here and no imperative instance to keep in
 // sync; the hook only owns the state the markup renders from.
-export function useTimeDropdown({ itemCount, selectedIndex }: UseTimeDropdownOptions): UseTimeDropdownResult {
+export function useTimeDropdown({ itemCount, selectedIndex, disabledIndices = [] }: UseTimeDropdownOptions): UseTimeDropdownResult {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -44,7 +47,19 @@ export function useTimeDropdown({ itemCount, selectedIndex }: UseTimeDropdownOpt
   // narrower min/max, or a coarser step) can strand the stored index past
   // the end, and fixing that with state-that-fixes-state costs an extra
   // render pass and gives the same value two writers.
-  const highlightedIndex = Math.min(storedIndex, itemCount - 1)
+  const isDisabled = (index: number) => disabledIndices.includes(index)
+  function closestEnabledIndex(index: number): number {
+    const lastIndex = itemCount - 1
+    const clamped = Math.max(0, Math.min(index, lastIndex))
+    for (let candidate = clamped; candidate <= lastIndex; candidate++) {
+      if (!isDisabled(candidate)) return candidate
+    }
+    for (let candidate = clamped - 1; candidate >= 0; candidate--) {
+      if (!isDisabled(candidate)) return candidate
+    }
+    return -1
+  }
+  const highlightedIndex = closestEnabledIndex(storedIndex)
 
   // Plain functions, not useCallback — nothing consumes these as a
   // dependency or across a memo boundary, and the hook returns a fresh
@@ -58,7 +73,7 @@ export function useTimeDropdown({ itemCount, selectedIndex }: UseTimeDropdownOpt
   // the highlight was left last time — reopening a list to find it pointing
   // at an entry the user rejected earlier is disorienting.
   useEffect(() => {
-    if (isOpen) setHighlightedIndex(selectedIndex)
+    if (isOpen) setHighlightedIndex(closestEnabledIndex(selectedIndex))
     // selectedIndex deliberately excluded: this is "reset on open", not
     // "follow the value while open" (the latter would fight Arrow-key
     // navigation, which moves the highlight without committing).
@@ -96,10 +111,12 @@ export function useTimeDropdown({ itemCount, selectedIndex }: UseTimeDropdownOpt
 
   function moveHighlight(direction: 1 | -1) {
     setHighlightedIndex((current) => {
-      const next = Math.min(current, itemCount - 1) + direction
-      if (next < 0) return 0
-      if (next > itemCount - 1) return itemCount - 1
-      return next
+      const currentIndex = closestEnabledIndex(current)
+      if (currentIndex === -1) return -1
+      for (let next = currentIndex + direction; next >= 0 && next < itemCount; next += direction) {
+        if (!isDisabled(next)) return next
+      }
+      return currentIndex
     })
   }
 

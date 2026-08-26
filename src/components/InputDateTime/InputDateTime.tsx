@@ -39,6 +39,10 @@ const DEFAULT_FORMAT = 'Y-m-d H:i'
 // How the entries in the time list are labelled when `timeFormat` isn't given.
 const DEFAULT_TIME_FORMAT = 'H:i'
 
+function sameLocalDay(left: Date, right: Date): boolean {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate()
+}
+
 export interface InputDateTimeProps
   extends Omit<
     InputHTMLAttributes<HTMLInputElement>,
@@ -176,10 +180,22 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
     times,
   })
   const displayMinutes = field.displayValue ? timeOfDayMinutes(field.displayValue) : null
+  const disabledTimes = useMemo(() => {
+    const day = field.displayValue
+    if (!day) return times.map(() => false)
+    const minimum = min && sameLocalDay(day, min) ? timeOfDayMinutes(min) : null
+    const maximum = max && sameLocalDay(day, max) ? timeOfDayMinutes(max) : null
+    return times.map((minutes) => (minimum !== null && minutes < minimum) || (maximum !== null && minutes > maximum))
+  }, [field.displayValue, max, min, times])
+  const disabledTimeIndices = useMemo(
+    () => disabledTimes.flatMap((isDisabled, index) => (isDisabled ? [index] : [])),
+    [disabledTimes],
+  )
 
   const dropdown = useTimeDropdown({
     itemCount: times.length,
     selectedIndex: nearestTimeIndex(times, displayMinutes),
+    disabledIndices: disabledTimeIndices,
   })
 
   // All flatpickr integration lives in this hook — see useFlatpickrCalendar.ts,
@@ -232,6 +248,7 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
   }
 
   function pickTime(minutes: number) {
+    if (disabledTimes[times.indexOf(minutes)]) return
     field.pickTime(minutes)
     dropdown.close()
     field.inputRef.current?.focus()
@@ -388,6 +405,7 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
           maxHeight={maxDropdownHeight}
           times={times}
           labels={timeLabels}
+          disabled={disabledTimes}
           selectedMinutes={displayMinutes}
           highlightedIndex={dropdown.highlightedIndex}
           onPick={pickTime}
