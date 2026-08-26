@@ -104,7 +104,7 @@ const inputClassName =
 // the surrounding cell — these keep their bordered box, where those icons
 // float over the input.
 const spinButtonClassName =
-  'flex h-11 w-9 shrink-0 items-center justify-center border-gray-300 text-gray-500 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-400 dark:disabled:text-gray-700'
+  'flex h-11 w-18 shrink-0 items-center justify-center border-gray-300 text-gray-500 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-400 dark:disabled:text-gray-700'
 
 // The increase/decrease buttons are identical apart from which edge they
 // border, their icon, and the callbacks they're wired to — pulled out so

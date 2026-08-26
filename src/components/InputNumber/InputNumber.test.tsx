@@ -33,6 +33,8 @@ describe('InputNumber', () => {
 
     expect(screen.getByRole('button', { name: 'Lower quantity' })).toContainElement(screen.getByTestId('decrease-icon'))
     expect(screen.getByRole('button', { name: 'Raise quantity' })).toContainElement(screen.getByTestId('increase-icon'))
+    expect(screen.getByRole('button', { name: 'Lower quantity' })).toHaveClass('w-18')
+    expect(screen.getByRole('button', { name: 'Raise quantity' })).toHaveClass('w-18')
   })
 
   it('uses the primary theme hook for its focus treatment', () => {
