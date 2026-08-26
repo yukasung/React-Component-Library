@@ -31,13 +31,13 @@ export interface InputNumberProps
   onChange?: (value: number | null) => void
   min?: number
   max?: number
-  // The amount to add/subtract per spin-button click or Arrow key press —
-  // and, matching Wijmo, the sole thing that determines whether the spin
-  // buttons render at all. Unset (undefined/null) means there's no defined
-  // step amount, so there's nothing for the buttons (or Arrow keys, or
-  // handleWheel) to increment by — they're hidden/inert until a step is
-  // given. There's no separate visibility prop for this.
+  // The amount to add/subtract per spin-button click or Arrow key press.
+  // Unset (undefined/null) means there is no defined increment for buttons,
+  // Arrow keys, or handleWheel.
   step?: number | null
+  // Controls whether the increase/decrease buttons are visible. Hidden by
+  // default; a numeric `step` is still required for buttons to render.
+  showSpinButtons?: boolean
   // .NET-style standard numeric format string (e.g. "n2", "C", "P0") —
   // see resolveFormatPrecision/formatWithSpec in src/lib/number.ts. Sets
   // both the display and the decimal places used when clamping/rounding on
@@ -162,6 +162,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     min,
     max,
     step,
+    showSpinButtons = false,
     format,
     isDisabled = false,
     isReadOnly = false,
@@ -187,10 +188,11 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   // inferred from `step` instead (a step of 0.25 implies two decimals).
   const formatSpec = format ? parseNumericFormat(format) : undefined
   const effectivePrecision = formatSpec ? resolveFormatPrecision(formatSpec) : resolvePrecision(step ?? undefined)
-  // Matches Wijmo: step is the sole condition for the spinner (buttons,
-  // Arrow keys, handleWheel) — there's no separate visibility prop. No step
-  // means no defined increment amount, so there's nothing to step by.
+  // A numeric step enables Arrow-key and wheel stepping. Buttons also need
+  // an explicit visibility opt-in so consumers can keep those interactions
+  // without the visual controls.
   const hasStep = typeof step === 'number'
+  const showsSpinButtons = hasStep && showSpinButtons
   // Required fields never display as blank — a null committed value (e.g.
   // before the user's first interaction, or a controlled consumer passing
   // null anyway) still shows "0" rather than an empty field. The underlying
@@ -597,7 +599,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     <div
       className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
     >
-      {hasStep && (
+      {showsSpinButtons && (
         <SpinButton
           ariaLabel={decreaseAriaLabel}
           disabled={spinButtonsDisabled || atMin}
@@ -649,9 +651,9 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           commitDraft()
         }}
         onKeyDown={handleKeyDown}
-        className={inputClassName}
+        className={`${inputClassName} ${showsSpinButtons ? 'text-center' : ''}`}
       />
-      {hasStep && (
+      {showsSpinButtons && (
         <SpinButton
           ariaLabel={increaseAriaLabel}
           disabled={spinButtonsDisabled || atMax}

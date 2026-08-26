@@ -23,6 +23,7 @@ describe('InputNumber', () => {
       <InputNumber
         value={5}
         step={1}
+        showSpinButtons
         onChange={() => {}}
         decreaseIcon={<span data-testid="decrease-icon">less</span>}
         increaseIcon={<span data-testid="increase-icon">more</span>}
@@ -510,10 +511,25 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('8')
   })
 
-  it('renders spin buttons when step is set and steps the value on click', async () => {
+  it('hides spin buttons by default while preserving Arrow-key stepping', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} step={1} onChange={onChange} />)
+
+    expect(screen.queryByRole('button', { name: 'Increase value' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Decrease value' })).not.toBeInTheDocument()
+
+    screen.getByRole('spinbutton').focus()
+    await user.keyboard('{ArrowUp}')
+    expect(onChange).toHaveBeenCalledWith(6)
+  })
+
+  it('renders opted-in spin buttons, centers the value, and steps on click', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<InputNumber value={5} step={1} showSpinButtons onChange={onChange} />)
+
+    expect(screen.getByRole('spinbutton')).toHaveClass('text-center')
 
     await user.click(screen.getByRole('button', { name: 'Increase value' }))
     expect(onChange).toHaveBeenCalledWith(6)
@@ -536,25 +552,25 @@ describe('InputNumber', () => {
   })
 
   it('disables spin buttons at min/max boundaries', () => {
-    render(<InputNumber value={10} min={0} max={10} step={1} onChange={() => {}} />)
+    render(<InputNumber value={10} min={0} max={10} step={1} showSpinButtons onChange={() => {}} />)
 
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).not.toBeDisabled()
   })
 
   it('disables spin buttons when the field is disabled or read-only', () => {
-    const { rerender } = render(<InputNumber value={5} step={1} onChange={() => {}} isDisabled />)
+    const { rerender } = render(<InputNumber value={5} step={1} showSpinButtons onChange={() => {}} isDisabled />)
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).toBeDisabled()
 
-    rerender(<InputNumber value={5} step={1} onChange={() => {}} isReadOnly />)
+    rerender(<InputNumber value={5} step={1} showSpinButtons onChange={() => {}} isReadOnly />)
     expect(screen.getByRole('button', { name: 'Increase value' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Decrease value' })).toBeDisabled()
   })
 
   it('keeps focus on the input when clicking a spin button', async () => {
     const user = userEvent.setup()
-    render(<InputNumber value={5} step={1} onChange={() => {}} />)
+    render(<InputNumber value={5} step={1} showSpinButtons onChange={() => {}} />)
     const input = screen.getByRole('spinbutton')
 
     input.focus()
@@ -643,7 +659,7 @@ describe('InputNumber', () => {
     it('repeats stepping while a spin button is held past the initial delay', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={5} step={1} onChange={onChange} />)
+      render(<InputNumber value={5} step={1} showSpinButtons onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
@@ -665,7 +681,7 @@ describe('InputNumber', () => {
     it('a quick click released before the initial delay still steps exactly once', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={5} step={1} onChange={onChange} />)
+      render(<InputNumber value={5} step={1} showSpinButtons onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
@@ -679,7 +695,7 @@ describe('InputNumber', () => {
     it('does not repeat when repeatButtons is false, even when held', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={5} step={1} repeatButtons={false} onChange={onChange} />)
+      render(<InputNumber value={5} step={1} showSpinButtons repeatButtons={false} onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
@@ -696,7 +712,7 @@ describe('InputNumber', () => {
     it('stops repeating once the value reaches max while held', () => {
       vi.useFakeTimers()
       const onChange = vi.fn()
-      render(<InputNumber value={9} max={10} step={1} onChange={onChange} />)
+      render(<InputNumber value={9} max={10} step={1} showSpinButtons onChange={onChange} />)
       const upButton = screen.getByRole('button', { name: 'Increase value' })
 
       fireEvent.mouseDown(upButton)
