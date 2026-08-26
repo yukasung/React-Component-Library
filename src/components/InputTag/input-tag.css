@@ -33,7 +33,11 @@
   transition: border-color 150ms, box-shadow 150ms;
 }
 
-.rc-input-tag__combobox:focus .rc-input-tag__surface {
+.rc-input-tag__combobox:focus-visible {
+  outline: none;
+}
+
+.rc-input-tag__combobox:focus-visible .rc-input-tag__surface {
   border-color: #9cb9ff;
   box-shadow: 0 0 0 3px rgba(70, 95, 255, 0.12);
 }

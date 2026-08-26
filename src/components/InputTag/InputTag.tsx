@@ -62,7 +62,8 @@ export function InputTag({
   const selectedValueKey = selectedValue.join('\u0000')
   const [customTag, setCustomTag] = useState('')
   const [isOpen, setIsOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const [isKeyboardNavigating, setIsKeyboardNavigating] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
@@ -81,10 +82,8 @@ export function InputTag({
     first.localeCompare(second, undefined, { sensitivity: 'accent' }) === 0
 
   const openMenu = () => {
-    const selectedIndex = options.findIndex((option) =>
-      selectedValue.some((tag) => tagsMatch(tag, option)),
-    )
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+    setActiveIndex(-1)
+    setIsKeyboardNavigating(false)
     setIsOpen(true)
   }
 
@@ -164,6 +163,7 @@ export function InputTag({
       event.preventDefault()
       event.stopPropagation()
       setIsOpen(false)
+      setIsKeyboardNavigating(false)
       triggerRef.current?.focus()
     }
 
@@ -257,9 +257,15 @@ export function InputTag({
             role="option"
             tabIndex={-1}
             aria-selected={selectedValue.some((tag) => tagsMatch(tag, option))}
-            onPointerMove={() => setActiveIndex(index)}
-            onClick={() => toggle(option)}
-            className={`rc-input-tag__option w-full cursor-pointer rounded-t border-b border-gray-200 text-left dark:border-gray-800 ${activeIndex === index ? 'rc-input-tag__option--active' : ''}`}
+            onPointerMove={() => {
+              setActiveIndex(index)
+              setIsKeyboardNavigating(false)
+            }}
+            onClick={() => {
+              setIsKeyboardNavigating(false)
+              toggle(option)
+            }}
+            className={`rc-input-tag__option w-full cursor-pointer rounded-t border-b border-gray-200 text-left dark:border-gray-800 ${isKeyboardNavigating && activeIndex === index ? 'rc-input-tag__option--active' : ''}`}
           >
             <span className="rc-input-tag__option-label relative flex w-full p-2 pl-2 text-sm leading-6 text-gray-800 dark:text-white/90">
               {option}
@@ -300,13 +306,19 @@ export function InputTag({
                 return
               }
               if (options.length === 0) return
+              setIsKeyboardNavigating(true)
               const offset = event.key === 'ArrowDown' ? 1 : -1
-              setActiveIndex((current) =>
-                (current + offset + options.length) % options.length)
+              setActiveIndex((current) => {
+                if (current < 0) {
+                  return event.key === 'ArrowDown' ? 0 : options.length - 1
+                }
+                return (current + offset + options.length) % options.length
+              })
               return
             }
             if (menuIsOpen && (event.key === 'Home' || event.key === 'End')) {
               event.preventDefault()
+              setIsKeyboardNavigating(true)
               setActiveIndex(event.key === 'Home' ? 0 : Math.max(0, options.length - 1))
               return
             }

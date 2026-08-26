@@ -37,6 +37,10 @@ describe('InputTag', () => {
     expect(trigger.parentElement).toHaveClass('relative', 'flex', 'flex-col', 'items-center')
     expect(trigger.querySelector('.flex-auto')).toBeInTheDocument()
     expect(important).not.toHaveClass('hover:bg-primary/5', 'bg-primary/10')
+    expect(important).not.toHaveClass('rc-input-tag__option--active')
+
+    await user.hover(important)
+    expect(important).not.toHaveClass('rc-input-tag__option--active')
 
     await user.click(important)
     await user.click(screen.getByRole('option', { name: 'VIP' }))
