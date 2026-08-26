@@ -38,10 +38,14 @@ describe('InputNumber', () => {
     expect(screen.getByRole('button', { name: 'Raise quantity' })).toHaveClass('w-18')
   })
 
-  it('uses the primary theme hook for its focus treatment', () => {
+  it('uses the standard form-control border, shadow, and focus treatment', () => {
     render(<InputNumber value={5} onChange={() => {}} />)
-    expect(screen.getByRole('spinbutton').parentElement?.className).toContain('var(--rc-color-primary,#465fff)')
-    expect(screen.getByRole('spinbutton').parentElement?.className).toContain('color-mix')
+    expect(screen.getByRole('spinbutton').parentElement).toHaveClass(
+      'border-gray-300',
+      'shadow-theme-xs',
+      'focus-within:border-brand-300',
+      'focus-within:ring-brand-500/20',
+    )
   })
 
   it('displays a controlled value', () => {

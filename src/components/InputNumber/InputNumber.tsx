@@ -83,7 +83,7 @@ const REPEAT_INTERVAL_MS = 80
 // flex child; :focus-within (rather than the input's own :focus) puts the
 // ring on the whole wrapper when the input inside it is focused.
 const wrapperBaseClassName =
-  'flex items-stretch overflow-hidden rounded-lg border shadow-sm focus-within:border-[var(--rc-color-primary,#465fff)] focus-within:ring-3 focus-within:ring-[color-mix(in_srgb,var(--rc-color-primary,#465fff)_20%,transparent)]'
+  'flex items-stretch overflow-hidden rounded-lg border shadow-theme-xs focus-within:border-brand-300 focus-within:outline-hidden focus-within:ring-3 focus-within:ring-brand-500/20'
 
 function wrapperStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
   if (isDisabled) {
