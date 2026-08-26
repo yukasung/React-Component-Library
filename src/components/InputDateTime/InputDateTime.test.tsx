@@ -146,12 +146,11 @@ describe('InputDateTime', () => {
     })
 
     it('snaps a required field back when the whole value is wiped at once', async () => {
-      const user = userEvent.setup()
       render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={() => {}} />)
       const input = getInput()
 
       focusInput(input)
-      await user.keyboard('{Control>}a{/Control}')
+      input.setSelectionRange(0, input.value.length)
       fireEvent.keyDown(input, { key: 'Delete' })
 
       expect(getInput().value).not.toContain('_')
