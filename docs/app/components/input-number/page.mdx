@@ -102,14 +102,10 @@ const [value, setValue] = useState<number | null>(10)
 
 <PropertySignature name="step" type="number | null" />
 
-กำหนดจำนวนที่จะเพิ่มหรือลดค่า value เมื่อผู้ใช้กดปุ่ม spinner
-
-ค่าเริ่มต้นของ property นี้คือ null ซึ่งจะซ่อนปุ่ม spinner จาก control
+กำหนดจำนวนที่จะเพิ่มหรือลดค่า value เมื่อผู้ใช้กดปุ่ม spinner หรือปุ่มลูกศรบนคีย์บอร์ด
 
 <Callout type="info">
   **Note**
-
-  step เป็นตัวกำหนดว่าจะแสดงปุ่ม spinner หรือไม่ ไม่มี prop แยกสำหรับเรื่องนี้
 
   ถ้าไม่ระบุ step ปุ่ม spinner, ปุ่มลูกศรบนคีย์บอร์ด และ handleWheel จะใช้งานไม่ได้ทั้งหมด เพราะไม่มีจำนวนให้ขยับค่า
 
@@ -121,6 +117,16 @@ const [value, setValue] = useState<number | null>(10)
 ```tsx
 <InputNumber defaultValue={1} />
 <InputNumber step={0.1} defaultValue={1} />
+```
+
+### showSpinButtons
+
+<PropertySignature name="showSpinButtons" type="boolean" />
+
+กำหนดว่าจะแสดงปุ่มลดและเพิ่มค่าหรือไม่ ค่าเริ่มต้นคือ false เมื่อเป็น true ต้องระบุ `step` เป็นตัวเลขด้วยจึงจะแสดงปุ่ม และตัวเลขใน input จะจัดกึ่งกลาง
+
+```tsx
+<InputNumber step={1} showSpinButtons defaultValue={1} />
 ```
 
 ### format
