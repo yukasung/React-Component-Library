@@ -146,7 +146,7 @@
 
 .rc-input-tag__menu--portal {
   position: fixed;
-  z-index: 50;
+  z-index: 100000;
 }
 
 .rc-input-tag__custom-input {

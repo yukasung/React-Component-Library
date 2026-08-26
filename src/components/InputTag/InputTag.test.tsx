@@ -198,6 +198,7 @@ describe('InputTag', () => {
     const listbox = screen.getByRole('listbox', { name: 'Tags' })
     const menu = listbox.parentElement as HTMLDivElement
     expect(menu.parentElement).toBe(document.body)
+    expect(menu).toHaveClass('z-[100000]')
     Object.defineProperty(menu, 'scrollHeight', { configurable: true, value: 120 })
     act(() => window.dispatchEvent(new Event('resize')))
     expect(menu).toHaveStyle({ left: '100px', top: '152px', width: '300px' })

@@ -209,7 +209,7 @@ export function InputTag({
       onPointerDown={(event) => event.stopPropagation()}
       className={
         portal
-          ? 'rc-input-tag__menu rc-input-tag__menu--portal fixed z-50 overflow-y-auto rounded-lg bg-white shadow-sm dark:bg-gray-900'
+          ? 'rc-input-tag__menu rc-input-tag__menu--portal fixed z-[100000] overflow-y-auto rounded-lg bg-white shadow-sm dark:bg-gray-900'
           : 'rc-input-tag__menu rc-input-tag__menu--inline absolute left-0 top-full z-40 w-full max-h-select overflow-y-auto rounded-lg bg-white shadow-sm dark:bg-gray-900'
       }
       style={

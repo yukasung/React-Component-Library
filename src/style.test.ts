@@ -26,4 +26,10 @@ describe("InputTag stylesheet", () => {
       ".rc-input-tag__combobox:focus .rc-input-tag__surface",
     );
   });
+
+  it("keeps portalled menus above application modals", () => {
+    expect(inputTagStylesheet).toContain(
+      ".rc-input-tag__menu--portal {\n  position: fixed;\n  z-index: 100000;\n}",
+    );
+  });
 });
