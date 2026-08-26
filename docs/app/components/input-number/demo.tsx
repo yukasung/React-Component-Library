@@ -168,6 +168,39 @@ export function StepDemo() {
   )
 }
 
+export function ShowSpinButtonsDemo() {
+  const [hiddenValue, setHiddenValue] = useState<number | null>(1)
+  const [visibleValue, setVisibleValue] = useState<number | null>(1)
+
+  return (
+    <div className="not-prose my-6 grid gap-6 sm:grid-cols-2">
+      <div>
+        <label htmlFor="demo-spin-buttons-hidden" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          showSpinButtons={'{false}'} (default)
+        </label>
+        <InputNumber
+          id="demo-spin-buttons-hidden"
+          step={1}
+          value={hiddenValue}
+          onChange={setHiddenValue}
+        />
+      </div>
+      <div>
+        <label htmlFor="demo-spin-buttons-visible" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-white/80">
+          showSpinButtons
+        </label>
+        <InputNumber
+          id="demo-spin-buttons-visible"
+          step={1}
+          showSpinButtons
+          value={visibleValue}
+          onChange={setVisibleValue}
+        />
+      </div>
+    </div>
+  )
+}
+
 const FORMAT_DEMO_SPECS = ['n0', 'n2', 'c0', 'c2', 'p0', 'p2'] as const
 
 function FormatDemoRow({ format }: { format: (typeof FORMAT_DEMO_SPECS)[number] }) {

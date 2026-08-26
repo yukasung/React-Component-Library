@@ -9,6 +9,7 @@ const properties = [
   { name: 'min', href: '#min' },
   { name: 'max', href: '#max' },
   { name: 'step', href: '#step' },
+  { name: 'showSpinButtons', href: '#showspinbuttons' },
   { name: 'format', href: '#format' },
   { name: 'truncate', href: '#truncate' },
   { name: 'repeatButtons', href: '#repeatbuttons' },

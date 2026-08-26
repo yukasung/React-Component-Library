@@ -1,5 +1,5 @@
 import { Callout } from 'nextra/components'
-import { DefaultDemo, DisabledDemo, FormatDemo, HandleWheelDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, RepeatButtonsDemo, StepDemo, TruncateDemo, ValueDemo } from './demo'
+import { DefaultDemo, DisabledDemo, FormatDemo, HandleWheelDemo, IsRequiredDemo, MinMaxDemo, PlaceholderDemo, ReadOnlyDemo, RepeatButtonsDemo, ShowSpinButtonsDemo, StepDemo, TruncateDemo, ValueDemo } from './demo'
 import { PropertyIndex, PropertySignature } from './property-index'
 
 export const metadata = {
@@ -124,6 +124,8 @@ const [value, setValue] = useState<number | null>(10)
 <PropertySignature name="showSpinButtons" type="boolean" />
 
 กำหนดว่าจะแสดงปุ่มลดและเพิ่มค่าหรือไม่ ค่าเริ่มต้นคือ false เมื่อเป็น true ต้องระบุ `step` เป็นตัวเลขด้วยจึงจะแสดงปุ่ม และตัวเลขใน input จะจัดกึ่งกลาง
+
+<ShowSpinButtonsDemo />
 
 ```tsx
 <InputNumber step={1} showSpinButtons defaultValue={1} />
