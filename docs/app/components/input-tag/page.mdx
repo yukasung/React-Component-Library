@@ -1,0 +1,110 @@
+import { Callout } from 'nextra/components'
+import { CustomTagDemo, DefaultDemo, DisabledDemo } from './demo'
+import { PropertyIndex, PropertySignature } from './property-index'
+
+export const metadata = {
+  title: 'InputTag',
+  description: 'Input สำหรับเลือกหลาย tag แสดงค่าเป็น chip และเพิ่ม tag แบบกำหนดเองได้',
+}
+
+# InputTag
+
+InputTag คือ input สำหรับเลือกหลาย tag จากรายการ แสดงค่าที่เลือกเป็น chip ที่ลบได้ และเปิดให้ผู้ใช้เพิ่ม tag แบบกำหนดเองได้เมื่อจำเป็น
+
+<DefaultDemo />
+
+## Import
+
+```tsx
+import { InputTag } from '@yukasung/react-components/input-tag'
+```
+
+นำ stylesheet ของ package เข้า application entry point หนึ่งครั้ง:
+
+```tsx
+import '@yukasung/react-components/style.css'
+```
+
+## Properties
+
+<PropertyIndex />
+
+### id
+
+<PropertySignature name="id" type="string" />
+
+กำหนด id ของ combobox ถ้าไม่ระบุ component จะสร้าง id ให้เอง
+
+### ariaLabel
+
+<PropertySignature name="ariaLabel" type="string" />
+
+ชื่อที่ accessibility API ใช้กับ combobox และ listbox ต้องระบุทุกครั้ง
+
+### options
+
+<PropertySignature name="options" type="readonly string[]" />
+
+รายการ tag ที่ผู้ใช้เลือกได้
+
+### value
+
+<PropertySignature name="value" type="readonly string[]" />
+
+ค่าปัจจุบันสำหรับ controlled mode ใช้คู่กับ `onChange`
+
+### defaultValue
+
+<PropertySignature name="defaultValue" type="readonly string[]" />
+
+ค่าเริ่มต้นสำหรับ uncontrolled mode ค่าเริ่มต้นคือ `[]`
+
+### onChange
+
+<PropertySignature name="onChange" type="(value: readonly string[]) => void" />
+
+เรียกเมื่อมีการเลือก ลบ หรือเพิ่ม tag
+
+### placeholder
+
+<PropertySignature name="placeholder" type="string" />
+
+ข้อความที่แสดงเมื่อยังไม่มี tag ที่เลือก ค่าเริ่มต้นคือ `Select options`
+
+### isDisabled
+
+<PropertySignature name="isDisabled" type="boolean" />
+
+ปิดการเปิด dropdown และการลบ tag ค่าเริ่มต้นคือ `false`
+
+<DisabledDemo />
+
+### portal
+
+<PropertySignature name="portal" type="boolean" />
+
+ย้าย dropdown ไปไว้ใต้ `document.body` เพื่อไม่ให้ถูกตัดโดย popover พร้อมปรับตำแหน่งเมื่อ input เปลี่ยนความสูง scroll หรือ resize ค่าเริ่มต้นคือ `false`
+
+### className
+
+<PropertySignature name="className" type="string" />
+
+class เพิ่มเติมสำหรับพื้นผิว input ที่มีกรอบ
+
+### removeLabel
+
+<PropertySignature name="removeLabel" type="(tag: string) => string" />
+
+สร้าง ARIA label สำหรับปุ่มลบแต่ละ chip
+
+### addCustomTag
+
+<PropertySignature name="addCustomTag" type="{ ariaLabel: string; placeholder: string }" />
+
+เปิด text input ใน dropdown ผู้ใช้พิมพ์แล้วกด Enter เพื่อเพิ่ม tag ใหม่ ค่าใหม่จะถูก trim และไม่เพิ่มค่าว่างหรือค่าซ้ำโดยไม่สนตัวพิมพ์
+
+<CustomTagDemo />
+
+<Callout type="info">
+  InputTag ไม่บันทึก tag เป็น master data การจัดเก็บค่าที่เลือกเป็นหน้าที่ของ consumer ผ่าน `value` และ `onChange`
+</Callout>

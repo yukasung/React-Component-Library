@@ -41,6 +41,10 @@
       "types": "./dist/input-date-time.d.ts",
       "import": "./dist/input-date-time.js"
     },
+    "./input-tag": {
+      "types": "./dist/input-tag.d.ts",
+      "import": "./dist/input-tag.js"
+    },
     "./style.css": "./dist/style.css"
   },
   "scripts": {

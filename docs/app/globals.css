@@ -9,12 +9,13 @@
    side effect goes with it, so the popup arrives with no styling at all:
    an in-flow block of stacked weekday letters overlapping the page.
    demo/ doesn't hit this because Vite keeps the side-effect import.
-   Same two files, same order, as src/style.css — base first, our theme
-   overrides it. flatpickr resolves from the parent project's
+   The imports below mirror src/style.css — flatpickr base first, then the
+   calendar theme and component-scoped InputTag styles. flatpickr resolves from the parent project's
    node_modules (docs/ has none of its own), which is the version the
    library itself pins. */
 @import "flatpickr/dist/flatpickr.css";
 @import "../../src/components/InputDate/flatpickr-theme.css";
+@import "../../src/components/InputTag/input-tag.css";
 
 /* @yukasung/react-components is aliased straight to its TS source here (see
    next.config.mjs), not the compiled dist bundle — Tailwind must scan

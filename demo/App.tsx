@@ -4,6 +4,7 @@ import {
   InputDate,
   InputDateTime,
   InputNumber,
+  InputTag,
   InputTime,
   formatTimeValue,
   parseDraft,
@@ -143,6 +144,7 @@ export function App() {
   const [appointment, setAppointment] = useState<Date | null>(businessHours.start)
   const [deadline, setDeadline] = useState<Date | null>(new Date())
   const [thaiDateTime, setThaiDateTime] = useState<Date | null>(new Date())
+  const [tags, setTags] = useState<readonly string[]>(['Important', 'VIP'])
 
   const liveDefault = useLiveText(defaultVal)
   const liveQuantity = useLiveText(quantity)
@@ -528,6 +530,28 @@ export function App() {
             value={new Date(2026, 0, 1, 8, 0)}
             onChange={() => {}}
             isDisabled
+          />
+        </Field>
+      </Section>
+
+      <Section title="InputTag">
+        <Field
+          label="Tags"
+          htmlFor="input-tag"
+          note={`The current value is ${tags.length > 0 ? tags.join(', ') : 'empty'}`}
+        >
+          <InputTag
+            id="input-tag"
+            ariaLabel="Tags"
+            options={['Important', 'VIP', 'Monthly']}
+            value={tags}
+            onChange={setTags}
+            placeholder="Select tags"
+            removeLabel={(tag) => `Remove ${tag}`}
+            addCustomTag={{
+              ariaLabel: 'Add a custom tag',
+              placeholder: 'Type a tag and press Enter',
+            }}
           />
         </Field>
       </Section>

@@ -10,7 +10,7 @@ const fail = (message) => {
   throw new Error(`Package verification failed: ${message}`)
 }
 
-const expectedEntries = ['.', './input-number', './input-date', './input-time', './input-date-time']
+const expectedEntries = ['.', './input-number', './input-date', './input-time', './input-date-time', './input-tag']
 
 for (const entry of expectedEntries) {
   const target = manifest.exports?.[entry]
@@ -32,7 +32,7 @@ if (typeof styleTarget !== 'string' || !existsSync(resolve(root, styleTarget))) 
 }
 
 const verifyStyle = (style) => {
-  for (const marker of ['.flatpickr-calendar', ':is(.dark *)', 'position:absolute!important']) {
+  for (const marker of ['.flatpickr-calendar', ':is(.dark *)', 'position:absolute!important', '.rc-input-tag__surface', '.rc-input-tag__menu--portal']) {
     if (!style.includes(marker)) {
       fail(`style.css is missing required ${marker} output`)
     }

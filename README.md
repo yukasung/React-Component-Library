@@ -1,6 +1,6 @@
 # React Components
 
-Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `Grid`) styled with Tailwind CSS v4.
+Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `InputTime`, `InputDateTime`, `InputTag`) styled with Tailwind CSS v4.
 
 React, ReactDOM, and Tailwind CSS are peer dependencies — this package does not bundle them.
 
@@ -48,7 +48,27 @@ import { InputNumber } from '@yukasung/react-components/input-number'
 import { InputDate } from '@yukasung/react-components/input-date'
 import { InputTime } from '@yukasung/react-components/input-time'
 import { InputDateTime } from '@yukasung/react-components/input-date-time'
+import { InputTag } from '@yukasung/react-components/input-tag'
 // Or import every public API from '@yukasung/react-components'.
+```
+
+`InputTag` supports controlled and uncontrolled values, optional custom tags,
+and a portaled dropdown for use inside popovers:
+
+```tsx
+const [tags, setTags] = useState<readonly string[]>([])
+
+<InputTag
+  ariaLabel="Tags"
+  options={['Important', 'Urgent', 'Follow up']}
+  value={tags}
+  onChange={setTags}
+  removeLabel={(tag) => `Remove ${tag}`}
+  addCustomTag={{
+    ariaLabel: 'Add a custom tag',
+    placeholder: 'Type a tag and press Enter',
+  }}
+/>
 ```
 
 ## Development

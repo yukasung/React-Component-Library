@@ -3,4 +3,5 @@ export default {
   'input-date': 'InputDate',
   'input-time': 'InputTime',
   'input-date-time': 'InputDateTime',
+  'input-tag': 'InputTag',
 }
