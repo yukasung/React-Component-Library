@@ -96,7 +96,7 @@ function wrapperStateClassName(isDisabled: boolean, isReadOnly: boolean): string
 }
 
 const inputClassName =
-  'h-11 min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-right text-sm text-gray-800 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-white/90 dark:placeholder:text-white/30 dark:disabled:text-gray-400'
+  'h-11 min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm text-gray-800 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 dark:text-white/90 dark:placeholder:text-white/30 dark:disabled:text-gray-400'
 
 // The glyphs take InputDate's and InputTime's dropdown-icon colour
 // treatment exactly: one gray at rest (gray-500 light / gray-400 dark), no
@@ -651,7 +651,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           commitDraft()
         }}
         onKeyDown={handleKeyDown}
-        className={`${inputClassName} ${showsSpinButtons ? 'text-center' : ''}`}
+        className={`${inputClassName} ${showsSpinButtons ? 'text-center' : 'text-right'}`}
       />
       {showsSpinButtons && (
         <SpinButton

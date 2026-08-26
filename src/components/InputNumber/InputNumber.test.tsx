@@ -530,6 +530,7 @@ describe('InputNumber', () => {
     render(<InputNumber value={5} step={1} showSpinButtons onChange={onChange} />)
 
     expect(screen.getByRole('spinbutton')).toHaveClass('text-center')
+    expect(screen.getByRole('spinbutton')).not.toHaveClass('text-right')
 
     await user.click(screen.getByRole('button', { name: 'Increase value' }))
     expect(onChange).toHaveBeenCalledWith(6)
