@@ -27,6 +27,62 @@ afterEach(() => {
 })
 
 describe('InputTag', () => {
+  it('does not raise the control above sticky application chrome', () => {
+    render(<ControlledInputTag />)
+
+    expect(screen.getByRole('combobox', { name: 'Tags' }).closest('.rc-input-tag')).not.toHaveClass('z-20')
+  })
+
+  it('uses a caller-specified layer for a portalled menu', async () => {
+    const user = userEvent.setup()
+    const props = {
+      ariaLabel: 'Tags',
+      options,
+      portal: true,
+      portalZIndex: 10,
+      removeLabel: (tag: string) => `Remove ${tag}`,
+    }
+    render(<InputTag {...props} />)
+
+    await user.click(screen.getByRole('combobox', { name: 'Tags' }))
+
+    expect(screen.getByRole('listbox', { name: 'Tags' }).parentElement).toHaveStyle({ zIndex: '10' })
+  })
+
+  it('keeps a portalled menu below a caller-specified top inset', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(768)
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(400)
+    render(
+      <InputTag
+        ariaLabel="Tags"
+        options={options}
+        portal
+        portalTopInset={100}
+        removeLabel={(tag) => `Remove ${tag}`}
+      />,
+    )
+    const trigger = screen.getByRole('combobox', { name: 'Tags' })
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+      x: 100,
+      y: 200,
+      left: 100,
+      top: 200,
+      width: 300,
+      height: 44,
+      right: 400,
+      bottom: 244,
+      toJSON: () => ({}),
+    })
+
+    await user.click(trigger)
+    const menu = screen.getByRole('listbox', { name: 'Tags' }).parentElement as HTMLDivElement
+    Object.defineProperty(menu, 'scrollHeight', { configurable: true, value: 160 })
+    act(() => window.dispatchEvent(new Event('resize')))
+
+    expect(menu).toHaveStyle({ top: '252px' })
+  })
+
   it('controls multiple selections with the admin-template structure and neutral option rows', async () => {
     const user = userEvent.setup()
     render(<ControlledInputTag />)

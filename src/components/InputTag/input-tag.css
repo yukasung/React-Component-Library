@@ -1,6 +1,5 @@
 .rc-input-tag {
   position: relative;
-  z-index: 20;
   display: inline-block;
   width: 100%;
 }

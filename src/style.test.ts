@@ -18,6 +18,12 @@ describe("date picker stylesheet", () => {
 });
 
 describe("InputTag stylesheet", () => {
+  it("does not create a stacking layer for the control root", () => {
+    expect(inputTagStylesheet).not.toContain(
+      ".rc-input-tag {\n  position: relative;\n  z-index: 20;",
+    );
+  });
+
   it("uses the admin-template focus treatment only for keyboard focus", () => {
     expect(inputTagStylesheet).toContain(
       ".rc-input-tag__combobox:focus-visible .rc-input-tag__surface",

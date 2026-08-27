@@ -26,6 +26,8 @@ export interface InputTagProps {
   placeholder?: string
   isDisabled?: boolean
   portal?: boolean
+  portalTopInset?: number
+  portalZIndex?: number
   className?: string
   removeLabel: (tag: string) => string
   addCustomTag?: {
@@ -49,6 +51,8 @@ export function InputTag({
   placeholder = 'Select options',
   isDisabled = false,
   portal = false,
+  portalTopInset = VIEWPORT_INSET,
+  portalZIndex = 100000,
   className = '',
   removeLabel,
   addCustomTag,
@@ -107,9 +111,10 @@ export function InputTag({
       0,
       window.innerHeight - triggerRect.bottom - VIEWPORT_INSET - MENU_GAP,
     )
+    const topInset = Math.max(VIEWPORT_INSET, portalTopInset)
     const spaceAbove = Math.max(
       0,
-      triggerRect.top - VIEWPORT_INSET - MENU_GAP,
+      triggerRect.top - topInset - MENU_GAP,
     )
     const naturalHeight = Math.min(menu.scrollHeight, MAX_MENU_HEIGHT)
     const opensAbove = spaceBelow < naturalHeight && spaceAbove > spaceBelow
@@ -127,7 +132,7 @@ export function InputTag({
       width,
       maxHeight,
     })
-  }, [portal])
+  }, [portal, portalTopInset])
 
   useLayoutEffect(() => {
     if (!menuIsOpen) {
@@ -219,6 +224,7 @@ export function InputTag({
               top: menuPosition?.top,
               width: menuPosition?.width,
               maxHeight: menuPosition?.maxHeight,
+              zIndex: portalZIndex,
               visibility: menuPosition ? 'visible' : 'hidden',
             }
           : undefined
@@ -277,7 +283,7 @@ export function InputTag({
   ) : null
 
   return (
-    <div ref={rootRef} className="rc-input-tag relative z-20 inline-block w-full">
+    <div ref={rootRef} className="rc-input-tag relative inline-block w-full">
       <div className="rc-input-tag__layout relative flex flex-col items-center">
         <div
           ref={triggerRef}
