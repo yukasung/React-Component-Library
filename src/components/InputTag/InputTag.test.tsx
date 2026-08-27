@@ -154,6 +154,29 @@ describe('InputTag', () => {
     expect(screen.queryByRole('button', { name: 'Remove vip' })).not.toBeInTheDocument()
   })
 
+  it('enforces supplied custom-tag length and selection-count limits', async () => {
+    const user = userEvent.setup()
+    render(
+      <InputTag
+        ariaLabel="Tags"
+        options={options}
+        maxCustomTagLength={5}
+        maxSelectedTags={1}
+        addCustomTag={{ ariaLabel: 'Add tag', placeholder: 'Type a tag and press Enter' }}
+        removeLabel={(tag) => `Remove ${tag}`}
+      />,
+    )
+
+    await user.click(screen.getByRole('combobox', { name: 'Tags' }))
+    const input = screen.getByRole('textbox', { name: 'Add tag' })
+    expect(input).toHaveAttribute('maxLength', '5')
+    await user.type(input, '123456{Enter}')
+    expect(screen.getByRole('button', { name: 'Remove 12345' })).toBeVisible()
+
+    await user.click(screen.getByRole('option', { name: 'Important' }))
+    expect(screen.queryByRole('button', { name: 'Remove Important' })).not.toBeInTheDocument()
+  })
+
   it('does not open or remove values while disabled', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

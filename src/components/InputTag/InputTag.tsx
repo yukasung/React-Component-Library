@@ -29,6 +29,8 @@ export interface InputTagProps {
   portalTopInset?: number
   portalZIndex?: number
   className?: string
+  maxCustomTagLength?: number
+  maxSelectedTags?: number
   removeLabel: (tag: string) => string
   addCustomTag?: {
     ariaLabel: string
@@ -54,6 +56,8 @@ export function InputTag({
   portalTopInset = VIEWPORT_INSET,
   portalZIndex = 100000,
   className = '',
+  maxCustomTagLength,
+  maxSelectedTags,
   removeLabel,
   addCustomTag,
 }: InputTagProps) {
@@ -190,6 +194,7 @@ export function InputTag({
   const toggle = (tag: string) => {
     if (isDisabled) return
     const selectedIndex = selectedValue.findIndex((item) => tagsMatch(item, tag))
+    if (selectedIndex < 0 && maxSelectedTags !== undefined && selectedValue.length >= maxSelectedTags) return
     updateValue(selectedIndex >= 0
       ? selectedValue.filter((_, index) => index !== selectedIndex)
       : [...selectedValue, tag])
@@ -202,7 +207,8 @@ export function InputTag({
     const isDuplicate = selectedValue.some(
       (item) => tagsMatch(item, nextTag),
     )
-    if (!tag || isDuplicate) return
+    if (!tag || isDuplicate || (maxCustomTagLength !== undefined && tag.length > maxCustomTagLength)) return
+    if (maxSelectedTags !== undefined && selectedValue.length >= maxSelectedTags) return
 
     updateValue([...selectedValue, nextTag])
     setCustomTag('')
@@ -235,6 +241,7 @@ export function InputTag({
           type="text"
           aria-label={addCustomTag.ariaLabel}
           placeholder={addCustomTag.placeholder}
+          maxLength={maxCustomTagLength}
           value={customTag}
           onChange={(event) => setCustomTag(event.target.value)}
           onKeyDown={(event) => {
