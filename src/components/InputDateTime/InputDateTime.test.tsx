@@ -670,6 +670,10 @@ describe('InputDateTime', () => {
       await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
       const selected = within(screen.getByRole('listbox')).getAllByRole('option', { selected: true })
       expect(selected.map((option) => option.textContent)).toEqual(['09:30'])
+      expect(selected[0]).toHaveStyle({
+        backgroundColor: 'var(--rc-color-primary, #465fff)',
+        color: 'rgb(255, 255, 255)',
+      })
     })
 
     it('caps the list height with maxDropdownHeight', async () => {

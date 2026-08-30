@@ -142,7 +142,7 @@ const listClassName =
 // definition already visible. The keyboard highlight stays real state.
 function optionClassName(isSelected: boolean, isHighlighted: boolean): string {
   const base = 'cursor-pointer px-3 py-1.5 text-sm'
-  if (isSelected) return `${base} bg-[var(--rc-color-primary,#465fff)] font-medium text-white`
+  if (isSelected) return `${base} font-medium`
   const hover = 'hover:bg-gray-100 dark:hover:bg-white/5'
   if (isHighlighted) return `${base} ${hover} bg-gray-100 text-gray-800 dark:bg-white/5 dark:text-white/90`
   return `${base} ${hover} text-gray-700 dark:text-gray-300`
@@ -709,22 +709,26 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
           style={{ maxHeight: maxDropdownHeight }}
           className={listClassName}
         >
-          {times.map((minutes, index) => (
-            <div
-              key={minutes}
-              id={`${listId}-${index}`}
-              role="option"
-              aria-selected={minutes === displayMinutes}
-              // Keeps focus in the text field: without this the mousedown
-              // blurs the input, which commits the draft and can close the
-              // list before the click that picks an entry ever lands.
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectTime(minutes)}
-              className={optionClassName(minutes === displayMinutes, index === dropdown.highlightedIndex)}
-            >
-              {timeLabels[index]}
-            </div>
-          ))}
+          {times.map((minutes, index) => {
+            const isSelected = minutes === displayMinutes
+            return (
+              <div
+                key={minutes}
+                id={`${listId}-${index}`}
+                role="option"
+                aria-selected={isSelected}
+                style={isSelected ? { backgroundColor: 'var(--rc-color-primary, #465fff)', color: 'white' } : undefined}
+                // Keeps focus in the text field: without this the mousedown
+                // blurs the input, which commits the draft and can close the
+                // list before the click that picks an entry ever lands.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectTime(minutes)}
+                className={optionClassName(isSelected, index === dropdown.highlightedIndex)}
+              >
+                {timeLabels[index]}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

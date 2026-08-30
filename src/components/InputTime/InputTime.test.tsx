@@ -543,7 +543,12 @@ describe('InputTime', () => {
 
       await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
 
-      expect(screen.getByRole('option', { name: '09:30' })).toHaveAttribute('aria-selected', 'true')
+      const selected = screen.getByRole('option', { name: '09:30' })
+      expect(selected).toHaveAttribute('aria-selected', 'true')
+      expect(selected).toHaveStyle({
+        backgroundColor: 'var(--rc-color-primary, #465fff)',
+        color: 'rgb(255, 255, 255)',
+      })
       expect(screen.getByRole('option', { name: '09:00' })).toHaveAttribute('aria-selected', 'false')
     })
 

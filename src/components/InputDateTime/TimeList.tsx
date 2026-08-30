@@ -50,6 +50,7 @@ export function TimeList({
             role="option"
             aria-selected={isSelected}
             aria-disabled={isDisabled || undefined}
+            style={isSelected ? { backgroundColor: 'var(--rc-color-primary, #465fff)', color: 'white' } : undefined}
             // Keeps focus in the text field: without this the mousedown blurs
             // the input, which commits the draft and can close the list before
             // the click that picks an entry ever lands.
