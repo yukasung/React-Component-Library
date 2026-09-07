@@ -1,5 +1,5 @@
 import { createRef, startTransition, StrictMode, Suspense } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputDate } from './InputDate'
@@ -20,6 +20,65 @@ function getDateInput(): HTMLInputElement {
 }
 
 describe('InputDate', () => {
+  describe('on an iPhone', () => {
+    beforeEach(() => {
+      vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+      )
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('commits an English native date selection after calendar prop updates', () => {
+      const onChange = vi.fn()
+      const { rerender, unmount } = render(
+        <StrictMode>
+          <InputDate defaultValue={new Date(2026, 6, 1)} onChange={onChange} />
+        </StrictMode>,
+      )
+      const nativeInput = document.querySelector<HTMLInputElement>('input.flatpickr-mobile')!
+      expect(nativeInput).toHaveAttribute('type', 'date')
+      expect(document.querySelector('.flatpickr-calendar')).not.toBeInTheDocument()
+
+      rerender(
+        <StrictMode>
+          <InputDate
+            defaultValue={new Date(2026, 6, 1)}
+            onChange={onChange}
+            monthCount={2}
+            calendarAriaLabel="Booking calendar"
+          />
+        </StrictMode>,
+      )
+      fireEvent.change(nativeInput, { target: { value: '2026-07-15' } })
+
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 15))
+      expect(getDateInput()).toHaveValue('2026-07-15')
+      unmount()
+      expect(document.querySelector('input.flatpickr-mobile')).not.toBeInTheDocument()
+    })
+
+    it('can update a native instance to Thai locale without a JavaScript year header', () => {
+      const { rerender } = render(<InputDate defaultValue={new Date(2026, 6, 1)} />)
+      rerender(<InputDate defaultValue={new Date(2026, 6, 1)} locale="th" monthCount={2} />)
+
+      // Mobile mode is chosen at mount; locale updates must not access
+      // JavaScript-calendar elements that this native instance never built.
+      expect(document.querySelector('input.flatpickr-mobile')).toBeInTheDocument()
+      expect(getDateInput()).toHaveValue('2569-07-01')
+    })
+
+    it('keeps the Thai Buddhist Era JavaScript calendar on mobile', () => {
+      render(<InputDate defaultValue={new Date(2026, 6, 1)} locale="th" />)
+
+      expect(document.querySelector('input.flatpickr-mobile')).not.toBeInTheDocument()
+      expect(document.querySelector('.flatpickr-calendar')).toHaveAttribute('role', 'dialog')
+      expect(document.querySelector('.rcl-year-input')).toHaveValue('2569')
+    })
+  })
+
   it('keeps the visible commit baseline when an external transition suspends', async () => {
     const onChange = vi.fn()
     const pending = new Promise<void>(() => {})

@@ -172,8 +172,11 @@ export function useFlatpickrCalendar({
         onOpenChangeRef.current(false)
       },
     })
-    instance.calendarContainer.id = calendarId
-    instance.calendarContainer.setAttribute('role', 'dialog')
+    // Native mobile instances have an input instead of a JavaScript calendar.
+    if (instance.calendarContainer) {
+      instance.calendarContainer.id = calendarId
+      instance.calendarContainer.setAttribute('role', 'dialog')
+    }
     instanceRef.current = instance
     return () => {
       instance.destroy()
@@ -201,11 +204,14 @@ export function useFlatpickrCalendar({
   }, [closeOnSelection])
 
   useEffect(() => {
-    instanceRef.current?.set('showMonths', monthCount)
+    const instance = instanceRef.current
+    // set('showMonths') rebuilds month navigation even in native mobile mode,
+    // where flatpickr never created that DOM.
+    if (instance?.calendarContainer) instance.set('showMonths', monthCount)
   }, [monthCount])
 
   useEffect(() => {
-    instanceRef.current?.calendarContainer.setAttribute('aria-label', calendarAriaLabel)
+    instanceRef.current?.calendarContainer?.setAttribute('aria-label', calendarAriaLabel)
   }, [calendarAriaLabel])
 
   // Confirmed via spike (not assumed): flatpickr's own `set('locale', ...)`
@@ -240,7 +246,7 @@ export function useFlatpickrCalendar({
   // extra re-runs.)
   useEffect(() => {
     const instance = instanceRef.current
-    if (!instance || locale !== 'th') return
+    if (!instance?.calendarContainer || locale !== 'th') return
     const nativeYearInput = instance.yearElements[0]
     const previousDisplay = nativeYearInput.style.display
     nativeYearInput.style.display = 'none'
