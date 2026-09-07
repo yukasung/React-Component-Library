@@ -319,7 +319,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   function commit(next: number | null) {
     // Skip onChange/setInternalValue when nothing actually changed — without
     // this, e.g. Enter (which already commits) immediately followed by blur
-    // (which always re-parses and re-commits the draft) fires onChange
+    // (which also commits the draft) fires onChange
     // twice with the identical value, which is wasted work at best and a
     // duplicated side effect at worst for consumers whose onChange does
     // more than just store the value.
@@ -334,6 +334,17 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
 
   function commitDraft() {
     if (isReadOnly) return
+    // A rounded display can hide an exact bound. Re-reading untouched text
+    // must not replace that valid commit with the display's rounded value.
+    // An explicit text prop remains a draft to parse, and changed bounds
+    // still require validation even when the displayed text did not change.
+    const lastCommitted = lastCommittedRef.current
+    if (
+      text === undefined &&
+      lastCommitted !== null &&
+      draft === formatDisplay(lastCommitted) &&
+      clamp(lastCommitted, min, max) === lastCommitted
+    ) return
     const parsed = parseDraftValue(draft)
     if (parsed === undefined || (isRequired && parsed === null)) {
       updateDraft(formattedValue)

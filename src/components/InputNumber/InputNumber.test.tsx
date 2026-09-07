@@ -1264,6 +1264,50 @@ describe('InputNumber', () => {
       expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
     })
 
+    it.each(['E2', 'G2'])('preserves an exact %s minimum through step and untouched blur', async (format) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate format={format} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.click(input)
+      await user.keyboard('{ArrowDown}')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
+
+      await user.tab()
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
+    })
+
+    it.each([
+      ['E2', { min: 0.4 }, 0.4],
+      ['G2', { min: 0.4 }, 0.4],
+      ['E2', { max: 0.29 }, 0.29],
+      ['G2', { max: 0.29 }, 0.29],
+    ])('rechecks changed bounds against an untouched %s display: %o', (format, bounds, expected) => {
+      const onChange = vi.fn()
+      const { rerender } = render(
+        <InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate format={format} onChange={onChange} />,
+      )
+      const input = screen.getByRole('spinbutton')
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
+
+      rerender(<InputNumber defaultValue={0.3} step={0.1} {...bounds} truncate format={format} onChange={onChange} />)
+      fireEvent.blur(input)
+      expect(onChange).toHaveBeenCalledTimes(2)
+      expect(onChange).toHaveBeenLastCalledWith(expected)
+    })
+
+    it.each([
+      ['E2', '3.00E-001'],
+      ['G2', '0.3'],
+    ])('commits an explicit %s text prop even when it matches the formatted value', (format, text) => {
+      const onChange = vi.fn()
+      const { rerender } = render(<InputNumber value={0.2996} format={format} onChange={onChange} />)
+      rerender(<InputNumber value={0.2996} text={text} format={format} onChange={onChange} />)
+      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.3)
+    })
+
     it('preserves lossless R stepping through untouched blur', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
