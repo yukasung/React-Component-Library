@@ -217,9 +217,10 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   }
   // Shared by every commit path that adds/rounds a raw number (typed
   // draft, spin/repeat step, Arrow key) — clamps to min/max, then rounds
-  // to effectivePrecision (or truncates, per the truncate prop).
+  // to effectivePrecision (or truncates, per the truncate prop). Clamp again
+  // because precision adjustment can move a boundary value out of range.
   function clampToPrecision(raw: number): number {
-    return applyPrecision(clamp(raw, min, max), effectivePrecision, truncate)
+    return clamp(applyPrecision(clamp(raw, min, max), effectivePrecision, truncate), min, max)
   }
   const formattedValue = formatDisplay(displayValue)
   // When `text` is controlled, it takes priority over the value-derived

@@ -410,6 +410,18 @@ describe('InputNumber', () => {
     expect(onChange).toHaveBeenLastCalledWith(0)
   })
 
+  it('keeps fractional stepping within max after precision rounding', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<InputNumber value={0.2} max={0.25} step={0.1} onChange={onChange} />)
+    const input = screen.getByRole('spinbutton')
+
+    input.focus()
+    await user.keyboard('{ArrowUp}')
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(0.25)
+  })
+
   it('avoids floating-point drift when stepping by a fractional step', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
