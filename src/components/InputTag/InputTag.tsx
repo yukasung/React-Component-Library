@@ -2,6 +2,10 @@ import {
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
+  type AriaAttributes,
+  type FocusEventHandler,
+  type Ref,
   useLayoutEffect,
   useRef,
   useState,
@@ -16,7 +20,16 @@ type MenuPosition = {
   readonly maxHeight: number
 }
 
-export interface InputTagProps {
+export interface InputTagProps extends Pick<AriaAttributes,
+  'aria-invalid' | 'aria-describedby' | 'aria-errormessage' | 'aria-labelledby'
+> {
+  ref?: Ref<HTMLDivElement>
+  name?: string
+  /** Fires when focus leaves the whole control, including its portalled menu. */
+  onBlur?: FocusEventHandler<HTMLDivElement>
+  isReadOnly?: boolean
+  /** Announces required state; consumers must validate the selected array. */
+  isRequired?: boolean
   id?: string
   ariaLabel: string
   options: readonly string[]
@@ -44,6 +57,15 @@ const MIN_MENU_WIDTH = 224
 const MAX_MENU_HEIGHT = 240
 
 export function InputTag({
+  ref,
+  name,
+  onBlur,
+  isReadOnly = false,
+  isRequired = false,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
+  'aria-errormessage': ariaErrorMessage,
+  'aria-labelledby': ariaLabelledBy,
   id,
   ariaLabel,
   options,
@@ -78,10 +100,12 @@ export function InputTag({
   const menuRef = useRef<HTMLDivElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
 
-  const menuIsOpen = isOpen && !isDisabled
+  useImperativeHandle(ref, () => triggerRef.current!, [])
+
+  const menuIsOpen = isOpen && !isDisabled && !isReadOnly
 
   const updateValue = (nextValue: readonly string[]) => {
-    if (isDisabled) return
+    if (isDisabled || isReadOnly) return
     if (!isControlled) setInternalValue(nextValue)
     onChange?.(nextValue)
   }
@@ -90,6 +114,7 @@ export function InputTag({
     first.localeCompare(second, undefined, { sensitivity: 'accent' }) === 0
 
   const openMenu = () => {
+    if (isDisabled || isReadOnly) return
     setActiveIndex(-1)
     setIsKeyboardNavigating(false)
     setIsOpen(true)
@@ -152,8 +177,8 @@ export function InputTag({
   }, [activeIndex, menuIsOpen])
 
   useEffect(() => {
-    if (isDisabled) setIsOpen(false)
-  }, [isDisabled])
+    if (isDisabled || isReadOnly) setIsOpen(false)
+  }, [isDisabled, isReadOnly])
 
   useEffect(() => {
     if (!menuIsOpen) return
@@ -164,6 +189,11 @@ export function InputTag({
         !rootRef.current?.contains(target) &&
         !menuRef.current?.contains(target)
       ) {
+        // Preserve focus until the outside pointer action moves it. Removing a
+        // focused menu node first would suppress the field's blur notification.
+        if (menuRef.current?.contains(document.activeElement)) {
+          triggerRef.current?.focus()
+        }
         setIsOpen(false)
       }
     }
@@ -192,7 +222,7 @@ export function InputTag({
   }, [menuIsOpen, portal, updateMenuPosition])
 
   const toggle = (tag: string) => {
-    if (isDisabled) return
+    if (isDisabled || isReadOnly) return
     const selectedIndex = selectedValue.findIndex((item) => tagsMatch(item, tag))
     if (selectedIndex < 0 && maxSelectedTags !== undefined && selectedValue.length >= maxSelectedTags) return
     updateValue(selectedIndex >= 0
@@ -201,6 +231,7 @@ export function InputTag({
   }
 
   const addTag = () => {
+    if (isDisabled || isReadOnly) return
     const tag = customTag.trim()
     const matchingOption = options.find((option) => tagsMatch(option, tag))
     const nextTag = matchingOption ?? tag
@@ -290,7 +321,20 @@ export function InputTag({
   ) : null
 
   return (
-    <div ref={rootRef} className="rc-input-tag relative inline-block w-full">
+    <div
+      ref={rootRef}
+      className="rc-input-tag relative inline-block w-full"
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget
+        if (nextTarget instanceof Node && (
+          rootRef.current?.contains(nextTarget) || menuRef.current?.contains(nextTarget)
+        )) return
+        onBlur?.(event)
+      }}
+    >
+      {name !== undefined && selectedValue.map((tag, index) => (
+        <input key={index} type="hidden" name={name} value={tag} disabled={isDisabled} />
+      ))}
       <div className="rc-input-tag__layout relative flex flex-col items-center">
         <div
           ref={triggerRef}
@@ -302,16 +346,22 @@ export function InputTag({
           aria-haspopup="listbox"
           aria-label={ariaLabel}
           aria-disabled={isDisabled}
+          aria-readonly={isReadOnly}
+          aria-required={isRequired}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
+          aria-errormessage={ariaErrorMessage}
+          aria-labelledby={ariaLabelledBy}
           aria-activedescendant={menuIsOpen && options[activeIndex]
             ? `${listboxId}-option-${activeIndex}`
             : undefined}
           onClick={() => {
-            if (isDisabled) return
+            if (isDisabled || isReadOnly) return
             if (menuIsOpen) setIsOpen(false)
             else openMenu()
           }}
           onKeyDown={(event) => {
-            if (isDisabled) return
+            if (isDisabled || isReadOnly) return
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               event.preventDefault()
               if (!menuIsOpen) {
@@ -357,9 +407,14 @@ export function InputTag({
                     <button
                       type="button"
                       aria-label={removeLabel(tag)}
-                      disabled={isDisabled}
+                      disabled={isDisabled || isReadOnly}
                       onClick={(event) => {
                         event.stopPropagation()
+                        // Move focus before removing its node so later external
+                        // focus changes still produce a composite blur event.
+                        if (document.activeElement === event.currentTarget) {
+                          triggerRef.current?.focus()
+                        }
                         toggle(tag)
                       }}
                       className="rc-input-tag__remove cursor-pointer pl-2 text-gray-500 group-hover:text-gray-400 disabled:cursor-not-allowed dark:text-gray-400"

@@ -300,46 +300,21 @@ describe('InputNumber', () => {
     })
   })
 
-  it('blocks a keystroke that would push the typed value above max', async () => {
+  it.each([
+    { min: undefined, max: 10, draft: '99', expected: 10 },
+    { min: -20, max: undefined, draft: '-99', expected: -20 },
+  ])('allows $draft while editing and clamps to $expected on blur', async ({ min, max, draft, expected }) => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(<InputNumber value={5} max={10} onChange={onChange} isRequired={false} />)
+    render(<InputNumber value={5} min={min} max={max} onChange={onChange} isRequired={false} />)
     const input = screen.getByRole('spinbutton')
-
     await user.clear(input)
-    await user.type(input, '99')
-    // "9" is accepted (<= max); the second "9" would make it 99 (> max) and
-    // is rejected outright — it never reaches the screen even momentarily.
-    expect(input).toHaveValue('9')
-
+    await user.type(input, draft)
+    expect(input).toHaveValue(draft)
+    expect(onChange).not.toHaveBeenCalled()
     await user.tab()
-
-    expect(onChange).toHaveBeenCalledWith(9)
-    expect(input).toHaveValue('9')
-  })
-
-  it('blocks a keystroke that would push the typed value below min', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    // min is negative here (rather than 0) so the minus key isn't blocked
-    // outright by the sign-toggle feature (DEV-51) — this test is about
-    // live min/max keystroke blocking, not about whether "-" is typeable.
-    // isRequired={false} so user.clear() actually empties the field with a
-    // full selection, rather than the required-field immediate-block snap
-    // (which leaves a collapsed cursor, not a selection — see DEV-54).
-    render(<InputNumber value={5} min={-20} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
-
-    await user.clear(input)
-    await user.type(input, '-99')
-    // "-9" is accepted (>= min); the second "9" would make it -99 (< min)
-    // and is rejected outright.
-    expect(input).toHaveValue('-9')
-
-    await user.tab()
-
-    expect(onChange).toHaveBeenCalledWith(-9)
-    expect(input).toHaveValue('-9')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
+    expect(input).toHaveValue(String(expected))
   })
 
   it('allows typing any value within min/max normally', async () => {
@@ -361,13 +336,10 @@ describe('InputNumber', () => {
     input.focus()
     await user.keyboard('-')
 
-    // "-" alone isn't a parseable number yet, so it isn't rejected as
-    // "out of bounds" — only a keystroke that completes a real number
-    // outside min/max gets blocked.
     expect(input).toHaveValue('-')
   })
 
-  it('blocks a sign-toggle keystroke that would push the value out of bounds', () => {
+  it('clamps an out-of-bounds sign toggle only on commit', () => {
     render(<InputNumber value={5} min={-3} max={10} onChange={() => {}} />)
     const input = screen.getByRole('spinbutton') as HTMLInputElement
     input.focus()
@@ -375,9 +347,9 @@ describe('InputNumber', () => {
 
     fireEvent.keyDown(input, { key: '-' })
 
-    // Toggling "5" to "-5" would go below min (-3) — the toggle is rejected
-    // and the draft stays untouched.
-    expect(input).toHaveValue('5')
+    expect(input).toHaveValue('-5')
+    fireEvent.blur(input)
+    expect(input).toHaveValue('-3')
   })
 
   it('does not clamp an empty (null) commit even when min/max are set', async () => {
@@ -984,15 +956,18 @@ describe('InputNumber', () => {
       expect(input).toHaveValue('-')
     })
 
-    it('does nothing when min does not allow negative values', () => {
+    it('allows negative drafts with a non-negative min and clamps on blur', () => {
       const onChange = vi.fn()
       render(<InputNumber value={5} min={0} onChange={onChange} />)
       const input = screen.getByRole('spinbutton') as HTMLInputElement
       input.focus()
       input.setSelectionRange(1, 1)
       fireEvent.keyDown(input, { key: '-' })
-      expect(input).toHaveValue('5')
+      expect(input).toHaveValue('-5')
       expect(onChange).not.toHaveBeenCalled()
+      fireEvent.blur(input)
+      expect(input).toHaveValue('0')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0)
     })
 
     it('"+" removes a leading "-" when present', () => {
@@ -1809,7 +1784,7 @@ describe('InputNumber', () => {
       expect(input).toHaveValue('10')
     })
 
-    it('blocks keystrokes that would exceed min/max, live, under a format', async () => {
+    it('clamps formatted out-of-bounds drafts on commit', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={5} onChange={onChange} format="n0" min={0} max={10} />)
@@ -1818,8 +1793,8 @@ describe('InputNumber', () => {
       await user.clear(input)
       await user.type(input, '999{Enter}')
 
-      expect(onChange).toHaveBeenLastCalledWith(9)
-      expect(input).toHaveValue('9')
+      expect(onChange).toHaveBeenLastCalledWith(10)
+      expect(input).toHaveValue('10')
     })
   })
 
@@ -1979,5 +1954,52 @@ describe('InputNumber', () => {
 
       expect(onChange).toHaveBeenLastCalledWith(8)
     })
+  })
+})
+
+describe('InputNumber bounded drafts', () => {
+  it.each([
+    { min: 10, max: undefined, typed: '15', expected: 15 },
+    { min: undefined, max: -10, typed: '-15', expected: -15 },
+  ])('allows prefixes while typing $typed', async ({ min, max, typed, expected }) => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<InputNumber min={min} max={max} isRequired={false} onChange={onChange} />)
+    const input = screen.getByRole('spinbutton')
+    await user.type(input, typed)
+    expect(input).toHaveValue(typed)
+    expect(onChange).not.toHaveBeenCalled()
+    await user.tab()
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
+  })
+
+  it.each([undefined, 'n0'])('accepts pasted out-of-range drafts and clamps on commit (%s)', async (format) => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<InputNumber min={10} max={20} format={format} isRequired={false} onChange={onChange} />)
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.paste('99')
+    expect(input).toHaveValue('99')
+    expect(onChange).not.toHaveBeenCalled()
+    await user.tab()
+    expect(input).toHaveValue('20')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(20)
+  })
+})
+
+
+describe('InputNumber bounded incomplete edits', () => {
+  it.each(['-', '.'])('reverts incomplete %s and still rejects invalid syntax', (draft) => {
+    const onChange = vi.fn()
+    render(<InputNumber defaultValue={15} min={10} max={20} onChange={onChange} />)
+    const input = screen.getByRole('spinbutton')
+    fireEvent.change(input, { target: { value: 'invalid' } })
+    expect(input).toHaveValue('15')
+    fireEvent.change(input, { target: { value: draft } })
+    expect(input).toHaveValue(draft)
+    fireEvent.blur(input)
+    expect(input).toHaveValue('15')
+    expect(onChange).not.toHaveBeenCalled()
   })
 })

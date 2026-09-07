@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
+import { afterInputEvent, composeInputEvent } from '../../lib/inputEvents'
 import { Thai } from 'flatpickr/dist/l10n/th.js'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { addDays, clampDate, formatDateValue, isSameDay, parseDateDraft, startOfDay, tokenizeDateMask } from '../../lib/date'
@@ -590,10 +591,10 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
         // Whether this focus came from a pointer decides which group gets
         // highlighted, and the focus event itself can't tell — so the
         // mousedown that precedes it is what records it.
-        onMouseDown={() => {
+        onMouseDown={composeInputEvent(rest.onMouseDown, () => {
           focusFromPointerRef.current = true
-        }}
-        onFocus={(event) => {
+        })}
+        onFocus={afterInputEvent((event) => {
           setIsFocused(true)
           const fromPointer = focusFromPointerRef.current
           focusFromPointerRef.current = false
@@ -610,8 +611,8 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
           // selectAllOnFocus's own doc comment) — a synchronous .select()
           // here doesn't reliably work in WebKit/Safari.
           selectAllOnFocus(event.currentTarget)
-        }}
-        onClick={(event) => {
+        }, rest.onFocus)}
+        onClick={composeInputEvent(rest.onClick, (event) => {
           // With typing unavailable, the field itself is another way to reach
           // the only input method left.
           if (!isTypeable && !isDisabled && !isReadOnly) {
@@ -625,12 +626,12 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
           // selection is the signal to keep out of the way.
           const el = event.currentTarget
           if (groups && el.selectionStart === el.selectionEnd) selectSegment(el, 'caret', groups.segments)
-        }}
-        onBlur={() => {
+        })}
+        onBlur={afterInputEvent(() => {
           setIsFocused(false)
           commitDraft()
-        }}
-        onKeyDown={handleKeyDown}
+        }, rest.onBlur)}
+        onKeyDown={composeInputEvent(rest.onKeyDown, handleKeyDown)}
         // The icon overlays the input's right edge rather than sitting
         // beside it, so the text needs room to stop short of it — the
         // reference has no such padding because its own icon is

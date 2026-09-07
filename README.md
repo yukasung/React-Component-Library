@@ -73,6 +73,40 @@ const [tags, setTags] = useState<readonly string[]>([])
 />
 ```
 
+### Scalar input event integration
+
+Scalar inputs preserve their existing value-based `onChange` callbacks.
+Consumer `onFocus` and `onBlur` handlers run after internal handling, including
+any commit-time `onChange` before `onBlur`; React state batching is unchanged.
+For composed `onKeyDown`, `onClick`, and `onMouseDown` handlers, the consumer
+runs first and can call `preventDefault()` to skip the internal action.
+Numeric drafts may temporarily exceed `min` / `max`; committed values and
+stepping remain bounded.
+
+### InputTag form integration
+
+`InputTag` keeps its array-based `value` / `onChange` API. Its `ref` accepts
+an object or callback and points to the focusable `HTMLDivElement` combobox,
+so form libraries can focus an invalid field. `onBlur` fires when focus leaves
+the whole field, including a portalled menu; focus transfers between the
+combobox, remove buttons, options, and custom-tag input do not mark it touched.
+The event's `currentTarget` is the field root and `target` is the element losing
+focus. Closing the menu alone does not mark the field touched.
+
+Pass `name="tags"` to serialize one hidden input per selected tag. Read values
+with `new FormData(form).getAll('tags')`; an empty selection contributes no
+entries. `isDisabled` excludes those inputs from submission and disables user
+interaction. `isReadOnly` prevents opening, adding, or removing tags while
+keeping the combobox focusable and selected tags included in submission.
+Controlled `value` updates still work in either state.
+
+`isRequired` sets `aria-required` only. The combobox and hidden inputs do not
+provide native required-field constraint validation; validate the selected
+array in your form. Pass `aria-invalid`, `aria-describedby`,
+`aria-errormessage`, and `aria-labelledby` to associate validation feedback and
+labels with the combobox. These do not replace its internal popup ARIA state.
+The existing `ariaLabel` and `removeLabel` props remain supported and required.
+
 ## Development
 
 ```bash

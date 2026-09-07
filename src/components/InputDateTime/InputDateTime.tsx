@@ -1,5 +1,6 @@
 import { forwardRef, useId, useMemo, useState } from 'react'
 import type { InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
+import { afterInputEvent, composeInputEvent } from '../../lib/inputEvents'
 import { Thai } from 'flatpickr/dist/l10n/th.js'
 import { MINUTES_PER_DAY, buildTimeList, formatTimeOfDay, nearestTimeIndex, timeOfDayMinutes } from '../../lib/time'
 import { useFlatpickrCalendar } from '../InputDate/useFlatpickrCalendar'
@@ -343,9 +344,9 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
         placeholder={placeholder ?? field.placeholderShape}
         value={field.displayText}
         onChange={field.handleChange}
-        onMouseDown={field.handlePointerDown}
-        onFocus={field.handleFocus}
-        onClick={(event) => {
+        onMouseDown={composeInputEvent(rest.onMouseDown, field.handlePointerDown)}
+        onFocus={afterInputEvent(field.handleFocus, rest.onFocus)}
+        onClick={composeInputEvent(rest.onClick, (event) => {
           // With typing unavailable, the field itself is another way to reach
           // the input method that's left — the calendar, since it owns the
           // larger half of the value.
@@ -354,9 +355,9 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
             return
           }
           field.handleClick(event)
-        }}
-        onBlur={field.handleBlur}
-        onKeyDown={handleKeyDown}
+        })}
+        onBlur={afterInputEvent(field.handleBlur, rest.onBlur)}
+        onKeyDown={composeInputEvent(rest.onKeyDown, handleKeyDown)}
         className={`${inputBaseClassName} ${inputStateClassName(isDisabled, isReadOnly)} ${inputPaddingClassName(buttonCount)} ${className ?? ''}`}
       />
       {buttonCount > 0 && (

@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
+import { afterInputEvent, composeInputEvent } from '../../lib/inputEvents'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
 import {
@@ -208,15 +209,8 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   function parseDraftValue(raw: string): number | null | undefined {
     return formatSpec ? parseFormattedInput(raw, formatSpec) : parseDraft(raw)
   }
-  // Live keystroke-level min/max enforcement — unlike clamping (which only
-  // happens at commit and silently rewrites the value), this rejects the
-  // keystroke outright so an out-of-range number can never appear on screen
-  // at all. Only applies once a keystroke produces a complete, parseable
-  // number; an in-progress draft like "-" or "1." isn't out of bounds yet,
-  // it just isn't a number yet, so it's left alone.
-  function exceedsBounds(parsedValue: number | null | undefined): boolean {
-    return typeof parsedValue === 'number' && clamp(parsedValue, min, max) !== parsedValue
-  }
+  // Bounds apply when committing, not while editing: a valid final value
+  // may require an out-of-range prefix (for example 1 before 15 with min=10).
   // Shared by every commit path that adds/rounds a raw number (typed
   // draft, spin/repeat step, Arrow key) — clamps to min/max, then rounds
   // to the format/step precision (or truncates, per the truncate prop). Clamp again
@@ -422,7 +416,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         pendingSelectionRef.current = { start: 0, end: zeroText.length }
         return
       }
-      if (exceedsBounds(parseFormattedInput(result.text, formatSpec))) return
       updateDraft(result.text)
       applySelection(el, result.cursorIndex, result.cursorIndex)
       setCursor(result.cursorIndex)
@@ -438,7 +431,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       pendingSelectionRef.current = { start: 0, end: 1 }
       return
     }
-    if (exceedsBounds(parseDraft(next))) return
     updateDraft(next)
   }
 
@@ -504,7 +496,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       ) {
         event.preventDefault()
         const unwrapped = draft.slice(1, -1)
-        if (exceedsBounds(parseFormattedInput(unwrapped, formatSpec))) return
         updateDraft(unwrapped)
         setCursor(cursor === 1 ? 0 : unwrapped.length)
         return
@@ -522,9 +513,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       }
     } else if (event.key === '-' && !isReadOnly) {
       event.preventDefault()
-      // min >= 0 means negatives aren't allowed at all — block the key
-      // entirely rather than letting it toggle and get clamped away later.
-      if (typeof min === 'number' && min >= 0) return
       const el = event.currentTarget
       if (el.selectionStart !== el.selectionEnd) {
         updateDraft('-')
@@ -559,7 +547,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           setCursor(1)
           return
         }
-        if (exceedsBounds(result.value)) return
         updateDraft(result.text)
         setCursor(result.cursorIndex)
         return
@@ -570,7 +557,6 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       // to the same digit it was next to before the sign was added/removed.
       const hadSign = draft.startsWith('-')
       const toggled = toggleSign(draft)
-      if (exceedsBounds(parseDraft(toggled))) return
       updateDraft(toggled)
       setCursor(hadSign ? Math.max(0, cursorPos - 1) : cursorPos + 1)
     } else if (event.key === '+' && !isReadOnly) {
@@ -580,14 +566,12 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       if (formatSpec) {
         const result = forcePositiveFormatted(draft, cursorPos, formatSpec)
         if (!result) return
-        if (exceedsBounds(result.value)) return
         updateDraft(result.text)
         setCursor(result.cursorIndex)
         return
       }
       if (draft.startsWith('-')) {
         const stripped = stripSign(draft)
-        if (exceedsBounds(parseDraft(stripped))) return
         updateDraft(stripped)
         setCursor(Math.max(0, cursorPos - 1))
       }
@@ -674,7 +658,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         aria-valuemax={max}
         value={draft}
         onChange={handleChange}
-        onFocus={(event) => {
+        onFocus={afterInputEvent((event) => {
           setIsFocused(true)
           // Numeric fields are usually edited as a whole value rather
           // than character-by-character — selecting everything on focus
@@ -683,12 +667,12 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
           // selectAllOnFocus's own doc comment) — a synchronous
           // .select() here doesn't reliably work in WebKit/Safari.
           selectAllOnFocus(event.currentTarget)
-        }}
-        onBlur={() => {
+        }, rest.onFocus)}
+        onBlur={afterInputEvent(() => {
           setIsFocused(false)
           commitDraft()
-        }}
-        onKeyDown={handleKeyDown}
+        }, rest.onBlur)}
+        onKeyDown={composeInputEvent(rest.onKeyDown, handleKeyDown)}
         className={`${inputClassName} ${showsSpinButtons ? 'text-center' : 'text-right'}`}
       />
       {showsSpinButtons && (

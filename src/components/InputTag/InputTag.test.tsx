@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { createRef, useState } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -288,5 +288,126 @@ describe('InputTag', () => {
     await user.click(screen.getByRole('option', { name: 'Monthly' }))
 
     expect(menu).toHaveStyle({ top: '188px' })
+  })
+})
+
+
+describe('InputTag form contract', () => {
+  const props = {
+    ariaLabel: 'Tags', options, removeLabel: (tag: string) => `Remove ${tag}`,
+  }
+
+  it('exposes the focusable combobox and validation associations', () => {
+    const ref = createRef<HTMLDivElement>()
+    const { unmount } = render(<>
+      <span id="tag-label">Matter tags</span>
+      <span id="tag-help">Choose tags</span>
+      <span id="tag-error">A tag is required</span>
+      <InputTag {...props} ref={ref} isRequired aria-labelledby="tag-label"
+        aria-describedby="tag-help" aria-errormessage="tag-error" aria-invalid />
+    </>)
+    const control = screen.getByRole('combobox', { name: 'Matter tags' })
+    expect(ref.current).toBe(control)
+    ref.current?.focus()
+    expect(control).toHaveFocus()
+    expect(control).toHaveAttribute('aria-required', 'true')
+    expect(control).toHaveAttribute('aria-invalid', 'true')
+    expect(control).toHaveAccessibleDescription('Choose tags')
+    expect(control).toHaveAttribute('aria-errormessage', 'tag-error')
+    unmount()
+    expect(ref.current).toBeNull()
+  })
+
+  it('honors callback ref replacement and cleanup', () => {
+    const cleanup = vi.fn()
+    const first = vi.fn(() => cleanup)
+    const second = vi.fn()
+    const { rerender, unmount } = render(<InputTag {...props} ref={first} />)
+    const control = screen.getByRole('combobox')
+    expect(first).toHaveBeenCalledWith(control)
+    rerender(<InputTag {...props} ref={second} />)
+    expect(cleanup).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledWith(control)
+    unmount()
+    expect(second).toHaveBeenLastCalledWith(null)
+  })
+
+  it('serializes repeated names, updates values, and omits disabled tags', () => {
+    const view = (value: readonly string[], isDisabled = false) => (
+      <form aria-label="matter"><InputTag {...props} name="tags" value={value} isDisabled={isDisabled} /></form>
+    )
+    const { rerender } = render(view(['VIP', 'Important']))
+    const data = () => new FormData(screen.getByRole('form') as HTMLFormElement).getAll('tags')
+    expect(data()).toEqual(['VIP', 'Important'])
+    rerender(view(['Monthly']))
+    expect(data()).toEqual(['Monthly'])
+    rerender(view(['Monthly'], true))
+    expect(data()).toEqual([])
+    rerender(view([]))
+    expect(data()).toEqual([])
+  })
+
+  it.each([false, true])('reports blur only when focus leaves the composite (portal=%s)', async (portal) => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn()
+    render(<><InputTag {...props} portal={portal} onBlur={onBlur} defaultValue={['VIP']}
+      addCustomTag={{ ariaLabel: 'Custom tag', placeholder: 'Add' }} /><button>Outside</button></>)
+    const trigger = screen.getByRole('combobox')
+    await user.click(trigger)
+    act(() => screen.getByRole('button', { name: 'Remove VIP' }).focus())
+    act(() => screen.getByRole('textbox', { name: 'Custom tag' }).focus())
+    act(() => screen.getByRole('option', { name: 'Monthly' }).focus())
+    act(() => trigger.focus())
+    expect(onBlur).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Outside' }))
+    expect(onBlur).toHaveBeenCalledOnce()
+    await user.click(trigger)
+    act(() => screen.getByRole('textbox', { name: 'Custom tag' }).focus())
+    await user.click(screen.getByRole('button', { name: 'Outside' }))
+    expect(onBlur).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves touched tracking after removing the focused tag', async () => {
+    const user = userEvent.setup()
+    const onBlur = vi.fn()
+    render(<><InputTag {...props} onBlur={onBlur} defaultValue={['VIP']} />
+      <button>Outside</button></>)
+    await user.click(screen.getByRole('button', { name: 'Remove VIP' }))
+    expect(screen.queryByRole('button', { name: 'Remove VIP' })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox')).toHaveFocus()
+    expect(onBlur).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Outside' }))
+    expect(onBlur).toHaveBeenCalledOnce()
+  })
+
+  it('keeps read-only tags focusable and serializable while blocking changes and opening', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const view = (isReadOnly: boolean, isDisabled = false) => (
+      <form aria-label="matter"><InputTag {...props} name="tags" defaultValue={['VIP']}
+        onChange={onChange} isReadOnly={isReadOnly} isDisabled={isDisabled} /></form>
+    )
+    const { rerender } = render(view(true))
+    const control = screen.getByRole('combobox')
+    await user.click(control)
+    await user.keyboard('{ArrowDown}{ArrowUp}{Enter} ')
+    expect(control).toHaveFocus()
+    expect(control).toHaveAttribute('aria-readonly', 'true')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove VIP' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove VIP' }))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(new FormData(screen.getByRole('form') as HTMLFormElement).getAll('tags')).toEqual(['VIP'])
+    rerender(view(false))
+    await user.click(control)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    rerender(view(true))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    rerender(view(false))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    await user.click(control)
+    rerender(view(false, true))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(control).toHaveAttribute('tabindex', '-1')
   })
 })

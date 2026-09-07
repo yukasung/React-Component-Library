@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
+import { afterInputEvent, composeInputEvent } from '../../lib/inputEvents'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { applySelection, selectRangeAtCaret } from '../../lib/domSelection'
 import { diffStrings, maskPlaceholder } from '../../lib/inputMask'
@@ -655,10 +656,10 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
         // mousedown that precedes it is what records it. Consumed (and
         // reset) by the focus handler below, so a mousedown that never
         // leads to focus can't leak into a later keyboard one.
-        onMouseDown={() => {
+        onMouseDown={composeInputEvent(rest.onMouseDown, () => {
           focusFromPointerRef.current = true
-        }}
-        onFocus={(event) => {
+        })}
+        onFocus={afterInputEvent((event) => {
           setIsFocused(true)
           // Landing in the field highlights one part of the time instead of
           // the whole value — the hour when tabbing in, or whichever group
@@ -674,15 +675,15 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
             if (templateEntry === null) setTemplateEntry(entryFromDraft())
             selectSegment(event.currentTarget, fromPointer ? 'caret' : 'start')
           }
-        }}
-        onBlur={() => {
+        }, rest.onFocus)}
+        onBlur={afterInputEvent(() => {
           setIsFocused(false)
           // commitDraft owns both cases: a template that's complete commits
           // like any typed time, and one that isn't (including one nothing was
           // typed into) is dropped, handing the field back to its placeholder.
           commitDraft()
-        }}
-        onClick={(event) => {
+        }, rest.onBlur)}
+        onClick={composeInputEvent(rest.onClick, (event) => {
           // With typing disabled the field itself is just another way
           // to reach the only input method left.
           if (!isEditable && hasDropdown && !isDisabled && !isReadOnly) dropdown.open()
@@ -694,8 +695,8 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
           // to keep out of the way.
           const el = event.currentTarget
           if (templateVisible && el.selectionStart === el.selectionEnd) selectSegment(el, 'caret')
-        }}
-        onKeyDown={handleKeyDown}
+        })}
+        onKeyDown={composeInputEvent(rest.onKeyDown, handleKeyDown)}
         // The icon overlays the input's right edge, so the text needs room
         // to stop short of it.
         className={`${inputBaseClassName} ${inputStateClassName(isDisabled, isReadOnly)} ${showDropdownButton && hasDropdown ? 'pr-11' : ''} ${className ?? ''}`}
