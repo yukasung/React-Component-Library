@@ -95,16 +95,35 @@ export interface NumericFormatSpec {
 
 const NUMERIC_FORMAT_PATTERN = /^([CDEFGNPRX])(\d{0,9})?$/i
 
+// Bound precision before any display, live edit, or commit can use it.
+// toFixed/toExponential allow at most 100 decimal places. D/X use a
+// deliberately bounded padding width instead of allocating arbitrary strings.
+const MAX_NUMERIC_FORMAT_PRECISION: Record<NumericFormatSpecifier, number> = {
+  C: 100,
+  D: 100,
+  E: 100,
+  F: 100,
+  G: 97, // The fixed branch at exponent -4 needs precision + 3 decimals.
+  N: 100,
+  P: 98, // The underlying value needs precision + 2 decimals on commit.
+  R: 999999999, // Precision is ignored; retain the existing nine-digit syntax.
+  X: 100,
+}
+
 // A standard numeric format string is exactly one letter plus an optional
 // precision digit string — anything else (custom format strings) isn't
-// supported, matching this component's v1 scope.
+// supported, matching this component's v1 scope. Unsafe precision uses the
+// same undefined result so callers take their existing unformatted fallback.
 export function parseNumericFormat(format: string): NumericFormatSpec | undefined {
   const match = NUMERIC_FORMAT_PATTERN.exec(format.trim())
   if (!match) return undefined
   const [, letter, digits] = match
+  const specifier = letter.toUpperCase() as NumericFormatSpecifier
+  const precision = digits ? Number(digits) : undefined
+  if (precision !== undefined && precision > MAX_NUMERIC_FORMAT_PRECISION[specifier]) return undefined
   return {
-    specifier: letter.toUpperCase() as NumericFormatSpecifier,
-    precision: digits ? Number(digits) : undefined,
+    specifier,
+    precision,
     uppercase: letter === letter.toUpperCase(),
   }
 }

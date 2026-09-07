@@ -1204,6 +1204,59 @@ describe('InputNumber', () => {
   })
 
   describe('format', () => {
+    it.each(['C101', 'D101', 'E101', 'F101', 'G98', 'N101', 'P99', 'X101'])(
+      'renders and edits unsafe %s through the plain-number fallback',
+      async (format) => {
+        const user = userEvent.setup()
+        const onChange = vi.fn()
+        render(<InputNumber defaultValue={0.0001} format={format} isRequired={false} onChange={onChange} />)
+        const input = screen.getByRole('spinbutton')
+        expect(input).toHaveValue('0.0001')
+
+        await user.clear(input)
+        await user.type(input, '2.75')
+        expect(input).toHaveValue('2.75')
+        expect(onChange).not.toHaveBeenCalled()
+
+        await user.tab()
+        expect(onChange).toHaveBeenCalledExactlyOnceWith(2.75)
+        expect(input).toHaveValue('2.75')
+      },
+    )
+
+    it('commits an explicit P99 draft with plain-number semantics on Enter', () => {
+      const onChange = vi.fn()
+      render(<InputNumber value={0.5} text="2.75" format="P99" onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(2.75)
+      expect(input).toHaveValue('2.75')
+    })
+
+    it.each(['F101', 'P99'])(
+      'uses step precision when unsafe %s falls back on a controlled field',
+      (format) => {
+        const onChange = vi.fn()
+        const { rerender } = render(<InputNumber value={1.5} step={0.25} format={format} onChange={onChange} />)
+        const input = screen.getByRole('spinbutton')
+        expect(input).toHaveValue('1.50')
+
+        fireEvent.change(input, { target: { value: '2.756' } })
+        expect(input).toHaveValue('2.756')
+        expect(onChange).not.toHaveBeenCalled()
+        fireEvent.keyDown(input, { key: 'Enter' })
+        expect(onChange).toHaveBeenCalledExactlyOnceWith(2.76)
+
+        rerender(<InputNumber value={2.76} step={0.25} format={format} onChange={onChange} />)
+        expect(input).toHaveValue('2.76')
+        fireEvent.keyDown(input, { key: 'ArrowUp' })
+        expect(onChange).toHaveBeenLastCalledWith(3.01)
+        expect(input).toHaveValue('3.01')
+      },
+    )
+
     it.each([
       ['C2', '1.239', 1.24],
       ['F2', '1.239', 1.24],

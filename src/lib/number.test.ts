@@ -239,6 +239,61 @@ describe('parseNumericFormat', () => {
     expect(parseNumericFormat('F12')).toEqual({ specifier: 'F', precision: 12, uppercase: true })
   })
 
+  it.each([
+    ['C', 100],
+    ['D', 100],
+    ['E', 100],
+    ['F', 100],
+    ['G', 97],
+    ['N', 100],
+    ['P', 98],
+    ['X', 100],
+  ] as const)('accepts the safe %s precision maximum %i and rejects the next value', (specifier, maximum) => {
+    for (const letter of [specifier, specifier.toLowerCase()]) {
+      expect(parseNumericFormat(`${letter}${maximum}`)).toEqual({
+        specifier,
+        precision: maximum,
+        uppercase: letter === specifier,
+      })
+      expect(parseNumericFormat(`${letter}${maximum + 1}`)).toBeUndefined()
+      expect(parseNumericFormat(`${letter}999999999`)).toBeUndefined()
+    }
+  })
+
+  it('checks numeric precision after removing leading zeros and surrounding whitespace', () => {
+    expect(parseNumericFormat(' f000000100 ')).toEqual({ specifier: 'F', precision: 100, uppercase: false })
+    expect(parseNumericFormat(' f000000101 ')).toBeUndefined()
+  })
+
+  it.each(['C', 'D', 'E', 'F', 'G', 'N', 'P', 'R', 'X'] as const)(
+    'keeps omitted and zero precision supported for %s',
+    (specifier) => {
+      expect(parseNumericFormat(specifier)).toEqual({ specifier, precision: undefined, uppercase: true })
+      expect(parseNumericFormat(`${specifier}0`)).toEqual({ specifier, precision: 0, uppercase: true })
+    },
+  )
+
+  it('retains the existing nine-digit precision syntax for R, whose precision is ignored', () => {
+    const spec = parseNumericFormat('r999999999')!
+    expect(spec).toEqual({ specifier: 'R', precision: 999999999, uppercase: false })
+    expect(formatWithSpec(1e-20, spec)).toBe('1e-20')
+    expect(applyFormatPrecision(1e-20, spec)).toBe(1e-20)
+    expect(parseNumericFormat('R1000000000')).toBeUndefined()
+  })
+
+  it.each(['C100', 'D100', 'E100', 'F100', 'G97', 'N100', 'P98', 'X100'])(
+    'formats and commits finite numbers at the %s precision boundary',
+    (format) => {
+      const spec = parseNumericFormat(format)!
+      // G's exponent -4 fixed branch requires three more decimal places
+      // than its significant-digit count; -5 and large values take E's path.
+      for (const value of [0, -0.0001, 0.00001, 1.5, Number.MAX_VALUE]) {
+        expect(() => formatWithSpec(value, spec)).not.toThrow()
+        expect(Number.isFinite(applyFormatPrecision(value, spec))).toBe(true)
+      }
+    },
+  )
+
   it('returns undefined for an unsupported specifier letter', () => {
     expect(parseNumericFormat('Z')).toBeUndefined()
   })
