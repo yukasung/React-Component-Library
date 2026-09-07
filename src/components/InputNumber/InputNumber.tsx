@@ -241,11 +241,19 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   // consumer just set shouldn't echo back as a change notification, same as
   // an external `value` change doesn't echo back through `onChange`.
   const [draft, setDraft] = useSyncedState(text !== undefined ? text : formattedValue)
+  // Equal display text can still be an intentional edit (clear, then paste
+  // the rounded value). Publish external resets only in the commit phase so
+  // a suspended render cannot discard an edit in the still-visible field.
+  const draftEditedRef = useRef(false)
+  useLayoutEffect(() => {
+    draftEditedRef.current = false
+  }, [formattedValue, text])
   // Routes every internally-originated draft change (typing, commit
   // reformat, spin, Escape, sign toggle, ...) through onTextChange — see the
   // prop doc comment. Every setDraft call below this point should go
   // through updateDraft instead, except the external-text-resync above.
-  function updateDraft(next: string) {
+  function updateDraft(next: string, edited = true) {
+    draftEditedRef.current = edited
     if (next !== draft) onTextChange?.(next)
     setDraft(next)
   }
@@ -276,6 +284,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     if (isControlled && value !== previousControlledValueRef.current) {
       previousControlledValueRef.current = value
       lastCommittedRef.current = value
+      draftEditedRef.current = false
     }
   }, [isControlled, value])
   const inputElementRef = useRef<HTMLInputElement | null>(null)
@@ -329,7 +338,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
       if (!isControlled) setInternalValue(next)
       onChange?.(next)
     }
-    updateDraft(formatDisplay(next))
+    updateDraft(formatDisplay(next), false)
   }
 
   function commitDraft() {
@@ -341,13 +350,14 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     const lastCommitted = lastCommittedRef.current
     if (
       text === undefined &&
+      !draftEditedRef.current &&
       lastCommitted !== null &&
       draft === formatDisplay(lastCommitted) &&
       clamp(lastCommitted, min, max) === lastCommitted
     ) return
     const parsed = parseDraftValue(draft)
     if (parsed === undefined || (isRequired && parsed === null)) {
-      updateDraft(formattedValue)
+      updateDraft(formattedValue, false)
       return
     }
     commit(parsed === null ? null : clampToPrecision(parsed))
@@ -465,7 +475,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
     if (event.key === 'Enter') {
       commitDraft()
     } else if (event.key === 'Escape') {
-      updateDraft(formattedValue)
+      updateDraft(formattedValue, false)
     } else if (event.key === 'ArrowUp' && !isReadOnly && hasStep) {
       event.preventDefault()
       stepBy(1)

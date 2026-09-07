@@ -1277,6 +1277,121 @@ describe('InputNumber', () => {
       expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
     })
 
+    it.each(['E2', 'G2'])('commits an explicit %s re-entry of the rounded minimum', async (format) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate isRequired={false} format={format} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.click(input)
+      await user.keyboard('{ArrowDown}')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
+
+      await user.clear(input)
+      await user.paste('0.3')
+      await user.keyboard('{Enter}')
+      expect(onChange).toHaveBeenCalledTimes(2)
+      expect(onChange).toHaveBeenLastCalledWith(0.3)
+
+      await user.tab()
+      expect(onChange).toHaveBeenCalledTimes(2)
+    })
+
+    it.each(['E2', 'G2'])('resets %s edit tracking after stepping commits an exact bound', async (format) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate isRequired={false} format={format} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.clear(input)
+      await user.paste('0.4')
+      await user.keyboard('{ArrowDown}{ArrowDown}')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
+
+      await user.tab()
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
+    })
+
+    it.each([
+      ['E2', '0.3', '{Escape}'],
+      ['G2', '0.3', '{Escape}'],
+      ['E2', '-', '{Enter}'],
+      ['G2', '-', '{Enter}'],
+    ])('resets %s edit tracking when %s is reverted with %s', async (format, edit, key) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={0.2996} min={0.2996} format={format} isRequired={edit === '-'} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.clear(input)
+      await user.paste(edit)
+      await user.keyboard(key)
+      await user.tab()
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('resets edit tracking when a new controlled value has the same rounded display', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      const { rerender } = render(<InputNumber value={0.2996} format="G2" isRequired={false} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.clear(input)
+      await user.paste('0.3')
+
+      rerender(<InputNumber value={0.2997} format="G2" isRequired={false} onChange={onChange} />)
+      await user.tab()
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('resets edit tracking when a format change reseeds the displayed draft', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      const { rerender } = render(<InputNumber defaultValue={0.2996} format="R" isRequired={false} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.clear(input)
+      await user.paste('0.3')
+
+      rerender(<InputNumber defaultValue={0.2996} format="G2" isRequired={false} onChange={onChange} />)
+      await user.tab()
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('resets edit tracking when controlled text returns to the value-derived display', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      const { rerender } = render(<InputNumber value={0.2996} text="0.3" format="G2" isRequired={false} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.clear(input)
+      await user.paste('0.3')
+
+      rerender(<InputNumber value={0.2996} format="G2" isRequired={false} onChange={onChange} />)
+      await user.tab()
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('retains a user edit when an external formatted value suspends', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      const pending = new Promise<void>(() => {})
+      function Suspends({ active }: { active: boolean }) {
+        if (active) throw pending
+        return null
+      }
+      const field = (value: number) => (
+        <Suspense fallback={<span>Loading</span>}>
+          <InputNumber value={value} format="G2" isRequired={false} onChange={onChange} />
+          <Suspends active={value === 9} />
+        </Suspense>
+      )
+      const { rerender } = render(field(0.2996))
+      const input = screen.getByRole('spinbutton')
+      await user.clear(input)
+      await user.paste('0.3')
+
+      await act(async () => { startTransition(() => { rerender(field(9)) }) })
+      expect(screen.queryByText('Loading')).not.toBeInTheDocument()
+      expect(input).toHaveValue('0.3')
+      await user.keyboard('{Enter}')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.3)
+    })
+
     it.each([
       ['E2', { min: 0.4 }, 0.4],
       ['G2', { min: 0.4 }, 0.4],
