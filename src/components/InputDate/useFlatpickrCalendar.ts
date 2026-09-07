@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import flatpickr from 'flatpickr'
 import { formatDateWithYearOffset, startOfDay, unshiftYearInDraft } from '../../lib/date'
@@ -98,7 +98,18 @@ export function useFlatpickrCalendar({
   const instanceRef = useRef<flatpickr.Instance | null>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const unavailableRef = useRef(isUnavailable)
-  unavailableRef.current = isUnavailable
+  const committedValueRef = useRef(committedValue)
+
+  useLayoutEffect(() => {
+    // Only committed props govern native events, not a suspended render.
+    unavailableRef.current = isUnavailable
+    committedValueRef.current = committedValue
+    // The visible field preserves disabled versus read-only semantics;
+    // either state disables its private OS-picker launcher.
+    if (instanceRef.current?.mobileInput) {
+      instanceRef.current.mobileInput.disabled = isUnavailable
+    }
+  }, [isUnavailable, committedValue])
 
   const restoreOpener = useCallback(() => {
     const opener = openerRef.current
@@ -200,6 +211,14 @@ export function useFlatpickrCalendar({
         return flatpickr.parseDate(toParse, frmt) as Date
       },
       onChange: (selectedDates, _text, calendar) => {
+        // An OS picker can deliver a selection after the field becomes
+        // unavailable. Restore the authoritative value without notifying React.
+        if (unavailableRef.current) {
+          const value = committedValueRef.current
+          if (value) calendar.setDate(value, false)
+          else calendar.clear(false)
+          return
+        }
         const picked = selectedDates[0]
         if (picked) onPickRef.current(startOfDay(picked))
         if (calendar.isOpen) focusCalendar(calendar)
@@ -215,6 +234,15 @@ export function useFlatpickrCalendar({
         if (document.activeElement === input) restoreOpener()
       },
     })
+    if (instance.mobileInput) {
+      // Flatpickr creates a second input without copying the proxy's styles
+      // or tabindex. It is an OS-picker launcher, not another form field.
+      // Keep it rendered for programmatic click(), but out of layout/Tab/AT.
+      instance.mobileInput.style.cssText = input.style.cssText
+      instance.mobileInput.tabIndex = -1
+      instance.mobileInput.setAttribute('aria-hidden', 'true')
+      instance.mobileInput.disabled = unavailableRef.current
+    }
     // Native mobile instances have an input instead of a JavaScript calendar.
     if (instance.calendarContainer) {
       instance.calendarContainer.classList.add('rc-scalar')

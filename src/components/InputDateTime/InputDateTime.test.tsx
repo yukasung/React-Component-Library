@@ -72,6 +72,45 @@ describe('InputDateTime', () => {
       vi.restoreAllMocks()
     })
 
+    it.each(['isDisabled', 'isReadOnly'] as const)('blocks native selections through %s transitions', (state) => {
+      const onChange = vi.fn()
+      const initial = new Date(2026, 6, 1, 9, 30)
+      const { rerender } = render(<InputDateTime value={initial} {...{ [state]: true }} onChange={onChange} />)
+      const native = document.querySelector<HTMLInputElement>('input.flatpickr-mobile')!
+      expect(native).toBeDisabled()
+      expect(native).toHaveAttribute('tabindex', '-1')
+      expect(native).toHaveAttribute('aria-hidden', 'true')
+      expect(native).not.toBeVisible()
+      fireEvent.change(native, { target: { value: '2026-07-15' } })
+      expect(onChange).not.toHaveBeenCalled()
+      expect(native).toHaveValue('2026-07-01')
+
+      rerender(<InputDateTime value={initial} onChange={onChange} />)
+      expect(native).not.toBeDisabled()
+      const click = vi.spyOn(native, 'click')
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      expect(click).toHaveBeenCalledOnce()
+      fireEvent.change(native, { target: { value: '2026-07-15' } })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 15, 9, 30))
+      onChange.mockClear()
+
+      const replacement = new Date(2026, 6, 20, 9, 30)
+      rerender(<InputDateTime value={replacement} {...{ [state]: true }} onChange={onChange} />)
+      expect(native).toBeDisabled()
+      // An already open OS picker may deliver a late selection after disabling.
+      fireEvent.change(native, { target: { value: '2026-07-25' } })
+      expect(onChange).not.toHaveBeenCalled()
+      expect(native).toHaveValue('2026-07-20')
+      rerender(<InputDateTime value={null} isRequired={false} {...{ [state]: true }} onChange={onChange} />)
+      fireEvent.change(native, { target: { value: '2026-07-25' } })
+      expect(onChange).not.toHaveBeenCalled()
+      expect(native).toHaveValue('')
+      rerender(<InputDateTime value={replacement} onChange={onChange} />)
+      expect(native).not.toBeDisabled()
+      fireEvent.change(native, { target: { value: '2026-07-25' } })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 25, 9, 30))
+    })
+
     it('commits an English native date selection after calendar prop updates', () => {
       const onChange = vi.fn()
       const { rerender, unmount } = render(
