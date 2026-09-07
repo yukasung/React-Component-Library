@@ -125,7 +125,8 @@ combobox after removal. The optional custom-tag input remains independently
 focusable: spaces and navigation keys edit text, and Enter adds a tag.
 Escape closes the menu and returns focus to the combobox. Tab follows the
 normal focus order through remove buttons and the custom-tag input; leaving
-the whole field reports one `onBlur`. Inline and portalled menus share this
+the whole field closes the menu and reports one `onBlur`. Escape in another
+control is not intercepted. Inline and portalled menus share this
 keyboard contract.
 
 ### Date validation and popup behavior

@@ -442,6 +442,51 @@ describe('InputTag keyboard focus contract', () => {
   })
 
   describe.each([false, true])('portal=%s', (portal) => {
+    it.each([false, true])('closes on keyboard focus exit without capturing outside Escape (reverse=%s)', async (reverse) => {
+      const user = userEvent.setup()
+      const onBlur = vi.fn()
+      const outsideKey = vi.fn()
+      render(<><button onKeyDown={outsideKey}>Before</button>
+        <InputTag {...props} portal={portal} onBlur={onBlur} />
+        <button onKeyDown={outsideKey}>After</button></>)
+      await user.tab()
+      await user.tab()
+      const trigger = screen.getByRole('combobox')
+      await user.keyboard('{ArrowDown}')
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+      await user.tab({ shift: reverse })
+      const outside = screen.getByRole('button', { name: reverse ? 'Before' : 'After' })
+      expect(outside).toHaveFocus()
+      expect(trigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      expect(onBlur).toHaveBeenCalledOnce()
+      outsideKey.mockClear()
+      await user.keyboard('{Escape}')
+      expect(outside).toHaveFocus()
+      expect(outsideKey).toHaveBeenCalledOnce()
+      expect(outsideKey.mock.calls[0][0].defaultPrevented).toBe(false)
+      expect(onBlur).toHaveBeenCalledOnce()
+    })
+
+    it('keeps internal custom-input focus transfers open but closes on keyboard exit', async () => {
+      const user = userEvent.setup()
+      const onBlur = vi.fn()
+      render(<><InputTag {...props} portal={portal} onBlur={onBlur}
+        addCustomTag={{ ariaLabel: 'Custom tag', placeholder: 'Add' }} />
+        <button>Outside</button></>)
+      const trigger = screen.getByRole('combobox')
+      await user.tab()
+      await user.keyboard('{ArrowDown}')
+      act(() => screen.getByRole('textbox', { name: 'Custom tag' }).focus())
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      expect(onBlur).not.toHaveBeenCalled()
+      // Portals follow body DOM order; inline menus precede the outside button.
+      await user.tab({ shift: portal })
+      expect(screen.getByRole('button', { name: 'Outside' })).toHaveFocus()
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      expect(onBlur).toHaveBeenCalledOnce()
+    })
+
     it.each(['mouse', 'touch'])('continues keyboard navigation after %s option selection', async (pointer) => {
       const user = userEvent.setup()
       const onBlur = vi.fn()

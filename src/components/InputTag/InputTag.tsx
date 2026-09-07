@@ -199,6 +199,10 @@ export function InputTag({
     }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      const target = event.target
+      if (!(target instanceof Node) || (
+        !rootRef.current?.contains(target) && !menuRef.current?.contains(target)
+      )) return
       event.preventDefault()
       event.stopPropagation()
       setIsOpen(false)
@@ -333,6 +337,10 @@ export function InputTag({
         if (nextTarget instanceof Node && (
           rootRef.current?.contains(nextTarget) || menuRef.current?.contains(nextTarget)
         )) return
+        // React portal blur bubbles here too. Close only after focus leaves
+        // the whole field, preserving the browser's chosen destination.
+        setIsOpen(false)
+        setIsKeyboardNavigating(false)
         onBlur?.(event)
       }}
     >
