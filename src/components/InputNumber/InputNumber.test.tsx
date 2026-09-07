@@ -4,7 +4,41 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputNumber } from './InputNumber'
 
+// Behavior tests cover both stepped and plain numeric fields; role-specific
+// assertions below separately verify the accessibility contract.
+const getNumberInput = () => screen.queryByRole('spinbutton') ?? screen.getByRole('textbox')
+
 describe('InputNumber', () => {
+  it('uses textbox semantics without stepping and omits range-only ARIA', () => {
+    const onChange = vi.fn()
+    render(<InputNumber defaultValue={5} min={0} max={10} onChange={onChange} />)
+    const input = screen.getByRole('textbox')
+    for (const attribute of ['aria-valuenow', 'aria-valuetext', 'aria-valuemin', 'aria-valuemax']) {
+      expect(input).not.toHaveAttribute(attribute)
+    }
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(input).toHaveValue('5')
+  })
+
+  it('updates its role and range ARIA when stepping is enabled or removed', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<InputNumber defaultValue={5} min={0} max={10} onChange={onChange} />)
+    expect(screen.getByRole('textbox')).toHaveValue('5')
+    rerender(<InputNumber defaultValue={5} min={0} max={10} step={1} onChange={onChange} />)
+    const input = screen.getByRole('spinbutton')
+    expect(input).toHaveAttribute('aria-valuenow', '5')
+    expect(input).toHaveAttribute('aria-valuemin', '0')
+    expect(input).toHaveAttribute('aria-valuemax', '10')
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(6)
+    rerender(<InputNumber defaultValue={5} min={0} max={10} onChange={onChange} />)
+    expect(screen.getByRole('textbox')).toBe(input)
+    expect(input).not.toHaveAttribute('aria-valuenow')
+    expect(input).not.toHaveAttribute('aria-valuemin')
+    expect(input).not.toHaveAttribute('aria-valuemax')
+  })
+
   it('keeps the visible commit baseline when an external transition suspends', async () => {
     const onChange = vi.fn()
     const pending = new Promise<void>(() => {})
@@ -19,7 +53,7 @@ describe('InputNumber', () => {
       </Suspense>
     )
     const { rerender } = render(field(1))
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     act(() => { input.focus() })
 
     await act(async () => { startTransition(() => { rerender(field(9)) }) })
@@ -34,7 +68,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     const { rerender } = render(<InputNumber value={1} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     expect(input).toHaveValue('1')
 
     rerender(<InputNumber value={9} onChange={onChange} isRequired={false} />)
@@ -59,7 +93,7 @@ describe('InputNumber', () => {
     render(
       <InputNumber id="qty" name="quantity" placeholder="Enter a number" className="custom" />,
     )
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     expect(input).toHaveAttribute('id', 'qty')
     expect(input).toHaveAttribute('name', 'quantity')
     expect(input).toHaveAttribute('placeholder', 'Enter a number')
@@ -90,7 +124,7 @@ describe('InputNumber', () => {
 
   it('uses the standard form-control border, shadow, and focus treatment', () => {
     render(<InputNumber value={5} onChange={() => {}} />)
-    expect(screen.getByRole('spinbutton').parentElement).toHaveClass(
+    expect(getNumberInput().parentElement).toHaveClass(
       'border-gray-300',
       'shadow-theme-xs',
       'focus-within:border-brand-300',
@@ -100,14 +134,14 @@ describe('InputNumber', () => {
 
   it('displays a controlled value', () => {
     render(<InputNumber value={42} onChange={() => {}} />)
-    expect(screen.getByRole('spinbutton')).toHaveValue('42')
+    expect(getNumberInput()).toHaveValue('42')
   })
 
   it('updates the displayed value while typing without committing', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={1} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '12')
@@ -120,7 +154,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '25')
@@ -134,7 +168,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '7')
@@ -148,7 +182,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '7')
@@ -163,7 +197,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={1} step={1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('{ArrowUp}')
@@ -177,7 +211,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '-')
@@ -191,7 +225,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '99')
@@ -205,7 +239,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.tab()
@@ -216,7 +250,7 @@ describe('InputNumber', () => {
   it('works uncontrolled via defaultValue', async () => {
     const user = userEvent.setup()
     render(<InputNumber defaultValue={3} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     expect(input).toHaveValue('3')
 
     await user.clear(input)
@@ -228,10 +262,10 @@ describe('InputNumber', () => {
 
   it('resyncs the displayed value when the external value prop changes', () => {
     const { rerender } = render(<InputNumber value={1} onChange={() => {}} />)
-    expect(screen.getByRole('spinbutton')).toHaveValue('1')
+    expect(getNumberInput()).toHaveValue('1')
 
     rerender(<InputNumber value={9} onChange={() => {}} />)
-    expect(screen.getByRole('spinbutton')).toHaveValue('9')
+    expect(getNumberInput()).toHaveValue('9')
   })
 
   it('forwards the ref to the underlying input element', () => {
@@ -260,7 +294,7 @@ describe('InputNumber', () => {
     it('on a plain field with no format or step', () => {
       vi.useFakeTimers()
       render(<InputNumber value={1234.5} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       act(() => {
@@ -274,7 +308,7 @@ describe('InputNumber', () => {
     it('on a field with step (spin buttons) but no format', () => {
       vi.useFakeTimers()
       render(<InputNumber value={5} step={1} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       act(() => {
@@ -288,7 +322,7 @@ describe('InputNumber', () => {
     it('on a formatted field', () => {
       vi.useFakeTimers()
       render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       act(() => {
@@ -307,7 +341,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} min={min} max={max} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     await user.clear(input)
     await user.type(input, draft)
     expect(input).toHaveValue(draft)
@@ -320,7 +354,7 @@ describe('InputNumber', () => {
   it('allows typing any value within min/max normally', async () => {
     const user = userEvent.setup()
     render(<InputNumber value={5} min={0} max={100} onChange={() => {}} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '42')
@@ -331,7 +365,7 @@ describe('InputNumber', () => {
   it('does not block an in-progress draft that is not yet a complete number', async () => {
     const user = userEvent.setup()
     render(<InputNumber value={null} min={-10} max={10} onChange={() => {}} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('-')
@@ -341,7 +375,7 @@ describe('InputNumber', () => {
 
   it('clamps an out-of-bounds sign toggle only on commit', () => {
     render(<InputNumber value={5} min={-3} max={10} onChange={() => {}} />)
-    const input = screen.getByRole('spinbutton') as HTMLInputElement
+    const input = getNumberInput() as HTMLInputElement
     input.focus()
     input.setSelectionRange(1, 1)
 
@@ -356,7 +390,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} min={0} max={10} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.tab()
@@ -368,7 +402,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} step={1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('{ArrowUp}')
@@ -381,7 +415,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} step={2} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('{ArrowDown}')
@@ -394,7 +428,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={10} min={0} max={10} step={1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('{ArrowUp}')
@@ -411,7 +445,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={0.2} max={0.25} step={0.1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('{ArrowUp}')
@@ -423,7 +457,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={0.1} step={0.1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('{ArrowUp}')
@@ -437,7 +471,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} step={1} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '20')
@@ -448,7 +482,7 @@ describe('InputNumber', () => {
 
   it('renders as a disabled input with disabled styling', () => {
     render(<InputNumber value={5} isDisabled onChange={() => {}} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     expect(input).toBeDisabled()
     // Disabled styling (opacity, background) lives on the wrapper now.
@@ -459,7 +493,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} isDisabled onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     // user-event no-ops (or throws, depending on version) on a disabled
     // element rather than dispatching events through it — either way,
@@ -474,7 +508,7 @@ describe('InputNumber', () => {
 
   it('renders as read-only, distinct from disabled, and stays focusable', () => {
     render(<InputNumber value={5} isReadOnly onChange={() => {}} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     expect(input).toHaveAttribute('readonly')
     expect(input).not.toBeDisabled()
@@ -489,7 +523,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} isReadOnly onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.type(input, '9').catch(() => {})
     expect(input).toHaveValue('5')
@@ -507,7 +541,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.tab()
@@ -520,7 +554,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} onChange={onChange} />) // isRequired defaults to true
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     // snapped before blur even happens — matches Wijmo's live-blocking
@@ -539,7 +573,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={5} isRequired onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '8')
@@ -557,7 +591,7 @@ describe('InputNumber', () => {
     expect(screen.queryByRole('button', { name: 'Increase value' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Decrease value' })).not.toBeInTheDocument()
 
-    screen.getByRole('spinbutton').focus()
+    getNumberInput().focus()
     await user.keyboard('{ArrowUp}')
     expect(onChange).toHaveBeenCalledWith(6)
   })
@@ -567,8 +601,8 @@ describe('InputNumber', () => {
     const onChange = vi.fn()
     render(<InputNumber value={5} step={1} showSpinButtons onChange={onChange} />)
 
-    expect(screen.getByRole('spinbutton')).toHaveClass('text-center')
-    expect(screen.getByRole('spinbutton')).not.toHaveClass('text-right')
+    expect(getNumberInput()).toHaveClass('text-center')
+    expect(getNumberInput()).not.toHaveClass('text-right')
 
     await user.click(screen.getByRole('button', { name: 'Increase value' }))
     expect(onChange).toHaveBeenCalledWith(6)
@@ -585,7 +619,7 @@ describe('InputNumber', () => {
     expect(screen.queryByRole('button', { name: 'Increase value' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Decrease value' })).not.toBeInTheDocument()
 
-    screen.getByRole('spinbutton').focus()
+    getNumberInput().focus()
     await user.keyboard('{ArrowUp}')
     expect(onChange).not.toHaveBeenCalled()
   })
@@ -610,7 +644,7 @@ describe('InputNumber', () => {
   it('keeps focus on the input when clicking a spin button', async () => {
     const user = userEvent.setup()
     render(<InputNumber value={5} step={1} showSpinButtons onChange={() => {}} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.click(screen.getByRole('button', { name: 'Increase value' }))
@@ -620,13 +654,13 @@ describe('InputNumber', () => {
 
   it('displays the committed value fixed to the decimal places implied by step', () => {
     render(<InputNumber value={3} step={0.01} onChange={() => {}} />)
-    expect(screen.getByRole('spinbutton')).toHaveValue('3.00')
+    expect(getNumberInput()).toHaveValue('3.00')
   })
 
   it('does not reformat the live draft to those decimal places while typing', async () => {
     const user = userEvent.setup()
     render(<InputNumber value={3} step={0.01} onChange={() => {}} isRequired={false} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '3.1')
@@ -638,7 +672,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={3} step={0.01} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     await user.clear(input)
     await user.type(input, '3.14159')
@@ -652,7 +686,7 @@ describe('InputNumber', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber value={1} step={0.001} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
 
     input.focus()
     await user.keyboard('{ArrowUp}')
@@ -674,7 +708,7 @@ describe('InputNumber', () => {
         />
       </>,
     )
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     expect(input).toHaveAttribute('aria-label', 'Quantity input')
     expect(input).toHaveAttribute('aria-labelledby', 'qty-label')
     expect(input).toHaveAttribute('aria-invalid', 'true')
@@ -682,12 +716,12 @@ describe('InputNumber', () => {
 
   it('passes a consumer-supplied aria-describedby straight through', () => {
     render(<InputNumber value={5} onChange={() => {}} aria-describedby="extra-desc" />)
-    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-describedby', 'extra-desc')
+    expect(getNumberInput()).toHaveAttribute('aria-describedby', 'extra-desc')
   })
 
   it('omits aria-describedby entirely when the consumer supplies none', () => {
     render(<InputNumber value={5} onChange={() => {}} />)
-    expect(screen.getByRole('spinbutton')).not.toHaveAttribute('aria-describedby')
+    expect(getNumberInput()).not.toHaveAttribute('aria-describedby')
   })
 
   describe('repeatButtons', () => {
@@ -770,7 +804,7 @@ describe('InputNumber', () => {
     it('does nothing by default (handleWheel is off) even when focused', () => {
       const onChange = vi.fn()
       render(<InputNumber value={5} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
@@ -781,7 +815,7 @@ describe('InputNumber', () => {
     it('steps up on scroll-up and down on scroll-down when enabled and focused', () => {
       const onChange = vi.fn()
       render(<InputNumber value={5} step={1} handleWheel onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
@@ -794,7 +828,7 @@ describe('InputNumber', () => {
     it('does nothing when enabled but the field is not focused', () => {
       const onChange = vi.fn()
       render(<InputNumber value={5} handleWheel onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       // deliberately not focused
       fireEvent.wheel(input, { deltaY: -100 })
@@ -807,13 +841,13 @@ describe('InputNumber', () => {
       const { rerender } = render(
         <InputNumber value={5} handleWheel isDisabled onChange={onChange} />,
       )
-      let input = screen.getByRole('spinbutton')
+      let input = getNumberInput()
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
       expect(onChange).not.toHaveBeenCalled()
 
       rerender(<InputNumber value={5} handleWheel isReadOnly onChange={onChange} />)
-      input = screen.getByRole('spinbutton')
+      input = getNumberInput()
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
       expect(onChange).not.toHaveBeenCalled()
@@ -822,7 +856,7 @@ describe('InputNumber', () => {
     it('respects clamping at min/max', () => {
       const onChange = vi.fn()
       render(<InputNumber value={10} min={0} max={10} step={1} handleWheel onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       fireEvent.focus(input)
       fireEvent.wheel(input, { deltaY: -100 })
@@ -834,7 +868,7 @@ describe('InputNumber', () => {
     it('stops applying once the field loses focus', () => {
       const onChange = vi.fn()
       render(<InputNumber value={5} handleWheel onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       fireEvent.focus(input)
       fireEvent.blur(input) // commits the (unchanged) value once, as blur always does
@@ -852,7 +886,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={0} step={0.1} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '2.999')
@@ -866,7 +900,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={0} step={0.1} truncate onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '2.999')
@@ -881,7 +915,7 @@ describe('InputNumber', () => {
     it('blocks letters and symbols from ever being typed', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, 'abc')
@@ -894,7 +928,7 @@ describe('InputNumber', () => {
     it('still allows digits, a leading minus, and a single decimal point', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '-12.5')
@@ -904,7 +938,7 @@ describe('InputNumber', () => {
     it('never inserts a second decimal point', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       // Typing "1.2.3": the second "." (DEV-52) jumps the cursor back to
@@ -918,7 +952,7 @@ describe('InputNumber', () => {
   describe('sign toggle (- and +)', () => {
     it('toggles a leading "-" on when pressed with no selection', () => {
       render(<InputNumber value={500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(3, 3) // cursor at the end of "500"
       fireEvent.keyDown(input, { key: '-' })
@@ -927,7 +961,7 @@ describe('InputNumber', () => {
 
     it('toggles a leading "-" off when pressed again', () => {
       render(<InputNumber value={500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(3, 3)
       fireEvent.keyDown(input, { key: '-' })
@@ -940,7 +974,7 @@ describe('InputNumber', () => {
 
     it('produces the same toggle result regardless of cursor position', () => {
       render(<InputNumber value={500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(1, 1) // cursor between "5" and "00" in "500"
       fireEvent.keyDown(input, { key: '-' })
@@ -949,7 +983,7 @@ describe('InputNumber', () => {
 
     it('clears the whole draft to just "-" when a selection is active', () => {
       render(<InputNumber value={500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(0, 2) // select "50" out of "500"
       fireEvent.keyDown(input, { key: '-' })
@@ -959,7 +993,7 @@ describe('InputNumber', () => {
     it('allows negative drafts with a non-negative min and clamps on blur', () => {
       const onChange = vi.fn()
       render(<InputNumber value={5} min={0} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(1, 1)
       fireEvent.keyDown(input, { key: '-' })
@@ -972,7 +1006,7 @@ describe('InputNumber', () => {
 
     it('"+" removes a leading "-" when present', () => {
       render(<InputNumber value={-500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       fireEvent.keyDown(input, { key: '+' })
       expect(input).toHaveValue('500')
@@ -980,7 +1014,7 @@ describe('InputNumber', () => {
 
     it('"+" is a no-op when there is no leading "-"', () => {
       render(<InputNumber value={500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       fireEvent.keyDown(input, { key: '+' })
       expect(input).toHaveValue('500')
@@ -989,7 +1023,7 @@ describe('InputNumber', () => {
     it('never inserts a literal "+" character via typing', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '+5')
@@ -1000,7 +1034,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={5} onChange={onChange} isRequired={false} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       await user.clear(input)
       input.focus()
@@ -1015,7 +1049,7 @@ describe('InputNumber', () => {
 
     it('keeps the cursor next to the same digit when a leading "-" is added', () => {
       render(<InputNumber value={500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(1, 1) // cursor between "5" and "00"
       fireEvent.keyDown(input, { key: '-' })
@@ -1028,7 +1062,7 @@ describe('InputNumber', () => {
 
     it('keeps the cursor next to the same digit when a leading "-" is removed', () => {
       render(<InputNumber value={-500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(2, 2) // cursor between "-5" and "00"
       fireEvent.keyDown(input, { key: '-' })
@@ -1040,7 +1074,7 @@ describe('InputNumber', () => {
 
     it('keeps the cursor next to the same digit when "+" removes a leading "-"', () => {
       render(<InputNumber value={-500} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(2, 2) // cursor between "-5" and "00"
       fireEvent.keyDown(input, { key: '+' })
@@ -1055,7 +1089,7 @@ describe('InputNumber', () => {
     it('jumps the cursor to just after an existing "." instead of inserting a second one', () => {
       const onChange = vi.fn()
       render(<InputNumber value={12.5} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(4, 4) // cursor at the end of "12.5"
       fireEvent.keyDown(input, { key: '.' })
@@ -1068,7 +1102,7 @@ describe('InputNumber', () => {
 
     it('jumps to just after the existing "." even when part of the draft is selected', () => {
       render(<InputNumber value={12.5} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(0, 2) // select "12"
       fireEvent.keyDown(input, { key: '.' })
@@ -1081,7 +1115,7 @@ describe('InputNumber', () => {
     it('is fully blocked under a zero-decimal format', () => {
       const onChange = vi.fn()
       render(<InputNumber value={5} format="n0" onChange={onChange} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       input.focus()
       input.setSelectionRange(1, 1)
       fireEvent.keyDown(input, { key: '.' })
@@ -1093,7 +1127,7 @@ describe('InputNumber', () => {
     it('fills an empty draft with "0." padded to the implied decimal places', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} step={0.01} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       await user.clear(input)
       fireEvent.keyDown(input, { key: '.' })
@@ -1106,7 +1140,7 @@ describe('InputNumber', () => {
     it('fills an empty draft with "0." when no precision is set', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       fireEvent.keyDown(input, { key: '.' })
@@ -1117,7 +1151,7 @@ describe('InputNumber', () => {
     it('still types an ordinary decimal point normally when there is no existing dot', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={5} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '12.5')
@@ -1128,24 +1162,24 @@ describe('InputNumber', () => {
   describe('isRequired (default true) — immediate empty-block', () => {
     it('defaults to isRequired, reflected as the native "required" input attribute', () => {
       render(<InputNumber value={5} onChange={() => {}} />)
-      expect(screen.getByRole('spinbutton')).toHaveAttribute('required')
+      expect(getNumberInput()).toHaveAttribute('required')
     })
 
     it('displays "0" instead of blank when there is no value (controlled null)', () => {
       render(<InputNumber value={null} onChange={() => {}} />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('0')
+      expect(getNumberInput()).toHaveValue('0')
     })
 
     it('displays "0" instead of blank when uncontrolled with no defaultValue', () => {
       render(<InputNumber onChange={() => {}} />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('0')
+      expect(getNumberInput()).toHaveValue('0')
     })
 
     it('snaps to "0" immediately while backspacing one character at a time, not just on select-all', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={7} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       input.focus()
       await user.keyboard('{Backspace}')
@@ -1157,7 +1191,7 @@ describe('InputNumber', () => {
     it('selects the auto-inserted "0" so the next keystroke can replace it', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={7} onChange={() => {}} />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       await user.keyboard('{Backspace}')
@@ -1171,7 +1205,7 @@ describe('InputNumber', () => {
     it('isRequired={false} still allows the field to go and stay empty', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={7} onChange={() => {}} isRequired={false} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       expect(input).toHaveValue('')
@@ -1185,7 +1219,7 @@ describe('InputNumber', () => {
         const user = userEvent.setup()
         const onChange = vi.fn()
         render(<InputNumber defaultValue={0.0001} format={format} isRequired={false} onChange={onChange} />)
-        const input = screen.getByRole('spinbutton')
+        const input = getNumberInput()
         expect(input).toHaveValue('0.0001')
 
         await user.clear(input)
@@ -1202,7 +1236,7 @@ describe('InputNumber', () => {
     it('commits an explicit P99 draft with plain-number semantics on Enter', () => {
       const onChange = vi.fn()
       render(<InputNumber value={0.5} text="2.75" format="P99" onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -1215,7 +1249,7 @@ describe('InputNumber', () => {
       (format) => {
         const onChange = vi.fn()
         const { rerender } = render(<InputNumber value={1.5} step={0.25} format={format} onChange={onChange} />)
-        const input = screen.getByRole('spinbutton')
+        const input = getNumberInput()
         expect(input).toHaveValue('1.50')
 
         fireEvent.change(input, { target: { value: '2.756' } })
@@ -1242,7 +1276,7 @@ describe('InputNumber', () => {
     ])('retains fixed-decimal and integer commit semantics for %s', (format, text, expected) => {
       const onChange = vi.fn()
       render(<InputNumber defaultValue={null} text={text} format={format} onChange={onChange} />)
-      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      fireEvent.keyDown(getNumberInput(), { key: 'Enter' })
       expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
     })
 
@@ -1250,7 +1284,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber defaultValue={0.2} step={0.1} format={format} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.click(input)
       await user.keyboard('{ArrowUp}')
@@ -1271,7 +1305,7 @@ describe('InputNumber', () => {
     ])('commits %s using its significant digits for %s', (format, value, expected) => {
       const onChange = vi.fn()
       render(<InputNumber defaultValue={null} text={String(value)} format={format} onChange={onChange} />)
-      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      fireEvent.keyDown(getNumberInput(), { key: 'Enter' })
       expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
     })
 
@@ -1281,14 +1315,14 @@ describe('InputNumber', () => {
     ])('truncates %s significant digits toward zero for %s', (format, value, expected) => {
       const onChange = vi.fn()
       render(<InputNumber defaultValue={null} text={String(value)} format={format} truncate onChange={onChange} />)
-      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      fireEvent.keyDown(getNumberInput(), { key: 'Enter' })
       expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
     })
 
     it.each(['E2', 'G2'])('keeps the final %s step within a non-representable max', (format) => {
       const onChange = vi.fn()
       render(<InputNumber defaultValue={0.2} step={0.1} max={0.2996} format={format} onChange={onChange} />)
-      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'ArrowUp' })
+      fireEvent.keyDown(getNumberInput(), { key: 'ArrowUp' })
       expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
     })
 
@@ -1296,7 +1330,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate format={format} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.click(input)
       await user.keyboard('{ArrowDown}')
       expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
@@ -1309,7 +1343,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate isRequired={false} format={format} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.click(input)
       await user.keyboard('{ArrowDown}')
       expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
@@ -1328,7 +1362,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate isRequired={false} format={format} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.clear(input)
       await user.paste('0.4')
       await user.keyboard('{ArrowDown}{ArrowDown}')
@@ -1347,7 +1381,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber defaultValue={0.2996} min={0.2996} format={format} isRequired={edit === '-'} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.clear(input)
       await user.paste(edit)
       await user.keyboard(key)
@@ -1359,7 +1393,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       const { rerender } = render(<InputNumber value={0.2996} format="G2" isRequired={false} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.clear(input)
       await user.paste('0.3')
 
@@ -1372,7 +1406,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       const { rerender } = render(<InputNumber defaultValue={0.2996} format="R" isRequired={false} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.clear(input)
       await user.paste('0.3')
 
@@ -1385,7 +1419,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       const { rerender } = render(<InputNumber value={0.2996} text="0.3" format="G2" isRequired={false} onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.clear(input)
       await user.paste('0.3')
 
@@ -1409,7 +1443,7 @@ describe('InputNumber', () => {
         </Suspense>
       )
       const { rerender } = render(field(0.2996))
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.clear(input)
       await user.paste('0.3')
 
@@ -1430,7 +1464,7 @@ describe('InputNumber', () => {
       const { rerender } = render(
         <InputNumber defaultValue={0.3} step={0.1} min={0.2996} truncate format={format} onChange={onChange} />,
       )
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       fireEvent.keyDown(input, { key: 'ArrowDown' })
       expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
 
@@ -1447,7 +1481,7 @@ describe('InputNumber', () => {
       const onChange = vi.fn()
       const { rerender } = render(<InputNumber value={0.2996} format={format} onChange={onChange} />)
       rerender(<InputNumber value={0.2996} text={text} format={format} onChange={onChange} />)
-      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      fireEvent.keyDown(getNumberInput(), { key: 'Enter' })
       expect(onChange).toHaveBeenCalledExactlyOnceWith(0.3)
     })
 
@@ -1455,7 +1489,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber defaultValue={0.2} step={0.1} format="R" onChange={onChange} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       await user.click(input)
       await user.keyboard('{ArrowUp}')
       expect(input).toHaveValue(String(0.2 + 0.1))
@@ -1472,7 +1506,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber defaultValue={value} onChange={onChange} format={format} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       expect(input).toHaveValue(display)
 
       await user.click(input)
@@ -1489,7 +1523,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={-1} onChange={onChange} format="X" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.click(input)
       await user.tab()
@@ -1500,18 +1534,18 @@ describe('InputNumber', () => {
 
     it('displays the committed value formatted per the .NET-style spec', () => {
       render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('1,234.50')
+      expect(getNumberInput()).toHaveValue('1,234.50')
     })
 
     it('applies currency formatting, wrapping negative values in parentheses', () => {
       render(<InputNumber value={-1234.5} onChange={() => {}} format="C2" />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('($1,234.50)')
+      expect(getNumberInput()).toHaveValue('($1,234.50)')
     })
 
     it('wraps negative currency in parentheses live while typing, not just on commit', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={null} onChange={() => {}} isRequired={false} format="c0" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       input.focus()
       await user.keyboard('-1234')
@@ -1528,7 +1562,7 @@ describe('InputNumber', () => {
       // paste, or IME input, producing "$-0" directly) needs the
       // isNegative() fix in formatCurrencySpec to still show parens.
       render(<InputNumber value={0} onChange={() => {}} format="c0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       expect(input).toHaveValue('$0')
 
       fireEvent.change(input, { target: { value: '$-0', selectionStart: 2 } })
@@ -1540,7 +1574,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={-5} onChange={onChange} format="c0" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       input.focus()
       await user.keyboard('{End}{Backspace}')
@@ -1554,7 +1588,7 @@ describe('InputNumber', () => {
     it('backspacing right after the opening paren of a negative currency value also un-negates it', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={-5} onChange={() => {}} format="c0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       // selectAllOnFocus's select-everything-on-focus is deferred (see its
       // own doc comment) -- fake timers must be active *before* .focus()
@@ -1580,7 +1614,7 @@ describe('InputNumber', () => {
     it('pressing "-" toggles the sign of a currency value from anywhere in the draft, not just before the first digit', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={1234.5} onChange={() => {}} format="c2" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       // Cursor placed after the decimal point, well past where a literal
       // "-" character could ever be validly inserted.
@@ -1599,7 +1633,7 @@ describe('InputNumber', () => {
     it('pressing "-" again toggles a negative currency value back to positive', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={-1234.5} onChange={() => {}} format="c2" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       expect(input).toHaveValue('($1,234.50)')
 
       vi.useFakeTimers()
@@ -1617,7 +1651,7 @@ describe('InputNumber', () => {
     it('pressing "-" on a zero currency value shows a bare "-" instead of "($0)"', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={0} onChange={() => {}} format="c0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       expect(input).toHaveValue('$0')
 
       input.focus()
@@ -1633,7 +1667,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={0} onChange={onChange} format="c0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       input.setSelectionRange(1, 1)
@@ -1649,7 +1683,7 @@ describe('InputNumber', () => {
     it('still goes negative if a digit is typed after "-" on a zero currency value', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={0} onChange={() => {}} format="c0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       input.setSelectionRange(1, 1)
@@ -1661,7 +1695,7 @@ describe('InputNumber', () => {
     it('pressing "-" on a zero percent value shows a bare "-" instead of "-0%"', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={0} onChange={() => {}} format="p0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
       expect(input).toHaveValue('0%')
 
       input.focus()
@@ -1675,7 +1709,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={0} onChange={onChange} format="p0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       input.setSelectionRange(0, 0)
@@ -1691,7 +1725,7 @@ describe('InputNumber', () => {
     it('still goes negative if a digit is typed after "-" on a zero percent value', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={0} onChange={() => {}} format="p0" />)
-      const input = screen.getByRole('spinbutton') as HTMLInputElement
+      const input = getNumberInput() as HTMLInputElement
 
       input.focus()
       input.setSelectionRange(0, 0)
@@ -1703,7 +1737,7 @@ describe('InputNumber', () => {
     it('pressing "-" toggles percent and plain-number formats from anywhere in the draft too', async () => {
       const user = userEvent.setup()
       const { rerender } = render(<InputNumber value={0.5} onChange={() => {}} format="p0" />)
-      let input = screen.getByRole('spinbutton') as HTMLInputElement
+      let input = getNumberInput() as HTMLInputElement
       vi.useFakeTimers()
       input.focus()
       act(() => {
@@ -1715,7 +1749,7 @@ describe('InputNumber', () => {
       expect(input).toHaveValue('-50%')
 
       rerender(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
-      input = screen.getByRole('spinbutton') as HTMLInputElement
+      input = getNumberInput() as HTMLInputElement
       vi.useFakeTimers()
       input.focus()
       act(() => {
@@ -1729,13 +1763,13 @@ describe('InputNumber', () => {
 
     it('applies percent formatting (multiplies the value by 100 for display)', () => {
       render(<InputNumber value={0.4268} onChange={() => {}} format="p1" />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('42.7%')
+      expect(getNumberInput()).toHaveValue('42.7%')
     })
 
     it('reformats live while typing, not just on commit', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={null} onChange={() => {}} isRequired={false} format="n0" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '1234')
@@ -1747,7 +1781,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={null} onChange={onChange} isRequired={false} format="c2" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '150{Enter}')
@@ -1760,7 +1794,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={null} onChange={onChange} isRequired={false} format="p0" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '50{Enter}')
@@ -1770,13 +1804,13 @@ describe('InputNumber', () => {
 
     it("format's own precision digit wins over the decimal places step would imply", () => {
       render(<InputNumber value={1.5} onChange={() => {}} format="n3" step={1} />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('1.500')
+      expect(getNumberInput()).toHaveValue('1.500')
     })
 
     it('rejects keystrokes that are not part of a parseable number', async () => {
       const user = userEvent.setup()
       render(<InputNumber value={10} onChange={() => {}} format="n0" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       input.focus()
       await user.keyboard('x')
@@ -1788,7 +1822,7 @@ describe('InputNumber', () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
       render(<InputNumber value={5} onChange={onChange} format="n0" min={0} max={10} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '999{Enter}')
@@ -1800,7 +1834,7 @@ describe('InputNumber', () => {
 
   describe('ARIA spinbutton attributes', () => {
     it('exposes role, aria-valuenow, and aria-valuetext for the committed value', () => {
-      render(<InputNumber value={42} onChange={() => {}} />)
+      render(<InputNumber step={1} value={42} onChange={() => {}} />)
       const input = screen.getByRole('spinbutton')
 
       expect(input).toHaveAttribute('aria-valuenow', '42')
@@ -1808,7 +1842,7 @@ describe('InputNumber', () => {
     })
 
     it('mirrors the formatted display text in aria-valuetext when format is set', () => {
-      render(<InputNumber value={1234.5} onChange={() => {}} format="C2" />)
+      render(<InputNumber step={1} value={1234.5} onChange={() => {}} format="C2" />)
       const input = screen.getByRole('spinbutton')
 
       expect(input).toHaveAttribute('aria-valuenow', '1234.5')
@@ -1816,7 +1850,7 @@ describe('InputNumber', () => {
     })
 
     it('omits aria-valuenow/aria-valuetext when there is no committed value', () => {
-      render(<InputNumber value={null} onChange={() => {}} isRequired={false} />)
+      render(<InputNumber step={1} value={null} onChange={() => {}} isRequired={false} />)
       const input = screen.getByRole('spinbutton')
 
       expect(input).not.toHaveAttribute('aria-valuenow')
@@ -1824,7 +1858,7 @@ describe('InputNumber', () => {
     })
 
     it('sets aria-valuemin/aria-valuemax from the min/max props', () => {
-      render(<InputNumber value={5} min={0} max={10} onChange={() => {}} />)
+      render(<InputNumber step={1} value={5} min={0} max={10} onChange={() => {}} />)
       const input = screen.getByRole('spinbutton')
 
       expect(input).toHaveAttribute('aria-valuemin', '0')
@@ -1832,7 +1866,7 @@ describe('InputNumber', () => {
     })
 
     it('omits aria-valuemin/aria-valuemax when min/max are not set', () => {
-      render(<InputNumber value={5} onChange={() => {}} />)
+      render(<InputNumber step={1} value={5} onChange={() => {}} />)
       const input = screen.getByRole('spinbutton')
 
       expect(input).not.toHaveAttribute('aria-valuemin')
@@ -1842,7 +1876,7 @@ describe('InputNumber', () => {
     it('updates aria-valuenow/aria-valuetext live while typing, before commit', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
-      render(<InputNumber value={1} onChange={onChange} isRequired={false} />)
+      render(<InputNumber step={1} value={1} onChange={onChange} isRequired={false} />)
       const input = screen.getByRole('spinbutton')
 
       await user.clear(input)
@@ -1857,7 +1891,7 @@ describe('InputNumber', () => {
 
     it('mirrors the live formatted draft in aria-valuetext while typing under a format', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={null} onChange={() => {}} isRequired={false} format="C2" />)
+      render(<InputNumber step={1} value={null} onChange={() => {}} isRequired={false} format="C2" />)
       const input = screen.getByRole('spinbutton')
 
       await user.type(input, '150')
@@ -1868,7 +1902,7 @@ describe('InputNumber', () => {
 
     it('omits aria-valuenow while the draft is not yet a complete number', async () => {
       const user = userEvent.setup()
-      render(<InputNumber value={null} onChange={() => {}} isRequired={false} min={-10} />)
+      render(<InputNumber step={1} value={null} onChange={() => {}} isRequired={false} min={-10} />)
       const input = screen.getByRole('spinbutton')
 
       input.focus()
@@ -1883,12 +1917,12 @@ describe('InputNumber', () => {
   describe('text (two-way binding for the displayed draft)', () => {
     it('displays an externally-set text prop verbatim, without reformatting', () => {
       render(<InputNumber value={1234.5} onChange={() => {}} format="C2" text="not a number yet" />)
-      expect(screen.getByRole('spinbutton')).toHaveValue('not a number yet')
+      expect(getNumberInput()).toHaveValue('not a number yet')
     })
 
     it('overrides the draft when the text prop changes on rerender', () => {
       const { rerender } = render(<InputNumber value={5} onChange={() => {}} text="5" />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
       expect(input).toHaveValue('5')
 
       rerender(<InputNumber value={5} onChange={() => {}} text="50" />)
@@ -1900,7 +1934,7 @@ describe('InputNumber', () => {
       const { rerender } = render(<InputNumber value={5} onChange={onChange} text="5" />)
       rerender(<InputNumber value={5} onChange={onChange} text="999" />)
 
-      expect(screen.getByRole('spinbutton')).toHaveValue('999')
+      expect(getNumberInput()).toHaveValue('999')
       expect(onChange).not.toHaveBeenCalled()
     })
 
@@ -1910,7 +1944,7 @@ describe('InputNumber', () => {
       render(
         <InputNumber value={null} onChange={() => {}} onTextChange={onTextChange} isRequired={false} />,
       )
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.type(input, '12')
 
@@ -1934,7 +1968,7 @@ describe('InputNumber', () => {
       render(
         <InputNumber value={1} onChange={() => {}} onTextChange={onTextChange} step={0.01} />,
       )
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       await user.clear(input)
       await user.type(input, '5{Enter}')
@@ -1947,7 +1981,7 @@ describe('InputNumber', () => {
       const onChange = vi.fn()
       const { rerender } = render(<InputNumber value={5} onChange={onChange} text="5" step={1} min={0} max={10} />)
       rerender(<InputNumber value={5} onChange={onChange} text="7" step={1} min={0} max={10} />)
-      const input = screen.getByRole('spinbutton')
+      const input = getNumberInput()
 
       input.focus()
       fireEvent.keyDown(input, { key: 'ArrowUp' })
@@ -1965,7 +1999,7 @@ describe('InputNumber bounded drafts', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber min={min} max={max} isRequired={false} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     await user.type(input, typed)
     expect(input).toHaveValue(typed)
     expect(onChange).not.toHaveBeenCalled()
@@ -1977,7 +2011,7 @@ describe('InputNumber bounded drafts', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<InputNumber min={10} max={20} format={format} isRequired={false} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     await user.click(input)
     await user.paste('99')
     expect(input).toHaveValue('99')
@@ -1993,7 +2027,7 @@ describe('InputNumber bounded incomplete edits', () => {
   it.each(['-', '.'])('reverts incomplete %s and still rejects invalid syntax', (draft) => {
     const onChange = vi.fn()
     render(<InputNumber defaultValue={15} min={10} max={20} onChange={onChange} />)
-    const input = screen.getByRole('spinbutton')
+    const input = getNumberInput()
     fireEvent.change(input, { target: { value: 'invalid' } })
     expect(input).toHaveValue('15')
     fireEvent.change(input, { target: { value: draft } })

@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useStat
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 import { afterInputEvent, composeInputEvent } from '../../lib/inputEvents'
 import { useSyncedState } from '../../hooks/useSyncedState'
+import { TimePopup } from './TimePopup'
 import { applySelection, selectRangeAtCaret } from '../../lib/domSelection'
 import { diffStrings, maskPlaceholder } from '../../lib/inputMask'
 import {
@@ -105,6 +106,9 @@ export interface InputTimeProps
   // Height cap (px) for the scrollable list. A real necessity rather than a
   // nicety here: a full day at the default 15-minute step is 96 entries.
   maxDropdownHeight?: number
+  /** Render the time list outside clipping containers. Defaults to true. */
+  portal?: boolean
+  portalZIndex?: number
   dropdownIcon?: ReactNode
   dropdownAriaLabel?: string
   optionsAriaLabel?: string
@@ -176,6 +180,8 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     handleWheel = false,
     showDropdownButton = true,
     maxDropdownHeight = 200,
+    portal = true,
+    portalZIndex = 50,
     dropdownIcon,
     dropdownAriaLabel = 'Toggle time list',
     optionsAriaLabel = 'Time options',
@@ -715,12 +721,15 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
         </button>
       )}
       {dropdown.isOpen && hasDropdown && (
-        <div
-          ref={dropdown.listRef}
+        <TimePopup
+          anchorRef={dropdown.rootRef}
+          listRef={dropdown.listRef}
+          portal={portal}
+          portalZIndex={portalZIndex}
+          maxHeight={maxDropdownHeight}
           id={listId}
           role="listbox"
           aria-label={optionsAriaLabel}
-          style={{ maxHeight: maxDropdownHeight }}
           className={listClassName}
         >
           {times.map((minutes, index) => {
@@ -743,7 +752,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
               </div>
             )
           })}
-        </div>
+        </TimePopup>
       )}
     </div>
   )

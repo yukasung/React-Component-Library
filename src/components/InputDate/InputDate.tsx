@@ -341,6 +341,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   // toggle() for the dropdown button. onPick/onOpenChange are kept
   // latest-in-a-ref inside the hook, so passing plain closures here is fine.
   const { containerRef, toggle } = useFlatpickrCalendar({
+    isUnavailable: isDisabled || isReadOnly,
     format,
     min,
     max,
@@ -357,11 +358,15 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
     // Internal only — the popup's open state never leaves the component;
     // this just keeps aria-expanded in step with it.
     onOpenChange: setIsOpenState,
+    onFocusLeave: () => {
+      setIsFocused(false)
+      commitDraft()
+    },
   })
 
-  function handleToggleDropdown() {
+  function handleToggleDropdown(opener: HTMLElement) {
     if (isDisabled || isReadOnly) return
-    toggle()
+    toggle(opener)
   }
 
   // Highlights one whole day/month/year group rather than the whole value —
@@ -496,6 +501,12 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.altKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      if (isDisabled || isReadOnly) return
+      event.preventDefault()
+      toggle(event.currentTarget)
+      return
+    }
     // Left/Right/Home/End walk between groups, the keyboard counterpart to
     // clicking one — there is no free-roaming caret to move instead while the
     // field is edited a group at a time.
@@ -627,7 +638,8 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
           const el = event.currentTarget
           if (groups && el.selectionStart === el.selectionEnd) selectSegment(el, 'caret', groups.segments)
         })}
-        onBlur={afterInputEvent(() => {
+        onBlur={afterInputEvent((event) => {
+          if (event.relatedTarget instanceof Node && document.getElementById(calendarId)?.contains(event.relatedTarget)) return
           setIsFocused(false)
           commitDraft()
         }, rest.onBlur)}
@@ -644,7 +656,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
           aria-label={dropdownAriaLabel}
           disabled={isDisabled || isReadOnly}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={handleToggleDropdown}
+          onClick={(event) => handleToggleDropdown(event.currentTarget)}
           className={dropdownButtonClassName}
         >
           {dropdownIcon ?? <CalendarIcon />}

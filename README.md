@@ -107,6 +107,44 @@ array in your form. Pass `aria-invalid`, `aria-describedby`,
 labels with the combobox. These do not replace its internal popup ARIA state.
 The existing `ariaLabel` and `removeLabel` props remain supported and required.
 
+### InputTag keyboard interaction
+
+Focus stays on the combobox while navigating options, including after mouse or
+touch selection. Arrow Down opens at the first option; Arrow Up opens at the
+last. Enter or Space opens at the first option. While open, arrows move the
+active option, Home/End move to the first/last option, and Enter/Space toggle
+its selection. `aria-activedescendant` identifies the active option.
+
+Remove buttons use native Enter/Space activation and return focus to the
+combobox after removal. The optional custom-tag input remains independently
+focusable: spaces and navigation keys edit text, and Enter adds a tag.
+Escape closes the menu and returns focus to the combobox. Tab follows the
+normal focus order through remove buttons and the custom-tag input; leaving
+the whole field reports one `onBlur`. Inline and portalled menus share this
+keyboard contract.
+
+### Date validation and popup behavior
+
+Numeric date drafts must match their whole format and name a real calendar
+date. Impossible dates, incomplete input, wrong separators, and trailing text
+are rejected rather than normalized. Single-digit months/days remain accepted;
+Buddhist-era dates are validated against their underlying Gregorian year.
+Named-month and weekday formats remain picker-only.
+
+The JavaScript calendar moves focus to an enabled day when opened. Arrow keys
+navigate, Enter/Space selects, and Escape returns to the opening control. Tab
+closes the calendar and continues the form's natural focus order. Native mobile
+pickers retain the operating system's interactions. InputNumber announces a
+spinbutton only when `step` is configured; otherwise it is a numeric textbox.
+
+InputTime and InputDateTime time lists use a body portal by default to escape
+overflow containers. They open above or below according to available viewport
+space, constrain their size, and follow scrolling/resizing. `portalZIndex`
+defaults to 50. Set `portal={false}` to keep a list inside its field's container
+(for example, inside a native dialog's top layer). Portalled lists retain the
+field's local dark theme and `--rc-color-primary` value. The demo includes an
+overflow-container example.
+
 ## Development
 
 ```bash

@@ -11,7 +11,30 @@ import { formatDateWithYearOffset, startOfDay, unshiftYearInDraft } from '../../
 type FormatDateWithLocale = (date: Date, format: string, locale?: flatpickr.Locale) => string
 const formatDateWithLocaleCast = flatpickr.formatDate as FormatDateWithLocale
 
+// Use flatpickr's enabled day cells and keyboard navigation, with a focusable
+// dialog fallback when bounds leave no selectable day in the rendered months.
+function focusCalendar(instance: flatpickr.Instance) {
+  const calendar = instance.calendarContainer
+  if (!calendar) return
+  const enabled = '.flatpickr-day:not(.flatpickr-disabled):not(.hidden):not(.notAllowed)'
+  const day = calendar.querySelector<HTMLElement>(`${enabled}.selected`)
+    ?? calendar.querySelector<HTMLElement>(`${enabled}.today`)
+    ?? calendar.querySelector<HTMLElement>(enabled)
+  ;(day ?? calendar).focus()
+}
+
+// set()/setDate() rebuild day nodes. Keep focus inside an open popup only
+// when the update actually removed the control the user was working in.
+function updateCalendar(instance: flatpickr.Instance | null, update: (instance: flatpickr.Instance) => void) {
+  if (!instance) return
+  const active = document.activeElement
+  const ownedFocus = instance.isOpen && instance.calendarContainer?.contains(active)
+  update(instance)
+  if (ownedFocus && active && !active.isConnected) focusCalendar(instance)
+}
+
 export interface UseFlatpickrCalendarOptions {
+  isUnavailable: boolean
   format: string
   min: Date | null
   max: Date | null
@@ -34,6 +57,8 @@ export interface UseFlatpickrCalendarOptions {
   // Called (with the new open state) whenever the calendar opens or closes,
   // by user action or programmatically — same latest-in-a-ref treatment.
   onOpenChange: (isOpen: boolean) => void
+  // Finish field editing when focus leaves the popup for another control.
+  onFocusLeave: () => void
 }
 
 export interface UseFlatpickrCalendarResult {
@@ -42,7 +67,7 @@ export interface UseFlatpickrCalendarResult {
   // effect below).
   containerRef: RefObject<HTMLDivElement | null>
   // Opens/closes the calendar (no-op until the instance is mounted).
-  toggle: () => void
+  toggle: (opener?: HTMLElement) => void
 }
 
 // Encapsulates the entire flatpickr calendar integration for InputDate —
@@ -50,9 +75,9 @@ export interface UseFlatpickrCalendarResult {
 // control, and the value/open-state syncs — behind a small hook. All of the
 // imperative, outside-React DOM manipulation flatpickr requires lives here,
 // so InputDate.tsx itself only deals with its React-owned text field and the
-// commit model. Behavior is identical to the previous inline implementation;
-// this is purely an organizational extraction.
+// commit model, including the focus handoff to and from the visible field.
 export function useFlatpickrCalendar({
+  isUnavailable,
   format,
   min,
   max,
@@ -67,15 +92,27 @@ export function useFlatpickrCalendar({
   calendarAriaLabel,
   onPick,
   onOpenChange,
+  onFocusLeave,
 }: UseFlatpickrCalendarOptions): UseFlatpickrCalendarResult {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const instanceRef = useRef<flatpickr.Instance | null>(null)
+  const openerRef = useRef<HTMLElement | null>(null)
+  const unavailableRef = useRef(isUnavailable)
+  unavailableRef.current = isUnavailable
+
+  const restoreOpener = useCallback(() => {
+    const opener = openerRef.current
+    if (opener?.isConnected && !opener.matches(':disabled')) opener.focus()
+    else positionElementRef.current?.focus()
+  }, [positionElementRef])
 
   // Kept refs so the flatpickr onChange/onOpen/onClose hooks (bound once,
   // at mount) always call the latest closures instead of the ones captured
   // when the instance was created.
   const onPickRef = useRef(onPick)
   onPickRef.current = onPick
+  const onFocusLeaveRef = useRef(onFocusLeave)
+  onFocusLeaveRef.current = onFocusLeave
   const onOpenChangeRef = useRef(onOpenChange)
   onOpenChangeRef.current = onOpenChange
   // The flatpickr formatDate/parseDate config functions below are set once
@@ -162,15 +199,20 @@ export function useFlatpickrCalendar({
         // itself to guard against unparseable input.
         return flatpickr.parseDate(toParse, frmt) as Date
       },
-      onChange: (selectedDates) => {
+      onChange: (selectedDates, _text, calendar) => {
         const picked = selectedDates[0]
         if (picked) onPickRef.current(startOfDay(picked))
+        if (calendar.isOpen) focusCalendar(calendar)
       },
-      onOpen: () => {
+      onOpen: (_dates, _text, calendar) => {
         onOpenChangeRef.current(true)
+        if (!calendar.isMobile) focusCalendar(calendar)
       },
       onClose: () => {
         onOpenChangeRef.current(false)
+        // flatpickr's selection path focuses its hidden input before close.
+        // Outside pointer/focus dismissal must keep its destination instead.
+        if (document.activeElement === input) restoreOpener()
       },
     })
     // Native mobile instances have an input instead of a JavaScript calendar.
@@ -180,7 +222,60 @@ export function useFlatpickrCalendar({
       instance.calendarContainer.setAttribute('role', 'dialog')
     }
     instanceRef.current = instance
+    function handleCalendarKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape' || event.key === 'Tab') {
+        // Native Tab continues from the visible opener in document order.
+        // Only stop flatpickr's hidden-input redirect; keep Tab's default.
+        if (event.key === 'Escape') event.preventDefault()
+        event.stopPropagation()
+        instance.close()
+        restoreOpener()
+      } else if (event.key === ' ' && event.target instanceof HTMLElement
+        && event.target.matches('.flatpickr-day:not(.flatpickr-disabled):not(.hidden):not(.notAllowed)')) {
+        event.preventDefault()
+        event.stopPropagation()
+        event.target.click()
+      } else if (event.target === instance.calendarContainer
+        && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        // No enabled day: flatpickr would otherwise send focus to its input.
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+    // The text draft remains editable while focus moves into the calendar.
+    // Track the whole field, including a button returned to by Escape/Tab,
+    // so a later exit cannot strand that deferred commit.
+    const fieldRoot = container.parentElement
+    let deferredFieldExit = false
+    const owns = (node: EventTarget | null) => node instanceof Node && (
+      fieldRoot?.contains(node) || instance.calendarContainer?.contains(node)
+    )
+    function finishDeferredExit() {
+      if (!deferredFieldExit) return
+      deferredFieldExit = false
+      instance.close()
+      onFocusLeaveRef.current()
+    }
+    function handleCalendarFocusOut(event: FocusEvent) {
+      const target = event.relatedTarget
+      if (event.target === positionElementRef.current && target instanceof Node
+        && instance.calendarContainer?.contains(target)) deferredFieldExit = true
+      if (target === input || owns(target)) return
+      instance.close()
+      finishDeferredExit()
+    }
+    function handleOutsidePointer(event: PointerEvent) {
+      if (!owns(event.target)) finishDeferredExit()
+    }
+    fieldRoot?.addEventListener('focusout', handleCalendarFocusOut)
+    document.addEventListener('pointerdown', handleOutsidePointer)
+    instance.calendarContainer?.addEventListener('focusout', handleCalendarFocusOut)
+    instance.calendarContainer?.addEventListener('keydown', handleCalendarKeyDown, true)
     return () => {
+      fieldRoot?.removeEventListener('focusout', handleCalendarFocusOut)
+      document.removeEventListener('pointerdown', handleOutsidePointer)
+      instance.calendarContainer?.removeEventListener('focusout', handleCalendarFocusOut)
+      instance.calendarContainer?.removeEventListener('keydown', handleCalendarKeyDown, true)
       instance.destroy()
       instanceRef.current = null
     }
@@ -190,15 +285,15 @@ export function useFlatpickrCalendar({
   }, [])
 
   useEffect(() => {
-    instanceRef.current?.set('dateFormat', format)
+    updateCalendar(instanceRef.current, (instance) => instance.set('dateFormat', format))
   }, [format])
 
   useEffect(() => {
-    instanceRef.current?.set('minDate', min ?? undefined)
+    updateCalendar(instanceRef.current, (instance) => instance.set('minDate', min ?? undefined))
   }, [min])
 
   useEffect(() => {
-    instanceRef.current?.set('maxDate', max ?? undefined)
+    updateCalendar(instanceRef.current, (instance) => instance.set('maxDate', max ?? undefined))
   }, [max])
 
   useEffect(() => {
@@ -209,7 +304,7 @@ export function useFlatpickrCalendar({
     const instance = instanceRef.current
     // set('showMonths') rebuilds month navigation even in native mobile mode,
     // where flatpickr never created that DOM.
-    if (instance?.calendarContainer) instance.set('showMonths', monthCount)
+    if (instance?.calendarContainer) updateCalendar(instance, (calendar) => calendar.set('showMonths', monthCount))
   }, [monthCount])
 
   useEffect(() => {
@@ -221,7 +316,7 @@ export function useFlatpickrCalendar({
   // updates weekday labels *and* the day-grid's day-of-week layout
   // (firstDayOfWeek) correctly at runtime — no destroy/recreate needed.
   useEffect(() => {
-    instanceRef.current?.set('locale', flatpickrLocale ?? flatpickr.l10ns.default)
+    updateCalendar(instanceRef.current, (instance) => instance.set('locale', flatpickrLocale ?? flatpickr.l10ns.default))
   }, [flatpickrLocale])
 
   // Custom year-header control — see CLAUDE.md's "InputDate: Buddhist Era
@@ -287,6 +382,9 @@ export function useFlatpickrCalendar({
     }
 
     function handleYearKeyDown(event: globalThis.KeyboardEvent) {
+      // The custom text editor owns its caret and year commit. Escape/Tab
+      // are handled at the calendar's capture boundary above.
+      event.stopPropagation()
       if (event.key === 'Enter') {
         event.preventDefault()
         commitYear()
@@ -313,7 +411,9 @@ export function useFlatpickrCalendar({
       nativeYearInput.style.display = previousDisplay
       customYearInput.removeEventListener('blur', commitYear)
       customYearInput.removeEventListener('keydown', handleYearKeyDown)
+      const ownedFocus = document.activeElement === customYearInput
       customYearInput.remove()
+      if (ownedFocus && instance.isOpen) focusCalendar(instance)
       const monthIdx = monthChangeHooks.indexOf(syncDisplay)
       if (monthIdx !== -1) monthChangeHooks.splice(monthIdx, 1)
       const yearIdx = yearChangeHooks.indexOf(syncDisplay)
@@ -327,13 +427,33 @@ export function useFlatpickrCalendar({
   useEffect(() => {
     const instance = instanceRef.current
     if (!instance) return
-    if (committedValue) instance.setDate(committedValue, false)
-    else instance.clear(false)
+    updateCalendar(instance, (calendar) => {
+      if (committedValue) calendar.setDate(committedValue, false)
+      else calendar.clear(false)
+    })
   }, [committedValue])
 
-  const toggle = useCallback(() => {
-    instanceRef.current?.toggle()
-  }, [])
+  useEffect(() => {
+    const instance = instanceRef.current
+    if (!isUnavailable || !instance?.isOpen) return
+    const ownedFocus = instance.calendarContainer?.contains(document.activeElement)
+    instance.close()
+    if (ownedFocus) restoreOpener()
+  }, [isUnavailable, restoreOpener])
+
+  const toggle = useCallback((opener?: HTMLElement) => {
+    const instance = instanceRef.current
+    if (!instance || unavailableRef.current) return
+    if (!instance.isOpen) {
+      openerRef.current = opener ?? (document.activeElement instanceof HTMLElement
+        && document.activeElement !== document.body ? document.activeElement : positionElementRef.current)
+      instance.open()
+    } else {
+      const ownedFocus = instance.calendarContainer?.contains(document.activeElement)
+      instance.close()
+      if (ownedFocus) restoreOpener()
+    }
+  }, [positionElementRef, restoreOpener])
 
   return { containerRef, toggle }
 }

@@ -62,19 +62,9 @@ export function clampDate(value: Date, min?: Date | null, max?: Date | null): Da
 // empty string too, so the empty case is special-cased here to produce the
 // "valid empty" `null` instead.
 //
-// Caveat (confirmed against flatpickr's own source, not documented by
-// flatpickr itself): alphabetic name tokens — F/M (month name) and D/l
-// (weekday name) and K (AM/PM) — have an *empty* tokenRegex entry in
-// flatpickr's parser, so typed text can't actually be parsed back through
-// them (the parser silently skips that part of the string instead of
-// matching a month/weekday name, leaving that date component at its
-// freshly-constructed default). formats.F/M/D/l/K still work fine for
-// *display* (formatDateValue below), and the calendar popup never needs to
-// parse typed text at all (it only ever produces a Date directly from a
-// click) — this only bites a `format` that both (a) includes one of these
-// alphabetic tokens and (b) is manually typed rather than picked from the
-// popup. Prefer a numeric-only format (Y/y/m/n/d/j + separators) for any
-// format string a consumer expects users to type into reliably.
+// Numeric date tokens and exact literals are accepted for typing. Other
+// formats remain display/picker-only, as they are in tokenizeDateMask;
+// flatpickr's permissive name parsing must not silently invent date parts.
 export function parseDateDraft(
   raw: string,
   format: string,
@@ -83,6 +73,17 @@ export function parseDateDraft(
 ): Date | null | undefined {
   const trimmed = raw.trim()
   if (trimmed === '') return null
+  // Accept the complete numeric format, not a prefix or normalized overflow.
+  // Named-month/weekday formats remain display/picker-only, matching the mask.
+  const segments = tokenizeFormat(format, DATE_TOKENS)
+  if (!segments) return undefined
+  const tokens = segments.filter((segment) => segment.type === 'token')
+  if (tokens.length === 0) return undefined
+  const pattern = segments.map((segment) => segment.type === 'literal'
+    ? escapeRegExp(segment.text)
+    : segment.token === 'Y' ? '(\\d{4})' : segment.token === 'y' ? '(\\d{2})' : '(\\d{1,2})').join('')
+  const match = new RegExp(`^${pattern}$`).exec(trimmed)
+  if (!match) return undefined
   let toParse = trimmed
   if (yearOffset !== 0) {
     const yearToken = findYearToken(format)
@@ -100,6 +101,16 @@ export function parseDateDraft(
   }
   const parsed = locale ? parseDateWithLocale(toParse, format, false, locale) : flatpickr.parseDate(toParse, format)
   if (!parsed || !isValidDate(parsed)) return undefined
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index].token
+    const value = Number(match[index + 1])
+    if (token === 'Y' && parsed.getFullYear() !== value - yearOffset) return undefined
+    if (token === 'y' && parsed.getFullYear() !== 2000 + Number(unshiftYearInDraft(match[index + 1], 'y', yearOffset))) return undefined
+    if ((token === 'm' || token === 'n') && parsed.getMonth() + 1 !== value) return undefined
+    if ((token === 'd' || token === 'j') && parsed.getDate() !== value) return undefined
+  }
+  // startOfDay's numeric Date constructor interprets 0..99 as 1900..1999.
+  if (parsed.getFullYear() >= 0 && parsed.getFullYear() < 100) return undefined
   return startOfDay(parsed)
 }
 

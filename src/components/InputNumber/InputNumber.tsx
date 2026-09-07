@@ -645,17 +645,13 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
         disabled={isDisabled}
         readOnly={isReadOnly}
         required={isRequired}
-        // ARIA spinbutton pattern (https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/)
-        // — this control has increment/decrement affordances (spin
-        // buttons, Arrow keys), so it's announced as a spinbutton rather
-        // than a generic textbox. Tracks the live draft (see
-        // draftNumericValue above), not just the last committed value, so
-        // a screen reader announces whatever's currently on screen.
-        role="spinbutton"
-        aria-valuenow={typeof draftNumericValue === 'number' ? draftNumericValue : undefined}
-        aria-valuetext={draft === '' ? undefined : draft}
-        aria-valuemin={min}
-        aria-valuemax={max}
+        // A configured step enables spinbutton keyboard interaction. Without
+        // it, preserve native textbox semantics and omit range-only ARIA.
+        role={hasStep ? 'spinbutton' : undefined}
+        aria-valuenow={hasStep && typeof draftNumericValue === 'number' ? draftNumericValue : undefined}
+        aria-valuetext={hasStep && draft !== '' ? draft : undefined}
+        aria-valuemin={hasStep ? min : undefined}
+        aria-valuemax={hasStep ? max : undefined}
         value={draft}
         onChange={handleChange}
         onFocus={afterInputEvent((event) => {

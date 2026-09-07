@@ -83,7 +83,7 @@ export function useTimeDropdown({ itemCount, selectedIndex, disabledIndices = []
   useEffect(() => {
     if (!isOpen) return
     function handlePointerDown(event: MouseEvent) {
-      if (rootRef.current?.contains(event.target as Node)) return
+      if (rootRef.current?.contains(event.target as Node) || listRef.current?.contains(event.target as Node)) return
       // setIsOpen is a stable useState setter, so this listener needs no
       // latest-in-a-ref indirection to stay correct across renders.
       setIsOpen(false)

@@ -14,7 +14,7 @@ describe('standalone scalar style scope', () => {
       const { container } = render(<Component />)
       const scope = container.querySelector('.rc-scalar')
       expect(scope).not.toBeNull()
-      expect(scope).toContainElement(container.querySelector('input[role]'))
+      expect(scope).toContainElement(container.querySelector('input'))
       for (const button of screen.queryAllByRole('button')) expect(scope).toContainElement(button)
       const calendarButton = screen.queryByRole('button', { name: 'Toggle calendar' })
       if (calendarButton) {
@@ -24,7 +24,7 @@ describe('standalone scalar style scope', () => {
       const timeButton = screen.queryByRole('button', { name: 'Toggle time list' })
       if (timeButton) {
         await user.click(timeButton)
-        expect(scope).toContainElement(screen.getByRole('listbox'))
+        expect(screen.getByRole('listbox')).toHaveClass('rc-scalar')
         expect(screen.getAllByRole('option').length).toBeGreaterThan(0)
       }
     })

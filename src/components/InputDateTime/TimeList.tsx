@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { listClassName, optionClassName } from './styles'
+import { TimePopup } from '../InputTime/TimePopup'
 
 // The time half of the field's two popups, as ordinary React markup (only the
 // calendar needs the DOM-ownership escape hatch). Purely presentational: the
@@ -8,6 +9,9 @@ import { listClassName, optionClassName } from './styles'
 export interface TimeListProps {
   id: string
   listRef: RefObject<HTMLDivElement | null>
+  anchorRef: RefObject<HTMLDivElement | null>
+  portal: boolean
+  portalZIndex: number
   ariaLabel: string
   maxHeight: number
   times: number[]
@@ -22,6 +26,9 @@ export interface TimeListProps {
 export function TimeList({
   id,
   listRef,
+  anchorRef,
+  portal,
+  portalZIndex,
   ariaLabel,
   maxHeight,
   times,
@@ -32,12 +39,15 @@ export function TimeList({
   onPick,
 }: TimeListProps) {
   return (
-    <div
-      ref={listRef}
+    <TimePopup
+      listRef={listRef}
+      anchorRef={anchorRef}
+      portal={portal}
+      portalZIndex={portalZIndex}
+      maxHeight={maxHeight}
       id={id}
       role="listbox"
       aria-label={ariaLabel}
-      style={{ maxHeight, minWidth: '100%', width: '100%' }}
       className={listClassName}
     >
       {times.map((minutes, index) => {
@@ -64,6 +74,6 @@ export function TimeList({
           </div>
         )
       })}
-    </div>
+    </TimePopup>
   )
 }

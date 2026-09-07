@@ -411,3 +411,112 @@ describe('InputTag form contract', () => {
     expect(control).toHaveAttribute('tabindex', '-1')
   })
 })
+
+describe('InputTag keyboard focus contract', () => {
+  const props = {
+    ariaLabel: 'Tags', options, removeLabel: (tag: string) => `Remove ${tag}`,
+  }
+
+  it.each([
+    ['{Enter}', false], [' ', false], ['{Enter}', true], [' ', true],
+  ] as const)('allows native remove-button activation with %s (open=%s)', async (key, open) => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const onBlur = vi.fn()
+    render(<><InputTag {...props} defaultValue={['VIP']} onChange={onChange} onBlur={onBlur} />
+      <button>Outside</button></>)
+    await user.tab()
+    if (open) await user.keyboard('{Enter}{End}')
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Remove VIP' })).toHaveFocus()
+    await user.keyboard(key)
+    expect(screen.queryByRole('button', { name: 'Remove VIP' })).not.toBeInTheDocument()
+    expect(onChange).toHaveBeenCalledExactlyOnceWith([])
+    expect(screen.getByRole('combobox')).toHaveFocus()
+    expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', String(open))
+    expect(screen.queryByRole('button', { name: 'Remove Monthly' })).not.toBeInTheDocument()
+    expect(onBlur).not.toHaveBeenCalled()
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Outside' })).toHaveFocus()
+    expect(onBlur).toHaveBeenCalledOnce()
+  })
+
+  describe.each([false, true])('portal=%s', (portal) => {
+    it.each(['mouse', 'touch'])('continues keyboard navigation after %s option selection', async (pointer) => {
+      const user = userEvent.setup()
+      const onBlur = vi.fn()
+      render(<><InputTag {...props} portal={portal} onBlur={onBlur} /><button>Outside</button></>)
+      const trigger = screen.getByRole('combobox')
+      await user.click(trigger)
+      const option = screen.getByRole('option', { name: 'VIP' })
+      if (pointer === 'touch') {
+        await user.pointer([{ keys: '[TouchA>]', target: option }, { keys: '[/TouchA]' }])
+      } else {
+        await user.pointer({ keys: '[MouseLeft>]', target: option })
+        expect(trigger).toHaveFocus()
+        await user.pointer({ keys: '[/MouseLeft]' })
+      }
+      expect(trigger).toHaveFocus()
+      expect(trigger).toHaveAttribute('aria-activedescendant', option.id)
+      expect(option).toHaveAttribute('aria-selected', 'true')
+      await user.keyboard('{ArrowDown}{Enter}')
+      expect(screen.getByRole('option', { name: 'Monthly' })).toHaveAttribute('aria-selected', 'true')
+      await user.keyboard('{Home}{Enter}')
+      expect(screen.getByRole('option', { name: 'Important' })).toHaveAttribute('aria-selected', 'true')
+      await user.keyboard('{End} ')
+      expect(screen.getByRole('option', { name: 'Monthly' })).toHaveAttribute('aria-selected', 'false')
+      await user.keyboard('{ArrowUp}{Enter}')
+      expect(option).toHaveAttribute('aria-selected', 'false')
+      expect(onBlur).not.toHaveBeenCalled()
+      await user.keyboard('{Escape}')
+      expect(trigger).toHaveFocus()
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      await user.tab()
+      expect(screen.getByRole('button', { name: 'Remove Important' })).toHaveFocus()
+      expect(onBlur).not.toHaveBeenCalled()
+      await user.tab()
+      expect(screen.getByRole('button', { name: 'Outside' })).toHaveFocus()
+      expect(onBlur).toHaveBeenCalledOnce()
+    })
+
+    it('keeps custom input text editing separate and restores focus on Escape', async () => {
+      const user = userEvent.setup()
+      const onBlur = vi.fn()
+      render(<><InputTag {...props} portal={portal} onBlur={onBlur}
+        addCustomTag={{ ariaLabel: 'Custom tag', placeholder: 'Add' }} /><button>Outside</button></>)
+      const trigger = screen.getByRole('combobox')
+      await user.click(trigger)
+      await user.keyboard('{End}')
+      const activeId = trigger.getAttribute('aria-activedescendant')
+      const input = screen.getByRole('textbox')
+      await user.click(input)
+      await user.keyboard('Court date{Home}{ArrowDown}{ArrowUp}{End}{Enter}')
+      expect(input).toHaveFocus()
+      expect(screen.getByRole('button', { name: 'Remove Court date' })).toBeInTheDocument()
+      expect(trigger).toHaveAttribute('aria-activedescendant', activeId)
+      expect(screen.getByRole('option', { name: 'Monthly' })).toHaveAttribute('aria-selected', 'false')
+      expect(onBlur).not.toHaveBeenCalled()
+      await user.keyboard('{Escape}')
+      expect(trigger).toHaveFocus()
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(onBlur).not.toHaveBeenCalled()
+      await user.tab()
+      await user.tab()
+      expect(screen.getByRole('button', { name: 'Outside' })).toHaveFocus()
+      expect(onBlur).toHaveBeenCalledOnce()
+    })
+  })
+
+  it.each([
+    ['{ArrowDown}', 'Important'], ['{ArrowUp}', 'Monthly'], ['{Enter}', 'Important'], [' ', 'Important'],
+  ])('opens with %s and an active %s option', async (key, label) => {
+    const user = userEvent.setup()
+    render(<InputTag {...props} />)
+    await user.tab()
+    await user.keyboard(key)
+    const option = screen.getByRole('option', { name: label })
+    expect(screen.getByRole('combobox')).toHaveAttribute('aria-activedescendant', option.id)
+    await user.keyboard('{Enter}')
+    expect(option).toHaveAttribute('aria-selected', 'true')
+  })
+})

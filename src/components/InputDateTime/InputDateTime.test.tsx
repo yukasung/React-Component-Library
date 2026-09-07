@@ -38,6 +38,29 @@ function moveToGroup(input: HTMLElement, index: number) {
 }
 
 describe('InputDateTime', () => {
+  it('navigates and selects a calendar day with the keyboard while preserving the time', () => {
+    const onChange = vi.fn()
+    render(<StrictMode><InputDateTime defaultValue={new Date(2026, 6, 15, 14, 30)} onChange={onChange} /></StrictMode>)
+    const trigger = screen.getByRole('button', { name: 'Toggle calendar' })
+    fireEvent.click(trigger)
+    expect(document.activeElement).toHaveClass('flatpickr-day', 'selected')
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight', keyCode: 39 })
+    fireEvent.keyDown(document.activeElement!, { key: 'Enter', keyCode: 13 })
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 16, 14, 30))
+    expect(trigger).toHaveFocus()
+  })
+
+  it('moves from an open calendar to the time dropdown with usable input focus', async () => {
+    const user = userEvent.setup()
+    render(<InputDateTime defaultValue={new Date(2026, 6, 15, 14, 30)} />)
+    await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+    expect(document.activeElement).toHaveClass('flatpickr-day')
+    await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+    expect(document.querySelector('.flatpickr-calendar')).not.toHaveClass('open')
+    expect(getInput()).toHaveFocus()
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
   describe('on an iPhone', () => {
     beforeEach(() => {
       vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
@@ -803,10 +826,11 @@ describe('InputDateTime', () => {
 
     it('keeps the time list as wide as its date-time field', async () => {
       const user = userEvent.setup()
-      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} />)
+      const { container } = render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} />)
+      vi.spyOn(container.querySelector('input')!.parentElement!, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 44, left: 0, right: 320, width: 320, height: 44, x: 0, y: 0, toJSON() {} })
 
       await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
-      expect(screen.getByRole('listbox')).toHaveStyle({ minWidth: '100%', width: '100%' })
+      expect(screen.getByRole('listbox')).toHaveStyle({ width: '320px' })
     })
 
     it('hides both buttons when showDropdownButton is false, keeping the keyboard route', () => {

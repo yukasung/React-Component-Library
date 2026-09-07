@@ -110,6 +110,18 @@ describe('clampDate', () => {
 })
 
 describe('parseDateDraft', () => {
+  it.each(['2026-02-31', '2026-02-29', '2026-13-01', '2026-00-10', '2026-04-31', '2026-07-00', '2026-07-22junk', '2026/07/22', '2026-07'])('rejects invalid or incomplete calendar text %s', (raw) => {
+    expect(parseDateDraft(raw, 'Y-m-d')).toBeUndefined()
+  })
+
+  it('validates Gregorian leap days before Buddhist-era presentation', () => {
+    expect(parseDateDraft('2567-02-29', 'Y-m-d', 543, Thai)).toEqual(new Date(2024, 1, 29))
+    expect(parseDateDraft('2569-02-29', 'Y-m-d', 543, Thai)).toBeUndefined()
+    expect(parseDateDraft('69-02-31', 'y-m-d', 543, Thai)).toBeUndefined()
+    expect(parseDateDraft(' 2024-2-29 ', 'Y-m-d')).toEqual(new Date(2024, 1, 29))
+    expect(parseDateDraft('2026 year 7/22', 'Y \\y\\e\\a\\r n/j')).toEqual(new Date(2026, 6, 22))
+  })
+
   it('parses a valid date string in the given format', () => {
     const result = parseDateDraft('2026-07-22', 'Y-m-d')
     expect(result).toEqual(startOfDay(new Date(2026, 6, 22)))
@@ -129,15 +141,9 @@ describe('parseDateDraft', () => {
     expect(result).toEqual(startOfDay(new Date(2026, 6, 4)))
   })
 
-  // flatpickr's own parser has an empty tokenRegex entry for alphabetic
-  // month/weekday-name tokens (F/M/D/l), so it can't actually parse them
-  // back out of typed text — confirmed against flatpickr's source, not
-  // documented behavior. This test pins that limitation down so a future
-  // flatpickr upgrade that changes it doesn't go unnoticed. See the
-  // caveat on parseDateDraft's own doc comment.
-  it('cannot round-trip a typed month name through an "F" format token (flatpickr limitation)', () => {
+  it('rejects typed month-name formats that the component treats as picker-only', () => {
     const result = parseDateDraft('July 4, 2026', 'F j, Y')
-    expect(result).not.toEqual(startOfDay(new Date(2026, 6, 4)))
+    expect(result).toBeUndefined()
   })
 })
 

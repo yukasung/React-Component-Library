@@ -113,10 +113,10 @@ export function InputTag({
   const tagsMatch = (first: string, second: string) =>
     first.localeCompare(second, undefined, { sensitivity: 'accent' }) === 0
 
-  const openMenu = () => {
+  const openMenu = (keyboardIndex = -1) => {
     if (isDisabled || isReadOnly) return
-    setActiveIndex(-1)
-    setIsKeyboardNavigating(false)
+    setActiveIndex(options.length > 0 ? keyboardIndex : -1)
+    setIsKeyboardNavigating(keyboardIndex >= 0)
     setIsOpen(true)
   }
 
@@ -301,11 +301,15 @@ export function InputTag({
             role="option"
             tabIndex={-1}
             aria-selected={selectedValue.some((tag) => tagsMatch(tag, option))}
+            // Keep mouse focus on the combobox without cancelling touch scrolling.
+            onMouseDown={(event) => event.preventDefault()}
             onPointerMove={() => {
               setActiveIndex(index)
               setIsKeyboardNavigating(false)
             }}
             onClick={() => {
+              triggerRef.current?.focus()
+              setActiveIndex(index)
               setIsKeyboardNavigating(false)
               toggle(option)
             }}
@@ -361,11 +365,12 @@ export function InputTag({
             else openMenu()
           }}
           onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return
             if (isDisabled || isReadOnly) return
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               event.preventDefault()
               if (!menuIsOpen) {
-                openMenu()
+                openMenu(event.key === 'ArrowDown' ? 0 : options.length - 1)
                 return
               }
               if (options.length === 0) return
@@ -387,7 +392,7 @@ export function InputTag({
             }
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault()
-              if (!menuIsOpen) openMenu()
+              if (!menuIsOpen) openMenu(0)
               else if (options[activeIndex]) toggle(options[activeIndex])
             }
           }}

@@ -98,6 +98,9 @@ export interface InputDateTimeProps
   // Height cap (px) for the scrollable list: a full day at the default
   // 15-minute step is 96 entries.
   maxDropdownHeight?: number
+  /** Render the time list outside clipping containers. Defaults to true. */
+  portal?: boolean
+  portalZIndex?: number
   dropdownIcon?: ReactNode
   dropdownAriaLabel?: string
   calendarAriaLabel?: string
@@ -129,6 +132,8 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
     timeMax = null,
     timeFormat = DEFAULT_TIME_FORMAT,
     maxDropdownHeight = 200,
+    portal = true,
+    portalZIndex = 50,
     dropdownIcon,
     dropdownAriaLabel = 'Toggle calendar',
     calendarAriaLabel = 'Calendar',
@@ -204,6 +209,7 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
   // hands back the picked *day* (normalized to its start), which is exactly
   // what this control wants: the time comes from the field.
   const { containerRef, toggle: toggleCalendar } = useFlatpickrCalendar({
+    isUnavailable: isDisabled || isReadOnly,
     format,
     min,
     max,
@@ -220,13 +226,14 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
     // Internal only — neither popup's open state leaves the component; this
     // just keeps aria-expanded and the "one popup at a time" rule in step.
     onOpenChange: setIsCalendarOpen,
+    onFocusLeave: field.handleBlur,
   })
 
   // Two popups on one field, so opening either closes the other rather than
   // letting them overlap each other's space below the input.
-  function toggleCalendarPopup() {
+  function toggleCalendarPopup(opener?: HTMLElement) {
     dropdown.close()
-    toggleCalendar()
+    toggleCalendar(opener)
   }
 
   function toggleTimePopup() {
@@ -238,9 +245,9 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
     field.inputRef.current?.focus()
   }
 
-  function handleToggleCalendar() {
+  function handleToggleCalendar(opener: HTMLElement) {
     if (isDisabled || isReadOnly) return
-    toggleCalendarPopup()
+    toggleCalendarPopup(opener)
   }
 
   function handleToggleTimeList() {
@@ -356,7 +363,10 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
           }
           field.handleClick(event)
         })}
-        onBlur={afterInputEvent(field.handleBlur, rest.onBlur)}
+        onBlur={afterInputEvent((event) => {
+          if (event.relatedTarget instanceof Node && document.getElementById(calendarId)?.contains(event.relatedTarget)) return
+          field.handleBlur()
+        }, rest.onBlur)}
         onKeyDown={composeInputEvent(rest.onKeyDown, handleKeyDown)}
         className={`${inputBaseClassName} ${inputStateClassName(isDisabled, isReadOnly)} ${inputPaddingClassName(buttonCount)} ${className ?? ''}`}
       />
@@ -370,7 +380,7 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
               aria-controls={calendarId}
               disabled={isDisabled || isReadOnly}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={handleToggleCalendar}
+              onClick={(event) => handleToggleCalendar(event.currentTarget)}
               className={dropdownButtonClassName}
             >
               {dropdownIcon ?? <CalendarIcon />}
@@ -402,6 +412,9 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
         <TimeList
           id={listId}
           listRef={dropdown.listRef}
+          anchorRef={dropdown.rootRef}
+          portal={portal}
+          portalZIndex={portalZIndex}
           ariaLabel={optionsAriaLabel}
           maxHeight={maxDropdownHeight}
           times={times}

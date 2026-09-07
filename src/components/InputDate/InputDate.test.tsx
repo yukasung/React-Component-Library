@@ -20,6 +20,150 @@ function getDateInput(): HTMLInputElement {
 }
 
 describe('InputDate', () => {
+  it('rejects an impossible typed date instead of committing a normalized date', () => {
+    const onChange = vi.fn()
+    render(<InputDate defaultValue={new Date(2026, 0, 15)} onChange={onChange} />)
+    fireEvent.change(getDateInput(), { target: { value: '2026-02-31' } })
+    fireEvent.keyDown(getDateInput(), { key: 'Enter' })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(getDateInput()).toHaveValue('2026-01-15')
+  })
+
+  describe('calendar keyboard focus', () => {
+    it('opens from native trigger keyboard activation', async () => {
+      const user = userEvent.setup()
+      render(<InputDate defaultValue={new Date(2026, 6, 15)} />)
+      await user.tab()
+      await user.tab()
+      expect(screen.getByRole('button', { name: 'Toggle calendar' })).toHaveFocus()
+      await user.keyboard('{Enter}')
+      expect(document.activeElement).toHaveClass('flatpickr-day')
+    })
+    it.each(['Escape', 'Tab'])('commits a deferred draft after %s returns to the trigger and focus then leaves', async (key) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<><InputDate value={new Date(2026, 6, 15)} onChange={onChange} /><button>Outside</button></>)
+      await user.clear(getDateInput())
+      await typeInto(user, getDateInput(), '2026-01-01')
+      await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      fireEvent.keyDown(document.activeElement!, { key, keyCode: key === 'Tab' ? 9 : 27 })
+      expect(onChange).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Outside' }))
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 0, 1))
+    })
+
+    it('commits a deferred draft when calendar focus leaves to a nonfocusable outside element', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<><InputDate value={new Date(2026, 6, 15)} onChange={onChange} /><div>Outside text</div></>)
+      await user.clear(getDateInput())
+      await typeInto(user, getDateInput(), '2026-01-01')
+      await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      await user.click(screen.getByText('Outside text'))
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 0, 1))
+      expect(getDateInput()).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('commits a pending draft when calendar focus leaves for an outside control without stealing focus', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      const onBlur = vi.fn()
+      render(<><InputDate value={new Date(2026, 6, 15)} onChange={onChange} onBlur={onBlur} /><button>Outside</button></>)
+      await user.clear(getDateInput())
+      await typeInto(user, getDateInput(), '2026-01-01')
+      await user.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      expect(onChange).not.toHaveBeenCalled()
+      expect(onBlur).toHaveBeenCalledTimes(1)
+      await user.click(screen.getByRole('button', { name: 'Outside' }))
+      expect(screen.getByRole('button', { name: 'Outside' })).toHaveFocus()
+      expect(getDateInput()).toHaveAttribute('aria-expanded', 'false')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 0, 1))
+    })
+
+    it('enters the selected day, uses flatpickr arrows and Enter, and restores the trigger', () => {
+      const onChange = vi.fn()
+      render(<StrictMode><InputDate defaultValue={new Date(2026, 6, 15)} onChange={onChange} /></StrictMode>)
+      const trigger = screen.getByRole('button', { name: 'Toggle calendar' })
+      fireEvent.click(trigger)
+      expect(document.activeElement).toHaveClass('flatpickr-day', 'selected')
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight', keyCode: 39 })
+      expect(document.activeElement).toHaveTextContent('16')
+      fireEvent.keyDown(document.activeElement!, { key: 'Enter', keyCode: 13 })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 16))
+      expect(trigger).toHaveFocus()
+      expect(getDateInput()).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('selects with Space, and Escape returns to the field when it opened the calendar', () => {
+      const onChange = vi.fn()
+      render(<InputDate defaultValue={new Date(2026, 6, 15)} onChange={onChange} closeOnSelection={false} />)
+      act(() => getDateInput().focus())
+      fireEvent.keyDown(getDateInput(), { key: 'ArrowDown', altKey: true })
+      expect(document.activeElement).toHaveClass('flatpickr-day')
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', keyCode: 40 })
+      fireEvent.keyDown(document.activeElement!, { key: ' ', keyCode: 32 })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 22))
+      expect(document.activeElement).toHaveClass('flatpickr-day', 'selected')
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 })
+      expect(getDateInput()).toHaveFocus()
+      expect(getDateInput()).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('closes on Tab and leaves native traversal uncanceled from the visible opener', () => {
+      render(<InputDate defaultValue={new Date(2026, 6, 15)} />)
+      const trigger = screen.getByRole('button', { name: 'Toggle calendar' })
+      for (const shiftKey of [false, true]) {
+        fireEvent.click(trigger)
+        // user-event computes Tab's destination from the original event target;
+        // a browser instead continues from the focus changed during keydown.
+        expect(fireEvent.keyDown(document.activeElement!, { key: 'Tab', keyCode: 9, shiftKey })).toBe(true)
+        expect(trigger).toHaveFocus()
+        expect(getDateInput()).toHaveAttribute('aria-expanded', 'false')
+      }
+    })
+
+    it('keeps focus usable when bounds and month count rebuild the open calendar', () => {
+      const { rerender } = render(<InputDate defaultValue={new Date(2026, 6, 15)} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      rerender(<InputDate defaultValue={new Date(2026, 6, 15)} min={new Date(2026, 6, 20)} monthCount={2} />)
+      expect(document.activeElement).toHaveClass('flatpickr-day')
+      expect(document.activeElement).not.toHaveClass('flatpickr-disabled', 'hidden')
+    })
+
+    it('keeps an empty bounded calendar escapable and closes when made read-only', () => {
+      const { rerender } = render(<InputDate min={new Date(2026, 7, 1)} max={new Date(2026, 6, 1)} />)
+      const trigger = screen.getByRole('button', { name: 'Toggle calendar' })
+      fireEvent.click(trigger)
+      expect(screen.getByRole('dialog')).toHaveFocus()
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 })
+      expect(trigger).toHaveFocus()
+      fireEvent.click(trigger)
+      rerender(<InputDate isReadOnly />)
+      expect(getDateInput()).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('keeps focus in the popup when a focused Thai year control is removed by a locale update', () => {
+      const { rerender } = render(<InputDate locale="th" defaultValue={new Date(2026, 6, 15)} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      act(() => screen.getByRole('textbox', { name: 'Year (พ.ศ.)' }).focus())
+      rerender(<InputDate locale="en" defaultValue={new Date(2026, 6, 15)} />)
+      expect(document.activeElement).toHaveClass('flatpickr-day')
+    })
+
+    it('lets the Thai year commit without flatpickr consuming its editing keys', () => {
+      render(<InputDate locale="th" defaultValue={new Date(2026, 6, 15)} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      const year = screen.getByRole('textbox', { name: 'Year (พ.ศ.)' })
+      act(() => year.focus())
+      fireEvent.change(year, { target: { value: '2570' } })
+      fireEvent.keyDown(year, { key: 'Enter', keyCode: 13 })
+      expect(year).toHaveFocus()
+      expect(document.querySelector('.flatpickr-day')).toHaveAttribute('aria-label', expect.stringContaining('2570'))
+      fireEvent.keyDown(year, { key: 'Escape', keyCode: 27 })
+      expect(screen.getByRole('button', { name: 'Toggle calendar' })).toHaveFocus()
+    })
+  })
+
   describe('on an iPhone', () => {
     beforeEach(() => {
       vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(

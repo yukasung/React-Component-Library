@@ -448,6 +448,17 @@ export function App() {
           />
         </Field>
 
+        <Field label="Time popups inside a scrolling container" htmlFor="overflow-time"
+          note="Open a time list, then scroll this box or resize the window. The list stays outside the clipping container and flips above near the viewport bottom.">
+          <div style={{ height: 110, overflow: 'auto', border: '1px solid #d0d5dd', padding: 8 }}>
+            <InputTime id="overflow-time" defaultValue={new Date(2026, 0, 1, 9, 30)} />
+            <div style={{ marginTop: 12 }}>
+              <InputDateTime aria-label="Date and time in a scrolling container" defaultValue={new Date(2026, 0, 1, 9, 30)} />
+            </div>
+            <div style={{ height: 100 }} />
+          </div>
+        </Field>
+
         <Field label="Fixed time (read-only)" htmlFor="time-readonly">
           <InputTime id="time-readonly" value={new Date(2026, 0, 1, 8, 0)} onChange={() => {}} isReadOnly />
         </Field>
