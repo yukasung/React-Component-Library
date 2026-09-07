@@ -110,8 +110,11 @@ export function formatDateValue(
   locale?: flatpickr.CustomLocale,
 ): string {
   if (value === null) return ''
-  const formatter = locale
-    ? (date: Date, fmt: string) => formatDateWithLocale(date, fmt, locale)
+  // The static formatter does not merge partial locales like an instance
+  // does. Supply defaults (notably amPM) without changing either locale.
+  const completeLocale = locale ? { ...flatpickr.l10ns.default, ...locale } : undefined
+  const formatter = completeLocale
+    ? (date: Date, fmt: string) => formatDateWithLocale(date, fmt, completeLocale)
     : (date: Date, fmt: string) => flatpickr.formatDate(date, fmt)
   if (yearOffset === 0) return formatter(value, format)
   return formatDateWithYearOffset(value, format, yearOffset, formatter) ?? formatter(value, format)

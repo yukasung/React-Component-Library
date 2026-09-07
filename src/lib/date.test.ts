@@ -166,6 +166,21 @@ describe('formatDateValue', () => {
     expect(formatDateValue(new Date(2026, 6, 22), 'F j, Y', 543, Thai)).toBe('กรกฎาคม 22, 2569')
   })
 
+  it('formats a Thai Buddhist Era date with a 12-hour time and meridiem', () => {
+    expect(formatDateValue(new Date(2026, 6, 22, 14, 30), 'Y-m-d h:i K', 543, Thai)).toBe('2569-07-22 2:30 PM')
+  })
+
+  it('keeps Thai month and weekday overrides without changing the default locale', () => {
+    const date = new Date(2026, 6, 22, 14, 30)
+    const format = 'l D, F M j, Y h:i K'
+
+    expect(formatDateValue(date, format, 543, Thai)).toBe('พุธ พ, กรกฎาคม ก.ค. 22, 2569 2:30 PM')
+    expect(formatDateValue(date, format)).toBe('Wednesday Wed, July Jul 22, 2026 2:30 PM')
+    expect(Thai.amPM).toBeUndefined()
+    expect(flatpickr.l10ns.default.months.longhand[6]).toBe('July')
+    expect(flatpickr.l10ns.default.weekdays.longhand[3]).toBe('Wednesday')
+  })
+
   it('never corrupts the day on a leap-year date when shifting the year', () => {
     expect(formatDateValue(new Date(2024, 1, 29), 'Y-m-d', 543)).toBe('2567-02-29')
   })

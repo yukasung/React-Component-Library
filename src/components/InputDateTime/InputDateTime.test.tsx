@@ -892,6 +892,16 @@ describe('InputDateTime', () => {
   })
 
   describe('locale="th" (Buddhist Era)', () => {
+    it('renders a Buddhist Era date with a 12-hour time and meridiem', () => {
+      const onChange = vi.fn()
+      render(
+        <InputDateTime locale="th" format="Y-m-d h:i K" defaultValue={new Date(2026, 6, 22, 14, 30)} onChange={onChange} />,
+      )
+
+      expect(getInput()).toHaveValue('2569-07-22 2:30 PM')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
     it('commits a typed short Thai year on Enter once, keeping its displayed suffix', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()
