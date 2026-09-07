@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ChangeEvent, KeyboardEvent, RefObject } from 'react'
+import type { ChangeEvent, FocusEvent, KeyboardEvent, RefObject } from 'react'
 import type flatpickr from 'flatpickr'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { addDays, formatDateValue } from '../../lib/date'
@@ -107,7 +107,7 @@ export interface UseDateTimeFieldResult {
   discardEdit: (el: HTMLInputElement) => void
   typeIntoGroups: (event: KeyboardEvent<HTMLInputElement>) => void
   // Input handlers, passed straight through to the <input>.
-  handleFocus: (event: { currentTarget: HTMLInputElement }) => void
+  handleFocus: (event: FocusEvent<HTMLInputElement>) => void
   handleBlur: () => void
   handlePointerDown: () => void
   handleClick: (event: { currentTarget: HTMLInputElement }) => void
@@ -464,7 +464,7 @@ export function useDateTimeField({
     focusFromPointerRef.current = true
   }
 
-  function handleFocus(event: { currentTarget: HTMLInputElement }) {
+  function handleFocus(event: FocusEvent<HTMLInputElement>) {
     setIsFocused(true)
     const fromPointer = focusFromPointerRef.current
     focusFromPointerRef.current = false

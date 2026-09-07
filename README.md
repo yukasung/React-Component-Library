@@ -190,6 +190,20 @@ npm run test          # run the test suite once
 npm run test:watch   # run the test suite in watch mode
 ```
 
+Full validation includes the independent documentation project. Install its
+locked dependencies once, then run from the library root:
+
+```bash
+npm ci --prefix docs
+npm run validate    # lint, root typecheck, tests, library/package build, docs build
+npm run build:docs  # documentation production build only
+```
+
+Both package-quality and publishing CI run `npm run validate`. The docs build
+also checks the source alias under the docs TypeScript configuration, which
+differs from the library's strict configuration; root typechecking alone does
+not cover this consumer.
+
 ## Documentation site
 
 A separate Next.js + Nextra docs site lives in [`docs/`](docs/) with its own `package.json`/`node_modules`. It is not an npm workspace of the root — see [`docs/`](docs/) for its own setup.

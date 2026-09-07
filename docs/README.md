@@ -16,6 +16,12 @@ npm run build  # production documentation build
 The install applies the checked-in Nextra patch through `patch-package`.
 The docs lockfile is independent of the root lockfile.
 
+From the library root, `npm run build:docs` runs this production build and
+`npm run validate` includes it after the root lint, typecheck, tests, and library
+build. Package-quality and publishing CI install both lockfiles and run this
+combined validation. Keep the docs source-alias compilation check enabled:
+it catches compatibility failures outside the root TypeScript configuration.
+
 The package name `@yukasung/react-components` is aliased to `../src/index.ts`
 for live examples. This does not test the published bundle. Root
 `npm run build` verifies the package output separately.

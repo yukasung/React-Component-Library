@@ -19,15 +19,16 @@ jobs:
           node-version: 20
           registry-url: https://npm.pkg.github.com
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            docs/package-lock.json
       - name: Verify tag matches package version
         run: |
           package_version="$(node -p "require('./package.json').version")"
           test "$GITHUB_REF_NAME" = "v${package_version}"
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test
-      - run: npm run build
+      - run: npm ci --prefix docs
+      - run: npm run validate
       - run: npm publish --access restricted
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}

@@ -51,6 +51,8 @@
     "dev": "vite --config demo/vite.config.ts",
     "generate:styles": "node scripts/generate-scalar-styles.mjs",
     "build": "npm run generate:styles && vite build && npm run verify:package",
+    "build:docs": "npm --prefix docs run build",
+    "validate": "npm run lint && npm run typecheck && npm run test && npm run build && npm run build:docs",
     "verify:package": "node scripts/verify-package.mjs",
     "typecheck": "tsc --build",
     "lint": "eslint .",
