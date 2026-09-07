@@ -635,7 +635,7 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
 
   return (
     <div
-      className={`${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
+      className={`rc-scalar ${wrapperBaseClassName} ${wrapperStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}
     >
       {showsSpinButtons && (
         <SpinButton

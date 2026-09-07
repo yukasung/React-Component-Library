@@ -562,7 +562,7 @@ export const InputDate = forwardRef<HTMLInputElement, InputDateProps>(function I
   }, [])
 
   return (
-    <div className="relative">
+    <div className="rc-scalar relative">
       <input
         {...rest}
         ref={(node) => {

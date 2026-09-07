@@ -317,7 +317,7 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
   const buttonCount = (showsCalendarButton ? 1 : 0) + (showsTimeButton ? 1 : 0)
 
   return (
-    <div className="relative" ref={dropdown.rootRef}>
+    <div className="rc-scalar relative" ref={dropdown.rootRef}>
       <input
         {...rest}
         ref={(node) => {

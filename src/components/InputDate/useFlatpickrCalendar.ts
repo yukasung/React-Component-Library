@@ -175,6 +175,7 @@ export function useFlatpickrCalendar({
     })
     // Native mobile instances have an input instead of a JavaScript calendar.
     if (instance.calendarContainer) {
+      instance.calendarContainer.classList.add('rc-scalar')
       instance.calendarContainer.id = calendarId
       instance.calendarContainer.setAttribute('role', 'dialog')
     }

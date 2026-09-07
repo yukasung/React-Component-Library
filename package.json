@@ -49,7 +49,8 @@
   },
   "scripts": {
     "dev": "vite --config demo/vite.config.ts",
-    "build": "vite build && npm run verify:package",
+    "generate:styles": "node scripts/generate-scalar-styles.mjs",
+    "build": "npm run generate:styles && vite build && npm run verify:package",
     "verify:package": "node scripts/verify-package.mjs",
     "typecheck": "tsc --build",
     "lint": "eslint .",

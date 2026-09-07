@@ -39,7 +39,9 @@ function Example() {
 }
 ```
 
-The package compiles the component utilities itself. Do not add its source or `dist/` directory to your Tailwind scanner; importing the stylesheet above is mandatory.
+The package compiles the component utilities itself. Do not add its source or `dist/` directory to your Tailwind scanner; importing the stylesheet above is mandatory. Styles are scoped to the controls, including their popups, and do not install a global reset or Tailwind theme.
+
+Library development: after editing scalar utility classes or the calendar theme, run `npm run generate:styles` to refresh the checked-in stylesheet used by the demo and docs. `npm run build` also regenerates it; `node scripts/generate-scalar-styles.mjs --check` checks for stale generated output.
 
 Published entry points at version `0.1.0` are:
 

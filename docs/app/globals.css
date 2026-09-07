@@ -1,20 +1,9 @@
 @import "tailwindcss";
 
-/* The calendar popup's CSS, imported here rather than arriving with the
-   component. The library funnels it through src/style.css (flatpickr's own
-   base stylesheet plus our theme), which src/index.ts imports as a side
-   effect — but Next's barrel optimization resolves this site's named
-   imports straight to their source modules (../src/components/InputDate/
-   InputDate.tsx and friends, never ../src/index.ts) and the barrel's CSS
-   side effect goes with it, so the popup arrives with no styling at all:
-   an in-flow block of stacked weekday letters overlapping the page.
-   demo/ doesn't hit this because Vite keeps the side-effect import.
-   The imports below mirror src/style.css — flatpickr base first, then the
-   calendar theme and component-scoped InputTag styles. flatpickr resolves from the parent project's
-   node_modules (docs/ has none of its own), which is the version the
-   library itself pins. */
-@import "flatpickr/dist/flatpickr.css";
-@import "../../src/components/InputDate/flatpickr-theme.css";
+/* Next's barrel optimization bypasses src/index.ts and its CSS side effect.
+   Mirror src/style.css explicitly so source consumers receive the same scoped
+   scalar controls, calendar and InputTag styles as the published package. */
+@import "../../src/scalar-utilities.css";
 @import "../../src/components/InputTag/input-tag.css";
 
 /* @yukasung/react-components is aliased straight to its TS source here (see

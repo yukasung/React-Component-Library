@@ -1,3 +1,2 @@
-@import "flatpickr/dist/flatpickr.css";
-@import "./components/InputDate/flatpickr-theme.css";
+@import "./scalar-utilities.css";
 @import "./components/InputTag/input-tag.css";

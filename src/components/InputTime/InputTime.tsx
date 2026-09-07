@@ -619,7 +619,7 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   }, [])
 
   return (
-    <div className="relative" ref={dropdown.rootRef}>
+    <div className="rc-scalar relative" ref={dropdown.rootRef}>
       <input
         {...rest}
         ref={(node) => {
