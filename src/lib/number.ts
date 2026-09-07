@@ -207,14 +207,14 @@ function formatGeneralSpec(value: number, precision: number | undefined, upperca
   return `${mantissa}${eChar}${parts.sign}${parts.exponentDigits.padStart(2, '0')}`
 }
 
-// Two's complement over 32 bits for negative values — there's no fixed
-// integral type width in JS to match .NET's per-type behavior against, so
-// Int32 width is the most broadly useful default.
+// Use a leading minus, as for D, so negative values have an unambiguous
+// inverse without assuming a fixed integer width for JavaScript numbers.
 function formatHexSpec(value: number, precision: number | undefined, uppercase: boolean): string {
   const intValue = Math.trunc(value)
-  const unsigned = intValue < 0 ? intValue >>> 0 : intValue
-  const hex = uppercase ? unsigned.toString(16).toUpperCase() : unsigned.toString(16)
-  return typeof precision === 'number' ? hex.padStart(precision, '0') : hex
+  const digits = Math.abs(intValue).toString(16)
+  const hex = uppercase ? digits.toUpperCase() : digits
+  const padded = typeof precision === 'number' ? hex.padStart(precision, '0') : hex
+  return (isNegative(intValue) ? '-' : '') + padded
 }
 
 // JS's default Number -> String conversion already produces the shortest
@@ -227,17 +227,17 @@ function formatRoundTripSpec(value: number): string {
 // value before display (via applyPrecision), as distinct from spec.precision
 // itself — for D and X that field means "minimum padding width", not
 // decimal places, so those always round to a whole number instead.
-export function resolveFormatPrecision(spec: NumericFormatSpec): number {
+// E/G specify mantissa/significant digits and R preserves the full value;
+// none sets a fixed decimal-place limit on the underlying number.
+export function resolveFormatPrecision(spec: NumericFormatSpec): number | undefined {
   switch (spec.specifier) {
     case 'D':
     case 'X':
       return 0
     case 'E':
-      return spec.precision ?? 6
     case 'G':
-      return spec.precision ?? 6
     case 'R':
-      return 15
+      return undefined
     case 'P':
       // Percent displays value*100, so its raw (pre-multiplication) value
       // needs 2 more decimal places than the display precision to round to
@@ -284,12 +284,13 @@ const DECORATION_CHARS: Partial<Record<NumericFormatSpecifier, RegExp>> = {
 }
 
 const VALID_CONTENT_PATTERN = /^-?\d*\.?\d*$/
+const SCIENTIFIC_CONTENT_PATTERN = /^-?(?:\d+(?:\.\d*)?|\.\d+)[eE][+-]?\d+$/
 
 // Strips a formatted display string back down to a plain numeric string
 // (digits, one leading "-", one ".") so it can be re-parsed — e.g.
 // "($1,234.56)" -> "-1234.56", "42.5 %" -> "42.5". Returns undefined if
-// anything other than digits/sign/decimal point and this specifier's own
-// decoration characters remain (i.e. genuinely invalid input like "abc").
+// anything other than numeric content and this specifier's own decoration
+// characters remain. E/G/R also accept a complete decimal exponent.
 function stripFormatDecorations(raw: string, specifier: NumericFormatSpecifier): string | undefined {
   const trimmed = raw.trim()
   if (specifier === 'X') {
@@ -300,6 +301,9 @@ function stripFormatDecorations(raw: string, specifier: NumericFormatSpecifier):
   const unwrapped = parenNegative ? `-${parenNegative[1]}` : trimmed
   const decorationPattern = DECORATION_CHARS[specifier]
   const stripped = decorationPattern ? unwrapped.replace(decorationPattern, '') : unwrapped
+  if (specifier === 'E' || specifier === 'G' || specifier === 'R') {
+    if (SCIENTIFIC_CONTENT_PATTERN.test(stripped)) return stripped
+  }
   return VALID_CONTENT_PATTERN.test(stripped) ? stripped : undefined
 }
 
@@ -318,7 +322,8 @@ export function parseFormattedInput(raw: string, spec: NumericFormatSpec): numbe
 }
 
 // Live re-formatting while typing needs to know which characters in a
-// formatted string are "content" (digits/decimal point, plus the sign —
+// formatted string are "content" (digits/decimal point, hexadecimal letters
+// and exponent markers, plus signs —
 // except when the sign is instead represented by parentheses wrapping the
 // whole value, e.g. negative currency, in which case there's no literal
 // "-" character in the output to track and it's excluded from the count
@@ -326,7 +331,7 @@ export function parseFormattedInput(raw: string, spec: NumericFormatSpec): numbe
 // the parens themselves), so the cursor can be repositioned after the
 // decorations shift around.
 function countContentCharsBefore(text: string, index: number, includeSign: boolean): number {
-  const pattern = includeSign ? /[0-9.-]/ : /[0-9.]/
+  const pattern = includeSign ? /[0-9a-f.+-]/i : /[0-9a-f.]/i
   let count = 0
   for (let i = 0; i < index && i < text.length; i++) {
     if (pattern.test(text[i])) count++
@@ -336,7 +341,7 @@ function countContentCharsBefore(text: string, index: number, includeSign: boole
 
 function indexAfterContentChars(text: string, contentCount: number, includeSign: boolean): number {
   if (contentCount <= 0) return 0
-  const pattern = includeSign ? /[0-9.-]/ : /[0-9.]/
+  const pattern = includeSign ? /[0-9a-f.+-]/i : /[0-9a-f.]/i
   let seen = 0
   for (let i = 0; i < text.length; i++) {
     if (pattern.test(text[i])) {

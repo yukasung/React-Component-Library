@@ -1179,6 +1179,54 @@ describe('InputNumber', () => {
   })
 
   describe('format', () => {
+    it.each([
+      ['C2', '1.239', 1.24],
+      ['F2', '1.239', 1.24],
+      ['N2', '1.239', 1.24],
+      ['P2', '12.3456%', 0.1235],
+      ['D', '1.6', 2],
+      ['X', 'FF', 255],
+    ])('retains fixed-decimal and integer commit semantics for %s', (format, text, expected) => {
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={null} text={text} format={format} onChange={onChange} />)
+      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
+    })
+
+    it.each([
+      ['E2', 0.00000123, '1.23E-006'],
+      ['G2', 0.0000012, '1.2E-06'],
+      ['R', 1e-20, '1e-20'],
+    ])('preserves its own small %s display on Enter and blur', async (format, value, display) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={value} onChange={onChange} format={format} />)
+      const input = screen.getByRole('spinbutton')
+      expect(input).toHaveValue(display)
+
+      await user.click(input)
+      await user.keyboard('{Enter}')
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input).toHaveValue(display)
+
+      await user.tab()
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input).toHaveValue(display)
+    })
+
+    it('preserves a negative hexadecimal value on untouched blur', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber value={-1} onChange={onChange} format="X" />)
+      const input = screen.getByRole('spinbutton')
+
+      await user.click(input)
+      await user.tab()
+
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input).toHaveValue('-1')
+    })
+
     it('displays the committed value formatted per the .NET-style spec', () => {
       render(<InputNumber value={1234.5} onChange={() => {}} format="n2" />)
       expect(screen.getByRole('spinbutton')).toHaveValue('1,234.50')

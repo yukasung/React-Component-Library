@@ -40,8 +40,9 @@ export interface InputNumberProps
   showSpinButtons?: boolean
   // .NET-style standard numeric format string (e.g. "n2", "C", "P0") —
   // see resolveFormatPrecision/formatWithSpec in src/lib/number.ts. Sets
-  // both the display and the decimal places used when clamping/rounding on
-  // commit; without one, the decimal places are inferred from `step`.
+  // the display and, for fixed-point formats, the decimal places used on
+  // commit. E/G/R retain the parsed value; without a format, decimal places
+  // are inferred from `step`.
   format?: string
   repeatButtons?: boolean
   handleWheel?: boolean

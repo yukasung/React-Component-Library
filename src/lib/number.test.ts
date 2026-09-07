@@ -319,6 +319,33 @@ describe('formatWithSpec', () => {
 })
 
 describe('parseFormattedInput', () => {
+  it.each([
+    ['E2', 12300, '1.23E+004'],
+    ['e2', -0.00000123, '-1.23e-006'],
+    ['G2', 12000, '1.2E+04'],
+    ['g2', -0.0000012, '-1.2e-06'],
+    ['R', 1e-20, '1e-20'],
+    ['X', -1, '-1'],
+    ['x4', -255, '-00ff'],
+    ['X', -0, '-0'],
+  ])('parses %s output back to its displayed value (%s)', (format, value, text) => {
+    const spec = parseNumericFormat(format)!
+    const formatted = formatWithSpec(value, spec)
+    expect(parseFormattedInput(formatted, spec)).toBe(value)
+    expect(formatted).toBe(text)
+  })
+
+  it.each(['E2', 'G2', 'R'])('rejects incomplete or invalid exponents for %s', (format) => {
+    const spec = parseNumericFormat(format)!
+    for (const text of ['1e', '1e+', '1e-', 'e2', '1e2x', '1e2.3', '1e2e3', '1e999', '0x10']) {
+      expect(parseFormattedInput(text, spec)).toBeUndefined()
+    }
+  })
+
+  it.each(['C2', 'D', 'F2', 'N2', 'P2'])('keeps exponents invalid for %s', (format) => {
+    expect(parseFormattedInput('1e2', parseNumericFormat(format)!)).toBeUndefined()
+  })
+
   it('strips currency symbol and group separators back to a plain number', () => {
     expect(parseFormattedInput('$1,234.56', { specifier: 'C', precision: 2, uppercase: true })).toBe(1234.56)
   })
@@ -350,6 +377,22 @@ describe('parseFormattedInput', () => {
 
 describe('reformatDraftLive', () => {
   const n0: Parameters<typeof reformatDraftLive>[2] = { specifier: 'N', precision: 0, uppercase: false }
+
+  it.each([
+    ['E2', '1.23E+004', 5],
+    ['E2', '1.23E+004', 6],
+    ['G2', '1.2E+04', 4],
+    ['R', '1e-20', 2],
+    ['X', '-FF', 3],
+  ])('preserves a formatted %s draft and cursor at %s:%s', (format, text, cursorIndex) => {
+    expect(reformatDraftLive(text, cursorIndex, parseNumericFormat(format)!)).toEqual({ text, cursorIndex })
+  })
+
+  it.each(['E2', 'G2', 'R'])('leaves unfinished scientific input alone for %s', (format) => {
+    for (const text of ['1e', '1e+', '1e-']) {
+      expect(reformatDraftLive(text, text.length, parseNumericFormat(format)!)).toBeUndefined()
+    }
+  })
 
   it('reformats accumulated digits with group separators as the user types', () => {
     expect(reformatDraftLive('1', 1, n0)).toEqual({ text: '1', cursorIndex: 1 })
