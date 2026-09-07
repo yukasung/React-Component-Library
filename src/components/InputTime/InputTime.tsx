@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { applySelection, selectRangeAtCaret } from '../../lib/domSelection'
@@ -278,16 +278,19 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   // Tracks the most recently committed value synchronously, independent of
   // whether a controlled parent re-renders with the new `value` prop.
   const lastCommittedRef = useRef(committedValue)
-  // Only an external value change replaces the commit baseline; an unchanged
+  // Publish external changes only after React commits this render. A suspended
+  // render must not replace the visible field's baseline, and an unchanged
   // controlled prop must not undo a local commit awaiting parent acceptance.
   const previousControlledValueRef = useRef(value)
-  if (
-    isControlled &&
-    (previousControlledValueRef.current === undefined || !timesEqual(value, previousControlledValueRef.current))
-  ) {
-    previousControlledValueRef.current = value
-    lastCommittedRef.current = value
-  }
+  useLayoutEffect(() => {
+    if (
+      isControlled &&
+      (previousControlledValueRef.current === undefined || !timesEqual(value, previousControlledValueRef.current))
+    ) {
+      previousControlledValueRef.current = value
+      lastCommittedRef.current = value
+    }
+  }, [isControlled, value])
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
   // See the input's own onMouseDown/onFocus: which group the focus handler

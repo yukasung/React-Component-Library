@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyFormatPrecision,
   applyPrecision,
   clamp,
   formatValue,
@@ -16,6 +17,14 @@ import {
   truncateToPrecision,
   zeroDraftWithPrecision,
 } from './number'
+
+describe('applyFormatPrecision', () => {
+  it.each(['E2', 'G2'])('keeps finite values finite when %s rounding would overflow', (format) => {
+    const spec = parseNumericFormat(format)!
+    expect(applyFormatPrecision(Number.MAX_VALUE, spec)).toBe(Number.MAX_VALUE)
+    expect(applyFormatPrecision(-Number.MAX_VALUE, spec)).toBe(-Number.MAX_VALUE)
+  })
+})
 
 describe('parseDraft', () => {
   it('parses a valid integer string', () => {

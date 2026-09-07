@@ -1,4 +1,4 @@
-import { createRef, StrictMode } from 'react'
+import { createRef, startTransition, StrictMode, Suspense } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -38,6 +38,31 @@ function moveToGroup(input: HTMLElement, index: number) {
 }
 
 describe('InputDateTime', () => {
+  it('keeps the visible commit baseline when an external transition suspends', async () => {
+    const onChange = vi.fn()
+    const pending = new Promise<void>(() => {})
+    function Suspends({ active }: { active: boolean }) {
+      if (active) throw pending
+      return null
+    }
+    const field = (day: number) => (
+      <Suspense fallback={<span>Loading</span>}>
+        <InputDateTime value={new Date(2026, 6, day, 9, 0)} onChange={onChange} />
+        <Suspends active={day === 9} />
+      </Suspense>
+    )
+    const { rerender } = render(field(1))
+    const input = getInput()
+    focusInput(input)
+
+    await act(async () => { startTransition(() => { rerender(field(9)) }) })
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument()
+    expect(input).toHaveValue('2026-07-01 09:00')
+
+    fireEvent.blur(input)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('commits a previous value after an external controlled value change', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

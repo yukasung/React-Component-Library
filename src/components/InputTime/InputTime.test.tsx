@@ -1,4 +1,4 @@
-import { createRef, StrictMode, useState } from 'react'
+import { createRef, startTransition, StrictMode, Suspense, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -23,6 +23,31 @@ function at(hours: number, minutes = 0): Date {
 }
 
 describe('InputTime', () => {
+  it('keeps the visible commit baseline when an external transition suspends', async () => {
+    const onChange = vi.fn()
+    const pending = new Promise<void>(() => {})
+    function Suspends({ active }: { active: boolean }) {
+      if (active) throw pending
+      return null
+    }
+    const field = (hour: number) => (
+      <Suspense fallback={<span>Loading</span>}>
+        <InputTime value={at(hour)} onChange={onChange} />
+        <Suspends active={hour === 9} />
+      </Suspense>
+    )
+    const { rerender } = render(field(1))
+    const input = screen.getByRole('combobox')
+    act(() => { input.focus() })
+
+    await act(async () => { startTransition(() => { rerender(field(9)) }) })
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument()
+    expect(input).toHaveValue('01:00')
+
+    fireEvent.blur(input)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('commits a previous value after an external controlled value change', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, RefObject } from 'react'
 import type flatpickr from 'flatpickr'
 import { useSyncedState } from '../../hooks/useSyncedState'
@@ -167,16 +167,19 @@ export function useDateTimeField({
   // Tracks the most recently committed value synchronously, independent of
   // whether a controlled parent re-renders with the new `value` prop.
   const lastCommittedRef = useRef(committedValue)
-  // Only an external value change replaces the commit baseline; an unchanged
+  // Publish external changes only after React commits this render. A suspended
+  // render must not replace the visible field's baseline, and an unchanged
   // controlled prop must not undo a local commit awaiting parent acceptance.
   const previousControlledValueRef = useRef(value)
-  if (
-    isControlled &&
-    (previousControlledValueRef.current === undefined || !valuesEqual(value, previousControlledValueRef.current))
-  ) {
-    previousControlledValueRef.current = value
-    lastCommittedRef.current = value
-  }
+  useLayoutEffect(() => {
+    if (
+      isControlled &&
+      (previousControlledValueRef.current === undefined || !valuesEqual(value, previousControlledValueRef.current))
+    ) {
+      previousControlledValueRef.current = value
+      lastCommittedRef.current = value
+    }
+  }, [isControlled, value])
   const inputRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
   // See handlePointerDown/handleFocus: which group the focus handler highlights

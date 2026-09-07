@@ -1,4 +1,4 @@
-import { createRef, StrictMode } from 'react'
+import { createRef, startTransition, StrictMode, Suspense } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -20,6 +20,31 @@ function getDateInput(): HTMLInputElement {
 }
 
 describe('InputDate', () => {
+  it('keeps the visible commit baseline when an external transition suspends', async () => {
+    const onChange = vi.fn()
+    const pending = new Promise<void>(() => {})
+    function Suspends({ active }: { active: boolean }) {
+      if (active) throw pending
+      return null
+    }
+    const field = (day: number) => (
+      <Suspense fallback={<span>Loading</span>}>
+        <InputDate value={new Date(2026, 6, day)} onChange={onChange} />
+        <Suspends active={day === 9} />
+      </Suspense>
+    )
+    const { rerender } = render(field(1))
+    const input = getDateInput()
+    act(() => { input.focus() })
+
+    await act(async () => { startTransition(() => { rerender(field(9)) }) })
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument()
+    expect(input).toHaveValue('2026-07-01')
+
+    fireEvent.blur(input)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('commits a previous value after an external controlled value change', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

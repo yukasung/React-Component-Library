@@ -1,10 +1,35 @@
-import { createRef } from 'react'
+import { createRef, startTransition, Suspense } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputNumber } from './InputNumber'
 
 describe('InputNumber', () => {
+  it('keeps the visible commit baseline when an external transition suspends', async () => {
+    const onChange = vi.fn()
+    const pending = new Promise<void>(() => {})
+    function Suspends({ active }: { active: boolean }) {
+      if (active) throw pending
+      return null
+    }
+    const field = (value: number) => (
+      <Suspense fallback={<span>Loading</span>}>
+        <InputNumber value={value} onChange={onChange} />
+        <Suspends active={value === 9} />
+      </Suspense>
+    )
+    const { rerender } = render(field(1))
+    const input = screen.getByRole('spinbutton')
+    act(() => { input.focus() })
+
+    await act(async () => { startTransition(() => { rerender(field(9)) }) })
+    expect(screen.queryByText('Loading')).not.toBeInTheDocument()
+    expect(input).toHaveValue('1')
+
+    fireEvent.blur(input)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('commits a previous value after an external controlled value change', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -1191,6 +1216,65 @@ describe('InputNumber', () => {
       render(<InputNumber defaultValue={null} text={text} format={format} onChange={onChange} />)
       fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
       expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
+    })
+
+    it.each(['E2', 'G2'])('normalizes a fractional %s step before untouched blur', async (format) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={0.2} step={0.1} format={format} onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+
+      await user.click(input)
+      await user.keyboard('{ArrowUp}')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.3)
+
+      await user.tab()
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.3)
+    })
+
+    it.each([
+      ['E2', 1.239e-20, 1.24e-20],
+      ['G2', 1.239e-20, 1.2e-20],
+      ['E', 1.23456789e-20, 1.234568e-20],
+      ['G', 1.2345678901234567e-20, 1.23456789012346e-20],
+      ['G0', 1.2345678901234567e-20, 1.23456789012346e-20],
+      ['E2', 1.239e20, 1.24e20],
+      ['G2', 1.239e20, 1.2e20],
+    ])('commits %s using its significant digits for %s', (format, value, expected) => {
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={null} text={String(value)} format={format} onChange={onChange} />)
+      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
+    })
+
+    it.each([
+      ['E2', 1.239e-20, 1.23e-20],
+      ['G2', -1.239e-20, -1.2e-20],
+    ])('truncates %s significant digits toward zero for %s', (format, value, expected) => {
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={null} text={String(value)} format={format} truncate onChange={onChange} />)
+      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(expected)
+    })
+
+    it.each(['E2', 'G2'])('keeps the final %s step within a non-representable max', (format) => {
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={0.2} step={0.1} max={0.2996} format={format} onChange={onChange} />)
+      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'ArrowUp' })
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2996)
+    })
+
+    it('preserves lossless R stepping through untouched blur', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<InputNumber defaultValue={0.2} step={0.1} format="R" onChange={onChange} />)
+      const input = screen.getByRole('spinbutton')
+      await user.click(input)
+      await user.keyboard('{ArrowUp}')
+      expect(input).toHaveValue(String(0.2 + 0.1))
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(0.2 + 0.1)
+      await user.tab()
+      expect(onChange).toHaveBeenCalledTimes(1)
     })
 
     it.each([

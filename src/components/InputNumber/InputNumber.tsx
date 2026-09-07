@@ -1,8 +1,9 @@
-import { forwardRef, useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 import { useSyncedState } from '../../hooks/useSyncedState'
 import { applySelection, selectAllOnFocus } from '../../lib/domSelection'
 import {
+  applyFormatPrecision,
   applyPrecision,
   clamp,
   forcePositiveFormatted,
@@ -218,10 +219,14 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   }
   // Shared by every commit path that adds/rounds a raw number (typed
   // draft, spin/repeat step, Arrow key) — clamps to min/max, then rounds
-  // to effectivePrecision (or truncates, per the truncate prop). Clamp again
+  // to the format/step precision (or truncates, per the truncate prop). Clamp again
   // because precision adjustment can move a boundary value out of range.
   function clampToPrecision(raw: number): number {
-    return clamp(applyPrecision(clamp(raw, min, max), effectivePrecision, truncate), min, max)
+    const bounded = clamp(raw, min, max)
+    const normalized = formatSpec
+      ? applyFormatPrecision(bounded, formatSpec, truncate)
+      : applyPrecision(bounded, effectivePrecision, truncate)
+    return clamp(normalized, min, max)
   }
   const formattedValue = formatDisplay(displayValue)
   // When `text` is controlled, it takes priority over the value-derived
@@ -263,13 +268,16 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   // waiting on a render that may never come (e.g. a controlled consumer
   // that doesn't feed the value back).
   const lastCommittedRef = useRef(committedValue)
-  // Only an external value change replaces the commit baseline; an unchanged
+  // Publish external changes only after React commits this render. A suspended
+  // render must not replace the visible field's baseline, and an unchanged
   // controlled prop must not undo a local commit awaiting parent acceptance.
   const previousControlledValueRef = useRef(value)
-  if (isControlled && value !== previousControlledValueRef.current) {
-    previousControlledValueRef.current = value
-    lastCommittedRef.current = value
-  }
+  useLayoutEffect(() => {
+    if (isControlled && value !== previousControlledValueRef.current) {
+      previousControlledValueRef.current = value
+      lastCommittedRef.current = value
+    }
+  }, [isControlled, value])
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   // React attaches its synthetic `onWheel` as a passive native listener, so
   // `event.preventDefault()` inside it silently fails and the page scrolls

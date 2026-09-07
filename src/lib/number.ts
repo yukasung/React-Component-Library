@@ -251,6 +251,29 @@ export function resolveFormatPrecision(spec: NumericFormatSpec): number | undefi
   }
 }
 
+// E/G normalize significant digits, so their precision must never be used
+// as fixed decimal places (which would erase small exponent values). Work
+// on the scientific mantissa when truncating to avoid scaling overflow or
+// underflow; rounding uses the same representation as the displayed value.
+export function applyFormatPrecision(value: number, spec: NumericFormatSpec, truncate = false): number {
+  if (spec.specifier !== 'E' && spec.specifier !== 'G') {
+    return applyPrecision(value, resolveFormatPrecision(spec), truncate)
+  }
+  if (value === 0) return value
+  if (!truncate) {
+    const rounded = Number(formatWithSpec(value, spec))
+    // Rounding the largest finite magnitude can exceed Number's range.
+    return Number.isFinite(rounded) ? rounded : value
+  }
+
+  const decimals = spec.specifier === 'E'
+    ? spec.precision ?? 6
+    : (spec.precision && spec.precision > 0 ? spec.precision : 15) - 1
+  const [mantissa, exponent] = value.toExponential().split('e')
+  const [whole, fraction = ''] = mantissa.split('.')
+  return Number(`${whole}.${fraction.slice(0, decimals)}e${exponent}`)
+}
+
 export function formatWithSpec(value: number, spec: NumericFormatSpec): string {
   switch (spec.specifier) {
     case 'C':
