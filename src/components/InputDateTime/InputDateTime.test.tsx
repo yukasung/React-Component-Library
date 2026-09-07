@@ -78,14 +78,22 @@ describe('InputDateTime', () => {
       expect(document.querySelector('input.flatpickr-mobile')).not.toBeInTheDocument()
     })
 
-    it('can update a native instance to Thai locale without a JavaScript year header', () => {
-      const { rerender } = render(<InputDateTime defaultValue={new Date(2026, 6, 1, 9, 30)} />)
-      rerender(<InputDateTime defaultValue={new Date(2026, 6, 1, 9, 30)} locale="th" monthCount={2} />)
+    it('keeps native selections Gregorian after switching to Thai locale', () => {
+      const onChange = vi.fn()
+      const { rerender } = render(<InputDateTime defaultValue={new Date(2026, 6, 1, 9, 30)} onChange={onChange} />)
+      rerender(<InputDateTime defaultValue={new Date(2026, 6, 1, 9, 30)} onChange={onChange} locale="th" monthCount={2} />)
 
-      // Mobile mode is chosen at mount; locale updates must not access
-      // JavaScript-calendar elements that this native instance never built.
-      expect(document.querySelector('input.flatpickr-mobile')).toBeInTheDocument()
+      // Mobile mode is chosen at mount. The native value stays Gregorian,
+      // while the React-owned field displays Buddhist Era after the switch.
+      const nativeInput = document.querySelector<HTMLInputElement>('input.flatpickr-mobile')!
+      expect(nativeInput).toBeInTheDocument()
       expect(getInput()).toHaveValue('2569-07-01 09:30')
+
+      fireEvent.change(nativeInput, { target: { value: '2026-07-15' } })
+
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 15, 9, 30))
+      expect(getInput()).toHaveValue('2569-07-15 09:30')
+      expect(nativeInput).toHaveValue('2026-07-15')
     })
 
     it('keeps the Thai Buddhist Era JavaScript calendar on mobile', () => {

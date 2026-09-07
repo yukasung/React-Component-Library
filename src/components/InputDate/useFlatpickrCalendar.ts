@@ -146,15 +146,16 @@ export function useFlatpickrCalendar({
       // documented override hooks flatpickr threads through internally.
       // Reads eraRef (not the yearOffset/flatpickrLocale captured at mount)
       // so a later `locale` prop change is picked up without recreating the
-      // instance.
+      // instance. A native mobile instance still exchanges Gregorian values
+      // with the OS after a locale switch; only the React field uses the era.
       formatDate: (date, frmt, loc) => {
-        const { yearOffset: currentYearOffset } = eraRef.current
+        const currentYearOffset = instanceRef.current?.isMobile ? 0 : eraRef.current.yearOffset
         const baseFormatter = (d: Date, f: string) => formatDateWithLocaleCast(d, f, loc)
         if (currentYearOffset === 0) return baseFormatter(date, frmt)
         return formatDateWithYearOffset(date, frmt, currentYearOffset, baseFormatter) ?? baseFormatter(date, frmt)
       },
       parseDate: (dateStr, frmt) => {
-        const { yearOffset: currentYearOffset } = eraRef.current
+        const currentYearOffset = instanceRef.current?.isMobile ? 0 : eraRef.current.yearOffset
         const toParse = currentYearOffset !== 0 ? (unshiftYearInDraft(dateStr, frmt, currentYearOffset) ?? dateStr) : dateStr
         // flatpickr's own createDateParser tolerates and reports an invalid
         // Date via its own errorHandler rather than requiring this callback
