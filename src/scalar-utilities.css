@@ -1283,7 +1283,8 @@
   border-color: var(--rc-color-primary, #465fff);
   background-color: var(--rc-color-primary, #465fff);
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-calendar) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-calendar),
+:where(.rc-scalar, .rc-scalar *):is(.flatpickr-calendar[data-rc-dark]) {
   border-color: rgb(255 255 255 / 0.05);
   background-color: #1a2231;
   color: #98a2b3;
@@ -1291,40 +1292,28 @@
     0px 12px 16px -4px rgb(16 24 40 / 0.08),
     0px 4px 6px -2px rgb(16 24 40 / 0.03);
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-current-month .cur-month),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-current-month input.cur-year),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-current-month .cur-month), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-current-month input.cur-year), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day) {
   color: rgb(255 255 255 / 0.9);
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-current-month .flatpickr-monthDropdown-months) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-current-month .flatpickr-monthDropdown-months) {
   background: #1a2231;
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-weekday) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-weekday) {
   color: #98a2b3;
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) span.flatpickr-weekday),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-months .flatpickr-prev-month),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-months .flatpickr-next-month),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-months .flatpickr-month) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) span.flatpickr-weekday), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-months .flatpickr-prev-month), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-months .flatpickr-next-month), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-months .flatpickr-month) {
   fill: #ffffff;
   color: #ffffff;
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-rContainer) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-rContainer) {
   background-color: #1a2231;
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day:hover),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day.prevMonthDay:hover),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day.nextMonthDay:hover),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day:focus),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day.prevMonthDay:focus),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day.nextMonthDay:focus) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day:hover), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day.prevMonthDay:hover), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day.nextMonthDay:hover), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day:focus), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day.prevMonthDay:focus), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day.nextMonthDay:focus) {
   border: 0;
   border-color: rgb(255 255 255 / 0.05);
   background-color: rgb(255 255 255 / 0.05);
 }
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day.selected),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day.selected:hover),
-:where(.rc-scalar, .rc-scalar *):is(:is(.dark *) .flatpickr-day.selected:focus) {
+:where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day.selected), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day.selected:hover), :where(.rc-scalar, .rc-scalar *):is(:is(.dark *, :where(.flatpickr-calendar)[data-rc-dark]) .flatpickr-day.selected:focus) {
   color: #ffffff;
 }
 :where(.rc-scalar, .rc-scalar *):is(.flatpickr-day.nextMonthDay),

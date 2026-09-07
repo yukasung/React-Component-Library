@@ -430,3 +430,32 @@ control นี้มีปุ่มสองปุ่มที่ขอบขว
 <InputDateTime value={value} onChange={setValue} />
 <InputDateTime value={value} onChange={setValue} isDisabled />
 ```
+
+### portal
+
+<PropertySignature name="portal" type="boolean" />
+
+ค่าเริ่มต้น `true` รายการเวลาจะแสดงผ่าน body portal เพื่อหลีกเลี่ยงการถูกตัดโดย overflow container
+รายการเลือกเปิดด้านบนหรือด้านล่างตามพื้นที่ และปรับขนาดตาม viewport
+ใช้ `portal={false}` เพื่อแสดงภายในฟิลด์ เช่น เมื่ออยู่ใน native dialog top layer
+รายการแบบ portal คง local dark theme, สี `--rc-color-primary` และฟอนต์ของฟิลด์
+
+### portalZIndex
+
+<PropertySignature name="portalZIndex" type="number" />
+
+ค่าเริ่มต้น `50` กำหนด z-index ของรายการเวลาให้เข้ากับชั้น UI ของ application
+
+```tsx
+<InputDateTime defaultValue={new Date()} portalZIndex={100} />
+<InputDateTime defaultValue={new Date()} portal={false} />
+```
+
+`portal` และ `portalZIndex` ควบคุมเฉพาะรายการเวลา ไม่ได้เปลี่ยนการวาง calendar popup
+
+## Calendar theme
+
+JavaScript calendar popup อยู่ใต้ body แต่คง dark mode จาก ancestor `.dark`
+และใช้ค่า computed ของ `--rc-color-primary` กับ `font-family` จาก input
+การเปลี่ยน class/style ของฟิลด์หรือ ancestor จะอัปเดต popup โดยไม่เปลี่ยนธีมของฟิลด์อื่น
+Native mobile picker ใช้หน้าตาและธีมของระบบปฏิบัติการ

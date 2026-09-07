@@ -1,6 +1,6 @@
 import { createRef, startTransition, StrictMode, Suspense } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { waitFor, act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InputDate } from './InputDate'
 
@@ -162,6 +162,30 @@ describe('InputDate', () => {
       fireEvent.keyDown(year, { key: 'Escape', keyCode: 27 })
       expect(screen.getByRole('button', { name: 'Toggle calendar' })).toHaveFocus()
     })
+  })
+
+  it('preserves and updates local calendar theme without changing another calendar', async () => {
+    const view = (dark: boolean, color: string) => <>
+      <div className={dark ? 'dark' : ''}>
+        <InputDate style={{ '--rc-color-primary': color, fontFamily: 'serif' } as React.CSSProperties} />
+      </div>
+      <InputDate />
+    </>
+    const { rerender, unmount } = render(view(true, 'rgb(1, 2, 3)'))
+    const calendars = document.querySelectorAll<HTMLElement>('.flatpickr-calendar')
+    expect(calendars[0]).toHaveAttribute('data-rc-dark')
+    expect(calendars[1]).not.toHaveAttribute('data-rc-dark')
+    expect(calendars[0].style.getPropertyValue('--rc-color-primary')).toBe('rgb(1, 2, 3)')
+    expect(calendars[0].style.fontFamily).toBe('serif')
+    rerender(view(false, 'rgb(4, 5, 6)'))
+    await waitFor(() => expect(calendars[0]).not.toHaveAttribute('data-rc-dark'))
+    expect(calendars[0].style.getPropertyValue('--rc-color-primary')).toBe('rgb(4, 5, 6)')
+    expect(calendars[1].style.getPropertyValue('--rc-color-primary')).toBe('')
+    rerender(view(true, ''))
+    await waitFor(() => expect(calendars[0]).toHaveAttribute('data-rc-dark'))
+    expect(calendars[0].style.getPropertyValue('--rc-color-primary')).toBe('')
+    unmount()
+    expect(document.querySelector('.flatpickr-calendar')).not.toBeInTheDocument()
   })
 
   describe('on an iPhone', () => {

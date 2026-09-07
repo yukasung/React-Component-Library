@@ -358,3 +358,23 @@ const [text, setText] = useState('09:30')
 <InputTime defaultValue={new Date()} />
 <InputTime defaultValue={new Date()} isDisabled />
 ```
+
+### portal
+
+<PropertySignature name="portal" type="boolean" />
+
+ค่าเริ่มต้น `true` รายการเวลาจะแสดงผ่าน body portal เพื่อหลีกเลี่ยงการถูกตัดโดย overflow container
+รายการเลือกเปิดด้านบนหรือด้านล่างตามพื้นที่ และปรับขนาดตาม viewport
+ใช้ `portal={false}` เพื่อแสดงภายในฟิลด์ เช่น เมื่ออยู่ใน native dialog top layer
+รายการแบบ portal คง local dark theme, สี `--rc-color-primary` และฟอนต์ของฟิลด์
+
+### portalZIndex
+
+<PropertySignature name="portalZIndex" type="number" />
+
+ค่าเริ่มต้น `50` กำหนด z-index ของรายการเวลาให้เข้ากับชั้น UI ของ application
+
+```tsx
+<InputTime defaultValue={new Date()} portalZIndex={100} />
+<InputTime defaultValue={new Date()} portal={false} />
+```

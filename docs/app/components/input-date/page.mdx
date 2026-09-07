@@ -332,3 +332,10 @@ const [text, setText] = useState('2026-07-22')
 <InputDate defaultValue={new Date()} />
 <InputDate defaultValue={new Date()} isDisabled />
 ```
+
+## Calendar theme
+
+JavaScript calendar popup อยู่ใต้ body แต่คง dark mode จาก ancestor `.dark`
+และใช้ค่า computed ของ `--rc-color-primary` กับ `font-family` จาก input
+การเปลี่ยน class/style ของฟิลด์หรือ ancestor จะอัปเดต popup โดยไม่เปลี่ยนธีมของฟิลด์อื่น
+Native mobile picker ใช้หน้าตาและธีมของระบบปฏิบัติการ

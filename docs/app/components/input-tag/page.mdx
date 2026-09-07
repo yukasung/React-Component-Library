@@ -108,3 +108,65 @@ class เพิ่มเติมสำหรับพื้นผิว input �
 <Callout type="info">
   InputTag ไม่บันทึก tag เป็น master data การจัดเก็บค่าที่เลือกเป็นหน้าที่ของ consumer ผ่าน `value` และ `onChange`
 </Callout>
+
+### name
+
+<PropertySignature name="name" type="string" />
+
+ส่งค่าผ่าน hidden input หนึ่งรายการต่อ tag อ่านค่าด้วย `new FormData(form).getAll('tags')`
+เมื่อกำหนด `name="tags"` ค่าว่างไม่ส่งรายการใด และ `isDisabled` ไม่นำค่ารวมในการ submit
+
+### ref
+
+<PropertySignature name="ref" type="React.Ref<HTMLDivElement>" />
+
+รองรับ object ref และ callback ref โดยชี้ไปที่ combobox ที่ focus ได้
+ใช้ `ref.current?.focus()` เพื่อเลื่อนไปยังฟิลด์ที่มี validation error
+
+### onBlur
+
+<PropertySignature name="onBlur" type="React.FocusEventHandler<HTMLDivElement>" />
+
+เรียกเมื่อ focus ออกจากทั้งฟิลด์ รวมเมนูแบบ portal การย้าย focus ไปปุ่มลบหรือช่องเพิ่ม tag
+ภายในไม่ทำให้ฟิลด์ touched เมื่อออกด้วย Tab หรือ Shift+Tab เมนูจะปิดและ focus อยู่ที่ปลายทาง
+`event.currentTarget` คือ root ของฟิลด์ ไม่ใช่ combobox ที่ `ref` ชี้ไป
+
+### isReadOnly
+
+<PropertySignature name="isReadOnly" type="boolean" />
+
+ค่าเริ่มต้น `false` เมื่อเปิดใช้ จะเปิดเมนู เพิ่ม หรือลบ tag ไม่ได้
+combobox ยัง focus ได้ และค่าที่เลือกยังส่งผ่าน `name` ได้ การอัปเดต controlled value จาก parent ยังทำงาน
+
+### isRequired
+
+<PropertySignature name="isRequired" type="boolean" />
+
+ค่าเริ่มต้น `false` กำหนด `aria-required` เพื่อประกาศสถานะเท่านั้น
+ไม่ได้ใช้ native required validation: ฟอร์มต้องตรวจ array ที่เลือกเอง
+
+### Validation ARIA
+
+รองรับ `aria-invalid`, `aria-describedby`, `aria-errormessage` และ `aria-labelledby`
+บน combobox เพื่อเชื่อม label และข้อความผิดพลาด โดยยังต้องส่ง `ariaLabel` และ `removeLabel`
+ตาม API เดิม ตัวอย่างฟอร์มที่เป็นเจ้าของ validation:
+
+```tsx
+import { useRef, useState } from 'react'
+import { InputTag } from '@yukasung/react-components/input-tag'
+
+function TagField() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [tags, setTags] = useState<readonly string[]>([])
+  const [touched, setTouched] = useState(false)
+  const invalid = touched && tags.length === 0
+  return <>
+    <InputTag ref={ref} name="tags" ariaLabel="Tags"
+      options={['Important', 'Urgent']} value={tags} onChange={setTags}
+      removeLabel={tag => `Remove ${tag}`} isRequired
+      onBlur={() => setTouched(true)} aria-invalid={invalid}
+      aria-describedby={invalid ? 'tags-error' : undefined} />
+    {invalid && <p id="tags-error">Select at least one tag.</p>}
+  </>
+}
+```

@@ -3,6 +3,8 @@ import { PropertyIndex as SharedPropertyIndex } from '../_property-index'
 export { PropertySignature } from '../_property-index'
 
 const properties = [
+  { name: 'portal', href: '#portal' },
+  { name: 'portalZIndex', href: '#portalzindex' },
   { name: 'value', href: '#value' },
   { name: 'placeholder', href: '#placeholder' },
   { name: 'isRequired', href: '#isrequired' },

@@ -139,7 +139,8 @@ Named-month and weekday formats remain picker-only.
 
 The JavaScript calendar moves focus to an enabled day when opened. Arrow keys
 navigate, Enter/Space selects, and Escape returns to the opening control. Tab
-closes the calendar and continues the form's natural focus order. Native mobile
+closes the calendar and continues the form's natural focus order. JavaScript calendars preserve the input’s local `.dark` theme,
+`--rc-color-primary`, and font, including ancestor class/style updates. Native mobile
 pickers retain the operating system's interactions. InputNumber announces a
 spinbutton only when `step` is configured; otherwise it is a numeric textbox.
 

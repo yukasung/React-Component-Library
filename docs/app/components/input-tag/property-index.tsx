@@ -3,6 +3,12 @@ import { PropertyIndex as SharedPropertyIndex } from '../_property-index'
 export { PropertySignature } from '../_property-index'
 
 const properties = [
+  { name: 'name', href: '#name' },
+  { name: 'ref', href: '#ref' },
+  { name: 'onBlur', href: '#onblur' },
+  { name: 'isReadOnly', href: '#isreadonly' },
+  { name: 'isRequired', href: '#isrequired' },
+  { name: 'Validation ARIA', href: '#validation-aria' },
   { name: 'id', href: '#id' },
   { name: 'ariaLabel', href: '#arialabel' },
   { name: 'options', href: '#options' },

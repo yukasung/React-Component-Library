@@ -313,6 +313,37 @@ export function useFlatpickrCalendar({
   }, [])
 
   useEffect(() => {
+    const instance = instanceRef.current
+    const calendar = instance?.calendarContainer
+    const anchor = positionElementRef.current
+    if (!instance || !calendar || !anchor) return
+    // Body portals no longer inherit the field's local theme. Copy only the
+    // tokens this calendar consumes; leave placement and DOM ownership intact.
+    const syncTheme = () => {
+      const computed = getComputedStyle(anchor)
+      calendar.toggleAttribute('data-rc-dark', !!anchor.closest('.dark'))
+      const primary = computed.getPropertyValue('--rc-color-primary').trim()
+      if (primary) calendar.style.setProperty('--rc-color-primary', primary)
+      else calendar.style.removeProperty('--rc-color-primary')
+      calendar.style.fontFamily = computed.fontFamily
+    }
+    syncTheme()
+    const observer = new MutationObserver(syncTheme)
+    for (let node: HTMLElement | null = anchor; node; node = node.parentElement) {
+      observer.observe(node, { attributes: true, attributeFilter: ['class', 'style'] })
+    }
+    const openHooks = instance.config.onOpen
+    openHooks.push(syncTheme)
+    window.addEventListener('resize', syncTheme)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', syncTheme)
+      const index = openHooks.indexOf(syncTheme)
+      if (index !== -1) openHooks.splice(index, 1)
+    }
+  }, [positionElementRef])
+
+  useEffect(() => {
     updateCalendar(instanceRef.current, (instance) => instance.set('dateFormat', format))
   }, [format])
 
