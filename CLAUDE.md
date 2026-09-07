@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `InputTime`, `InputDateTime`, `Grid`) styled with Tailwind CSS v4. Ships as an ESM package built from `src/` into `dist/`. React and Tailwind CSS are peer dependencies, not bundled.
+Internal reusable React 19 + TypeScript UI component library (`InputNumber`, `InputDate`, `InputTime`, `InputDateTime`, `InputTag`) styled with Tailwind CSS v4. Ships as an ESM package built from `src/` into `dist/`. React and Tailwind CSS are peer dependencies, not bundled.
 
 The repo contains **two independent npm projects**:
 - **Root** (`package.json`) — the component library itself, plus a `demo/` playground app.
@@ -50,13 +50,13 @@ Most boolean props follow native HTML/React convention (`truncate`, `handleWheel
 
 ### The prop surface is scoped to Wijmo's, minus the open state
 
-Every prop on these components either exists on the corresponding Wijmo control, or is structurally required by React. Nothing else. Props that were invented here and have since been removed on that basis: `hint` (helper text below the field — Wijmo has only `placeholder`), `precision` on `InputNumber` (decimal places now come from `step`, or from `format` when one is given, exactly as Wijmo does it), and `closeOnSelection` on `InputTime` (Wijmo has it on `InputDate`, which keeps it, but not on `InputTime`, which derives from `ComboBox`).
+The scalar controls use Wijmo as an API reference, with deliberate React, localization, and popup integration additions. InputTag has its own array-value and form integration API; see README.md. Props that were invented here and have since been removed on that basis: `hint` (helper text below the field — Wijmo has only `placeholder`), `precision` on `InputNumber` (decimal places now come from `step`, or from `format` when one is given, exactly as Wijmo does it), and `closeOnSelection` on `InputTime` (Wijmo has it on `InputDate`, which keeps it, but not on `InputTime`, which derives from `ComboBox`).
 
 Before adding a prop, check the Wijmo API page for that control. Casing may differ (`showDropdownButton` vs `showDropDownButton`, `maxDropdownHeight` vs `maxDropDownHeight`) and events become `on*` props (`valueChanged` → `onChange`, `textChanged` → `onTextChange`) — those are the same prop, not new surface.
 
 The React-structural exceptions, which have no Wijmo counterpart because Wijmo isn't React and are **not** candidates for removal: `defaultValue` (uncontrolled mode), the `on*` callbacks above, forwarded `ref`, and everything inherited from `InputHTMLAttributes` (`className`, `id`, `name`, …).
 
-`InputDate`'s `locale` is a deliberate addition rather than an oversight: Wijmo switches culture globally for the whole app, so it has no per-control equivalent, and Buddhist Era has no Wijmo equivalent at all.
+`portal` and `portalZIndex` on the time controls are supported integration props. `InputDate` and `InputDateTime` share the per-control `locale` addition. `InputDate`'s `locale` is a deliberate addition rather than an oversight: Wijmo switches culture globally for the whole app, so it has no per-control equivalent, and Buddhist Era has no Wijmo equivalent at all.
 
 ### Dropdown open state never leaves the component
 
@@ -66,13 +66,19 @@ This is deliberately **narrower than Wijmo**, which has both halves (`isDroppedD
 
 Note this is the one place the library breaks its own "Wijmo event → `on*` prop" mapping (`valueChanged` → `onChange`, `textChanged` → `onTextChange`) — deliberately, and only here.
 
-### `step` is the sole condition for the spin buttons / time dropdown (matches Wijmo)
+### Stepping and popup visibility
 
-There is no `showSpinButtons` prop. `step` (type `number | null`, default unset/`null`) is the *only* thing that determines whether the spin buttons, Arrow-key stepping, and `handleWheel` are active — matching Wijmo's actual behavior exactly (its `step` doc explicitly says the default `null` "hides the spinner buttons from the control"). No step means no defined increment amount, so there's nothing for any of those three interactions to step by; all three are gated on `typeof step === 'number'` (see `hasStep` in `InputNumber.tsx`). Any `InputNumber` usage that wants a visible spinner must pass an explicit `step`.
+`InputNumber.step` (`number | null`, default `null`) enables Arrow-key stepping,
+optional wheel handling, and spinbutton semantics when it is numeric. Visible
+spin buttons additionally require `showSpinButtons={true}` (default `false`).
+Without a numeric step, the input has textbox semantics.
 
 `InputTime` applies the same rule to its own dropdown: `step` there is the number of *minutes* between entries in the time list, and is likewise the only thing that decides whether the list, the dropdown button, Arrow-key stepping and `handleWheel` exist at all (`hasStep`/`hasDropdown` in `InputTime.tsx`). The only difference is the default — `15`, matching Wijmo's `InputTime`, versus `InputNumber`'s `null`. Note `InputTime`'s Arrow keys move through the *generated list*, not by raw minute arithmetic, so an off-grid value snaps onto the list rather than carrying its remainder forever (`stepThroughTimes` in `src/lib/time.ts`).
 
-Wijmo (`developer.mescius.com/wijmo`) is used as an API/UX reference only — never copy its source or add a runtime dependency on it. `references/tailadmin-react/` (gitignored) is a visual styling reference only — never copy its source or add a runtime dependency on it, **with one deliberate, scoped exception**: `InputDate`'s calendar dropdown is permitted to depend on and adapt `references/tailadmin-react/src/components/form/date-picker.tsx`, specifically via a real runtime dependency on `flatpickr` (an MIT-licensed third-party calendar library, listed in `dependencies` and bundled into `dist/index.js`, unlike React/Tailwind which stay external peer dependencies). This exception applies only to `InputDate`'s calendar popup — every other component, and every other use of `references/tailadmin-react/`, still follows the general visual-reference-only rule with no runtime dependency. In particular `InputTime` does **not** use flatpickr (see below), and adding a second component to this exception would need its own decision, not an assumption that "the library already depends on flatpickr anyway".
+Wijmo is an API/UX reference, not a runtime dependency. The existing calendar
+integration uses flatpickr 4.6.13 through `useFlatpickrCalendar`, shared by
+`InputDate` and `InputDateTime`. `InputTime` uses a React-rendered time list.
+The visual reference under `references/tailadmin-react/` is not a dependency.
 
 ### `InputTime` deliberately does not use flatpickr
 
@@ -122,9 +128,13 @@ Anything that replaces the value while the field stays focused (an Arrow-key ste
 
 ### `InputDate` + flatpickr: DOM-ownership escape hatch (required, not optional)
 
-flatpickr mutates the DOM outside React's tracking — in `static: true` mode it wraps whatever element it's bound to in a new `.flatpickr-wrapper` div it creates itself, moving that element inside. If flatpickr is bound directly to a JSX-managed `<input ref={...} />` that React itself renders and later needs to remove, React's own commit-phase DOM removal (which runs *before* `useEffect` cleanups fire) still expects that input to be a direct child of the parent React originally committed it under. Since flatpickr has since moved it into `.flatpickr-wrapper`, React's `removeChild` call fails immediately with `NotFoundError: The node to be removed is not a child of this node` — confirmed to reproduce on a plain single mount+unmount, not just under `StrictMode`'s double-invoke.
-
-The fix, and the pattern `InputDate` must use: render an **empty, React-opaque `<div ref={containerRef} />`** in JSX (React commits and tracks only this one div, never diffing anything inside it), then in `useEffect` **imperatively** `document.createElement` the actual input flatpickr binds to and `appendChild` it into that div. flatpickr's wrap/unwrap dance then happens entirely inside a subtree React was never tracking node-by-node, so `instance.destroy()` on cleanup is safe, and whenever React itself removes the outer container div, it does so as one atomic operation that doesn't care what flatpickr rearranged inside it. This is the standard React pattern for any third-party library that mutates DOM structure outside React's control (same category as jQuery-plugin/Google-Maps-widget wrappers) — don't bind flatpickr to a JSX-rendered leaf node directly, even though that looks simpler.
+`useFlatpickrCalendar` creates a hidden input imperatively inside an empty,
+React-owned host div. React does not reconcile the plugin-owned descendants;
+cleanup destroys the instance and removes its input. Both date controls share
+this integration. The current configuration uses `static: false`: the calendar
+is appended to the body, receives the `rc-scalar` style scope, and is positioned
+against the visible input. Do not describe the current popup as a static wrapper.
+The opaque host preserves DOM ownership boundaries during unmount and StrictMode.
 
 ### `InputDate` Buddhist Era (`locale="th"`): why the year-header spinner is replaced, not patched
 
@@ -150,7 +160,7 @@ Arrow keys (and the wheel, and Alt+Arrow's popup gesture) follow **the group the
 
 ### `src/lib/dateTime.ts` has its own parser on purpose
 
-The one thing `InputDateTime` couldn't borrow. Neither existing parser can read a combined draft: flatpickr's (which `parseDateDraft` delegates to) has an **empty** `tokenRegex.K`, so `"2026-08-18 02:30 PM"` comes back as 02:30 — the same limitation that made `time.ts` write its own — and splitting the typed text into a date part and a time part to hand each to its own parser needs exactly the "which digits belong to which token" answer that only a regex over the whole format has (see `unshiftYearInDraft`'s note on `"26/01/26"`). So the format is compiled into one cached regex across every token and the components are assembled here, with the Buddhist-Era shift becoming a single subtraction on the captured year rather than a splice back into the text.
+The one thing `InputDateTime` couldn't borrow. Neither existing parser can read a combined draft: flatpickr's (which `parseDateDraft` delegates to) has an **empty** `tokenRegex.K`, so `"2026-08-18 02:30 PM"` comes back as 02:30 — the same limitation that made `time.ts` write its own — and splitting the typed text into a date part and a time part to hand each to its own parser needs exactly the "which digits belong to which token" answer that only a regex over the whole format has (see `unshiftYearInDraft`'s note on `"26/01/26"`). So the format is compiled into one cached regex across every token and the components are assembled here, with the Buddhist-Era shift applied to the captured year. Four-digit years subtract the offset; two-digit years resolve within Gregorian 2000–2099 using the shifted suffix. Formats without a year use the current Gregorian year.
 
 What it does *not* restate: the token sets and their widths/ranges come from `date.ts` (`DATE_TOKENS`, `DATE_TOKEN_MASK`) and `time.ts` (`TIME_TOKENS`, `TIME_TOKEN_MASK`), which are exported for this and nothing else. Adding a token to either belongs there, not here.
 
@@ -158,7 +168,13 @@ What it does *not* restate: the token sets and their widths/ranges come from `da
 
 - `demo/vite.config.ts` aliases the package name `@yukasung/react-components` straight to `src/index.ts` — it imports library source directly for live dev, never `dist/`.
 - `docs/next.config.mjs` aliases `@yukasung/react-components` straight to `src/index.ts` too (via `transpilePackages` + a `webpack`/`turbopack` `resolveAlias`), the same live-source pattern as `demo/` — **not** the built `dist/` output, despite `docs/package.json` still listing `"@yukasung/react-components": "file:.."` as a dependency (kept only as a type-resolution fallback). Editing `src/` shows up in `docs/`'s dev server immediately, with no `npm run build` step needed in between.
-- **`docs/` has to import the calendar CSS itself** (`docs/app/globals.css` imports `flatpickr/dist/flatpickr.css` and `src/components/InputDate/flatpickr-theme.css` directly). The library funnels both through `src/style.css`, which `src/index.ts` imports as a side effect — but Next's barrel optimization (`optimizePackageImports`, on by default) resolves this site's named imports straight to the source modules and never pulls in `src/index.ts`, so that CSS side effect is dropped and the flatpickr popup renders completely unstyled (in-flow, one weekday letter per line). `demo/` doesn't hit this because Vite keeps the side-effect import. Keep the two `@import`s in sync with `src/style.css` if that file's list changes.
+- **`docs/` imports the generated styles explicitly**: `docs/app/globals.css`
+  imports `src/scalar-utilities.css` and `src/components/InputTag/input-tag.css`
+  to mirror `src/style.css`, because Next's barrel optimization can bypass the
+  root CSS side effect. Calendar styles are included in the generated scalar
+  stylesheet. Run `npm run generate:styles` after scalar class/theme changes;
+  live source aliasing does not regenerate that file.
+
 
 ### `vite-plugin-dts` tsconfig gotcha
 

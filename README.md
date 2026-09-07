@@ -6,9 +6,13 @@ React, ReactDOM, and Tailwind CSS are peer dependencies — this package does no
 
 ## Requirements
 
-- Node.js ≥ 20
-- React ≥ 19
-- Tailwind CSS ≥ 4
+- React and ReactDOM 19.x
+- Tailwind CSS 4.x
+- ESM imports; CommonJS `require()` is not an exported entry point.
+
+The published package declares Node.js ≥ 20 for Node-based consumers/tooling.
+The controls run in the browser; this declaration does not describe the
+requirements of the repository’s development dependencies (see Development).
 
 ## Installation
 
@@ -32,6 +36,7 @@ npm install @yukasung/react-components@0.1.0
 import '@yukasung/react-components/style.css'
 
 import { InputNumber } from '@yukasung/react-components/input-number'
+import { useState } from 'react'
 
 function Example() {
   const [value, setValue] = useState<number | null>(0)
@@ -145,10 +150,38 @@ defaults to 50. Set `portal={false}` to keep a list inside its field's container
 field's local dark theme and `--rc-color-primary` value. The demo includes an
 overflow-container example.
 
+### Date helper compatibility
+
+`formatDateValue(value, format, yearOffset?, locale?)` and
+`parseDateDraft(raw, format, yearOffset?, locale?)` are exported from both the
+root and `/input-date` entry points. Their optional `locale` argument currently
+uses `flatpickr.CustomLocale`; it is a third-party type in the public API.
+The package pins flatpickr to `4.6.13`. Existing locale objects remain supported;
+no library-owned replacement type or migration is required in this release.
+Consumers that import flatpickr locale modules directly should declare their
+own compatible flatpickr dependency instead of relying on dependency hoisting.
+
+This helper argument differs from the components’ `locale="en" | "th"` prop.
+A helper locale supplies names and labels; Buddhist-era conversion requires
+`yearOffset=543` separately. Values remain JavaScript `Date` objects with
+Gregorian years in local time. `parseDateDraft` returns `null` for empty input
+and `undefined` for invalid input, and accepts numeric date formats only;
+localized month-name formats are supported for display with `formatDateValue`.
+Any future replacement of the third-party type needs a compatibility review
+and migration documentation before changing these signatures.
+
 ## Development
 
+The locked root development tools require **Node.js 20.19+ on the 20.x line,
+22.13+ on the 22.x line, or 24+** (`^20.19.0 || ^22.13.0 || >=24.0.0`).
+In particular, jsdom 29 used by the tests excludes earlier Node 20/22 releases
+and Node 21/23. This is stricter than the published package’s `engines` field;
+it does not raise the runtime minimum for library consumers.
+Use `npm ci` to reproduce the root lockfile. The docs site has a separate
+lockfile and setup described in [docs/README.md](docs/README.md).
+
 ```bash
-npm install
+npm ci
 npm run dev         # demo/playground app at localhost:5173
 npm run build        # build the library (src/ -> dist/)
 npm run typecheck    # type-check the whole project (tsc --build)
@@ -163,7 +196,7 @@ A separate Next.js + Nextra docs site lives in [`docs/`](docs/) with its own `pa
 
 ```bash
 cd docs
-npm install
+npm ci
 npm run dev   # docs site at localhost:3000
 ```
 
