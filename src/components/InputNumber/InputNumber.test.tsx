@@ -5,6 +5,31 @@ import userEvent from '@testing-library/user-event'
 import { InputNumber } from './InputNumber'
 
 describe('InputNumber', () => {
+  it('commits a previous value after an external controlled value change', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(<InputNumber value={1} onChange={onChange} isRequired={false} />)
+    const input = screen.getByRole('spinbutton')
+    expect(input).toHaveValue('1')
+
+    rerender(<InputNumber value={9} onChange={onChange} isRequired={false} />)
+    expect(input).toHaveValue('9')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await user.type(input, '1')
+    await user.keyboard('{Enter}')
+
+    expect(input).toHaveValue('1')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(1)
+
+    // The parent has not accepted the commit yet. Rendering the same
+    // controlled value must not reset deduplication before blur.
+    rerender(<InputNumber value={9} onChange={onChange} isRequired={false} />)
+    await user.tab()
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
   it('passes through id, name, placeholder, and className', () => {
     render(
       <InputNumber id="qty" name="quantity" placeholder="Enter a number" className="custom" />,

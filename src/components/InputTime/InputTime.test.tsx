@@ -23,6 +23,31 @@ function at(hours: number, minutes = 0): Date {
 }
 
 describe('InputTime', () => {
+  it('commits a previous value after an external controlled value change', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(<InputTime value={at(9)} onChange={onChange} isRequired={false} />)
+    const input = screen.getByRole('combobox')
+    expect(input).toHaveValue('09:00')
+
+    rerender(<InputTime value={at(21, 5)} onChange={onChange} isRequired={false} />)
+    expect(input).toHaveValue('21:05')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await typeInto(user, input, '0900')
+    await user.keyboard('{Enter}')
+
+    expect(input).toHaveValue('09:00')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(at(9))
+
+    // The parent has not accepted the commit yet. Rendering the same
+    // controlled value must not reset deduplication before blur.
+    rerender(<InputTime value={at(21, 5)} onChange={onChange} isRequired={false} />)
+    await user.tab()
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
   it('passes through id, name, placeholder, and className', () => {
     render(<InputTime id="start" name="startTime" placeholder="Pick a time" className="custom" />)
     const input = screen.getByRole('combobox')

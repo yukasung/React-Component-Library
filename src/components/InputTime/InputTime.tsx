@@ -278,6 +278,16 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
   // Tracks the most recently committed value synchronously, independent of
   // whether a controlled parent re-renders with the new `value` prop.
   const lastCommittedRef = useRef(committedValue)
+  // Only an external value change replaces the commit baseline; an unchanged
+  // controlled prop must not undo a local commit awaiting parent acceptance.
+  const previousControlledValueRef = useRef(value)
+  if (
+    isControlled &&
+    (previousControlledValueRef.current === undefined || !timesEqual(value, previousControlledValueRef.current))
+  ) {
+    previousControlledValueRef.current = value
+    lastCommittedRef.current = value
+  }
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
   // See the input's own onMouseDown/onFocus: which group the focus handler

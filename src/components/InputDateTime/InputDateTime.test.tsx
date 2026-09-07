@@ -38,6 +38,31 @@ function moveToGroup(input: HTMLElement, index: number) {
 }
 
 describe('InputDateTime', () => {
+  it('commits a previous value after an external controlled value change', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(<InputDateTime value={new Date(2026, 6, 22, 9, 30)} onChange={onChange} isRequired={false} />)
+    const input = getInput()
+    expect(input).toHaveValue('2026-07-22 09:30')
+
+    rerender(<InputDateTime value={new Date(2026, 6, 23, 14, 45)} onChange={onChange} isRequired={false} />)
+    expect(input).toHaveValue('2026-07-23 14:45')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await typeInto(user, input, '2026-07-22 09:30')
+    await user.keyboard('{Enter}')
+
+    expect(input).toHaveValue('2026-07-22 09:30')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 22, 9, 30))
+
+    // The parent has not accepted the commit yet. Rendering the same
+    // controlled value must not reset deduplication before blur.
+    rerender(<InputDateTime value={new Date(2026, 6, 23, 14, 45)} onChange={onChange} isRequired={false} />)
+    await user.tab()
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
   it('passes through id, name, placeholder and className', () => {
     render(<InputDateTime id="starts" name="startsAt" placeholder="Pick a moment" className="custom" />)
     const input = getInput()

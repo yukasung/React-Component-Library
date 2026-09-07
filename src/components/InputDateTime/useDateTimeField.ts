@@ -167,6 +167,16 @@ export function useDateTimeField({
   // Tracks the most recently committed value synchronously, independent of
   // whether a controlled parent re-renders with the new `value` prop.
   const lastCommittedRef = useRef(committedValue)
+  // Only an external value change replaces the commit baseline; an unchanged
+  // controlled prop must not undo a local commit awaiting parent acceptance.
+  const previousControlledValueRef = useRef(value)
+  if (
+    isControlled &&
+    (previousControlledValueRef.current === undefined || !valuesEqual(value, previousControlledValueRef.current))
+  ) {
+    previousControlledValueRef.current = value
+    lastCommittedRef.current = value
+  }
   const inputRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
   // See handlePointerDown/handleFocus: which group the focus handler highlights

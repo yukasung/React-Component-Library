@@ -20,6 +20,31 @@ function getDateInput(): HTMLInputElement {
 }
 
 describe('InputDate', () => {
+  it('commits a previous value after an external controlled value change', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(<InputDate value={new Date(2026, 6, 1)} onChange={onChange} isRequired={false} />)
+    const input = getDateInput()
+    expect(input).toHaveValue('2026-07-01')
+
+    rerender(<InputDate value={new Date(2026, 6, 9)} onChange={onChange} isRequired={false} />)
+    expect(input).toHaveValue('2026-07-09')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await typeInto(user, input, '2026-07-01')
+    await user.keyboard('{Enter}')
+
+    expect(input).toHaveValue('2026-07-01')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 6, 1))
+
+    // The parent has not accepted the commit yet. Rendering the same
+    // controlled value must not reset deduplication before blur.
+    rerender(<InputDate value={new Date(2026, 6, 9)} onChange={onChange} isRequired={false} />)
+    await user.tab()
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
   it('passes through id, name, placeholder, and className', () => {
     render(<InputDate id="dob" name="dateOfBirth" placeholder="Pick a date" className="custom" />)
     const input = getDateInput()

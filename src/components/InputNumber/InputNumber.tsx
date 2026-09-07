@@ -261,6 +261,13 @@ export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(functi
   // waiting on a render that may never come (e.g. a controlled consumer
   // that doesn't feed the value back).
   const lastCommittedRef = useRef(committedValue)
+  // Only an external value change replaces the commit baseline; an unchanged
+  // controlled prop must not undo a local commit awaiting parent acceptance.
+  const previousControlledValueRef = useRef(value)
+  if (isControlled && value !== previousControlledValueRef.current) {
+    previousControlledValueRef.current = value
+    lastCommittedRef.current = value
+  }
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   // React attaches its synthetic `onWheel` as a passive native listener, so
   // `event.preventDefault()` inside it silently fails and the page scrolls
