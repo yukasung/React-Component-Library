@@ -800,6 +800,27 @@ describe('InputDateTime', () => {
   })
 
   describe('locale="th" (Buddhist Era)', () => {
+    it('commits a typed short Thai year on Enter once, keeping its displayed suffix', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(
+        <InputDateTime locale="th" format="d/m/y H:i" defaultValue={new Date(2025, 0, 1)} onChange={onChange} />,
+      )
+      const input = getInput()
+
+      await user.clear(input)
+      await typeInto(user, input, '18/08/69 09:30')
+      expect(input).toHaveValue('18/08/69 09:30')
+      expect(onChange).not.toHaveBeenCalled()
+
+      await user.keyboard('{Enter}')
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(new Date(2026, 7, 18, 9, 30))
+      expect(input).toHaveValue('18/08/69 09:30')
+
+      await user.tab()
+      expect(onChange).toHaveBeenCalledTimes(1)
+    })
+
     it('displays and parses Buddhist Era years', async () => {
       const user = userEvent.setup()
       const onChange = vi.fn()

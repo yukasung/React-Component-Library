@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   clampDateTime,
   isSameDateTime,
@@ -121,6 +121,28 @@ describe('parseDateTimeDraft', () => {
 
   it('shifts a Buddhist Era year back to Gregorian', () => {
     expect(parseDateTimeDraft('2569-08-18 09:30', 'Y-m-d H:i', 543)).toEqual(new Date(2026, 7, 18, 9, 30))
+  })
+
+  it.each([
+    ['69', 2026],
+    ['00', 2057],
+    ['42', 2099],
+    ['43', 2000],
+  ])('reads Thai short year %s in InputDate’s Gregorian century as %i', (shortYear, year) => {
+    expect(parseDateTimeDraft(`18/08/${shortYear} 09:30`, 'd/m/y H:i', 543)).toEqual(new Date(year, 7, 18, 9, 30))
+  })
+
+  it.each([
+    ['18/08 09:30', 'd/m H:i', new Date(2031, 7, 18, 9, 30)],
+    ['09:30', 'H:i', new Date(2031, 3, 5, 9, 30)],
+  ])('keeps the current Gregorian year for Thai draft %s with format %s', (draft, format, expected) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2031, 3, 5, 12, 0))
+    try {
+      expect(parseDateTimeDraft(draft, format, 543)).toEqual(expected)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reads a 2-digit year as the 2000s', () => {

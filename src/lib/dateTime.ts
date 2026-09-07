@@ -1,4 +1,4 @@
-import { DATE_TOKENS, DATE_TOKEN_MASK, isValidDate } from './date'
+import { DATE_TOKENS, DATE_TOKEN_MASK, isValidDate, unshiftYearInDraft } from './date'
 import type { DateToken } from './date'
 import { escapeRegExp, tokenizeFormat } from './inputMask'
 import type { MaskSegment } from './inputMask'
@@ -156,10 +156,9 @@ interface DateTimeParts {
 // parts don't survive construction (Feb 31, "13" as a month) is rejected
 // rather than rolled over into the next month.
 //
-// `yearOffset` is the Buddhist Era shift — subtracted from the typed year to
-// get back to a Gregorian one. Unlike date.ts, which has to splice a corrected
-// year back into the text before handing it to flatpickr, this parser owns the
-// year digits directly, so the shift is one subtraction.
+// `yearOffset` is the Buddhist Era shift applied only to explicit years.
+// Short years reuse InputDate's shifted suffix and Gregorian 2000s policy;
+// an omitted year already defaults to the current Gregorian year.
 export function parseDateTimeDraft(raw: string, format: string, yearOffset = 0): Date | null | undefined {
   const trimmed = raw.trim()
   if (trimmed === '') return null
@@ -190,16 +189,17 @@ export function parseDateTimeDraft(raw: string, format: string, yearOffset = 0):
     }
     const { min, max } = DATE_TOKEN_MASK[token]
     if (min !== undefined && (value < min || value > max!)) return undefined
-    if (token === 'Y') parts.year = value
-    // A 2-digit year is the 2000s, matching flatpickr's own revFormat.y.
-    else if (token === 'y') parts.year = 2000 + value
+    if (token === 'Y') parts.year = value - yearOffset
+    // The capture already isolates the year, so InputDate's conversion can
+    // read it alone. flatpickr's revFormat.y then places that suffix in 2000s.
+    else if (token === 'y') parts.year = 2000 + Number(unshiftYearInDraft(text, 'y', yearOffset))
     else if (token === 'm' || token === 'n') parts.month = value
     else parts.day = value
   }
-  return assemble(parts, yearOffset)
+  return assemble(parts)
 }
 
-function assemble(parts: DateTimeParts, yearOffset: number): Date | undefined {
+function assemble(parts: DateTimeParts): Date | undefined {
   const { minutes } = parts
   let hours = parts.hours ?? 0
   if (parts.isTwelveHour) {
@@ -214,7 +214,7 @@ function assemble(parts: DateTimeParts, yearOffset: number): Date | undefined {
   // takes today's, the way an InputTime-only value carries whatever day it
   // already had.
   const today = new Date()
-  const year = (parts.year ?? today.getFullYear()) - yearOffset
+  const year = parts.year ?? today.getFullYear()
   const month = (parts.month ?? today.getMonth() + 1) - 1
   const day = parts.day ?? today.getDate()
   const date = new Date(year, month, day, hours, minutes, 0, 0)
