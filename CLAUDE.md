@@ -44,6 +44,8 @@ The draft is only parsed, clamped, and committed (i.e. `onChange` fires) at expl
 
 Pure parsing/formatting/clamping logic lives in `src/lib/number.ts` (`parseDraft`, `formatValue`, `clamp`, `applyPrecision`, etc.) and is unit-tested independently of the component.
 
+This is also the consumer contract for `InputNumber`, `InputDate`, `InputTime`, `InputDateTime`, and `InputTag`: the committed `value` (from `onChange`) is the only thing a form should read to build a backend payload. It is already parsed into the real type (`number`, `Date`, `string[]`) and stripped of the display `format`/mask; the draft/typed text (`onTextChange`, group text mid-edit, etc.) is display-only and is never a valid submission value.
+
 ### Boolean prop naming: `is`-prefix vs. native
 
 Most boolean props follow native HTML/React convention (`truncate`, `handleWheel`, `repeatButtons`, and native passthroughs like `placeholder`). Three props are a deliberate exception: `isRequired`, `isReadOnly`, `isDisabled` use Wijmo's `is`-prefixed naming instead of the native `required`/`readOnly`/`disabled` convention, to match the Wijmo API these components are modeled after. Internally each still maps to the real native HTML attribute on the underlying `<input>` (e.g. `required={isRequired}`) — only the public React prop name differs. This split is intentional, not an oversight. `InputTime`'s `isEditable` (mirroring Wijmo's own `isEditable`) belongs to the exception set too.
