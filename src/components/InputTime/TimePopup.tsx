@@ -1,13 +1,15 @@
 import { useLayoutEffect, useState } from 'react'
 import type { CSSProperties, HTMLAttributes, RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { DEFAULT_POPUP_Z_INDEX, readPopupZIndex } from '../../lib/layering'
 
 interface TimePopupProps extends HTMLAttributes<HTMLDivElement> {
   anchorRef: RefObject<HTMLDivElement | null>
   listRef: RefObject<HTMLDivElement | null>
   maxHeight: number
   portal: boolean
-  portalZIndex: number
+  // Undefined leaves the layer to --rc-z-popup, then to DEFAULT_POPUP_Z_INDEX.
+  portalZIndex: number | undefined
 }
 
 interface Placement {
@@ -18,6 +20,7 @@ interface Placement {
   dark: boolean
   fontFamily: string
   primary: string
+  zIndex: string
   visible: boolean
 }
 
@@ -54,6 +57,7 @@ export function TimePopup({ anchorRef, listRef, maxHeight, portal, portalZIndex,
         dark: !!anchor.closest('.dark'),
         fontFamily: computed.fontFamily,
         primary: computed.getPropertyValue('--rc-color-primary').trim(),
+        zIndex: readPopupZIndex(anchor) ?? String(DEFAULT_POPUP_Z_INDEX),
         visible: rect.bottom >= viewportTop && rect.top <= viewportTop + viewportHeight,
       }
       setPlacement(previous => previous && Object.keys(next).every(key => previous[key as keyof Placement] === next[key as keyof Placement]) ? previous : next)
@@ -88,7 +92,8 @@ export function TimePopup({ anchorRef, listRef, maxHeight, portal, portalZIndex,
     width: placement?.width,
     maxHeight: placement?.maxHeight ?? maxHeight,
     margin: 0,
-    zIndex: portalZIndex,
+    // An explicit prop wins over the application's token, which wins over ours.
+    zIndex: portalZIndex ?? placement?.zIndex ?? DEFAULT_POPUP_Z_INDEX,
     visibility: placement?.visible ? 'visible' : 'hidden',
     fontFamily: placement?.fontFamily,
     '--rc-color-primary': placement?.primary || undefined,

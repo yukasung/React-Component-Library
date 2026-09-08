@@ -5,6 +5,7 @@ import {
   DisabledDemo,
   FormatDemo,
   HandleWheelDemo,
+  InModalDemo,
   IsRequiredDemo,
   LocaleDemo,
   MaxDropdownHeightDemo,
@@ -444,12 +445,26 @@ control นี้มีปุ่มสองปุ่มที่ขอบขว
 
 <PropertySignature name="portalZIndex" type="number" />
 
-ค่าเริ่มต้น `100000` เนื่องจากรายการเวลาแบบ portal เป็นลูกของ `<body>` จึงต้องเรียงชั้นกับ overlay ของ application เช่น modal/drawer ไม่ใช่กับฟิลด์ข้างเคียง ค่าเริ่มต้นนี้จึงอยู่เหนือชั้น overlay ทั่วไป ปรับค่าได้หากแอปกำหนดชั้น z-index เอง
+กำหนดชั้นการซ้อนของรายการเวลาเฉพาะฟิลด์นั้น เนื่องจากรายการเวลาแบบ portal เป็นลูกของ `<body>` จึงต้องเรียงชั้นกับ overlay ของ application เช่น modal/drawer ไม่ใช่กับฟิลด์ข้างเคียง หากไม่กำหนด ค่าจะมาจาก CSS custom property `--rc-z-popup` ที่ตั้งไว้บนฟิลด์หรือ element ใดก็ได้ที่อยู่เหนือขึ้นไป และหากไม่ได้ตั้งไว้เช่นกันจะใช้ `100000`
+
+ปกติแล้วแอปควรตั้ง `--rc-z-popup` ครั้งเดียวให้ครอบคลุมทุก popup แทนการส่ง prop นี้ทีละฟิลด์ ใช้ `portalZIndex` เมื่อต้องการยกเว้นเฉพาะจุด
+
+```css
+:root {
+  --rc-z-popup: 1100; /* modal ของแอปอยู่ที่ 1000 */
+}
+```
 
 ```tsx
 <InputDateTime defaultValue={new Date()} portalZIndex={100} />
 <InputDateTime defaultValue={new Date()} portal={false} />
 ```
+
+### ฟิลด์ที่อยู่ใน modal
+
+รายการที่ portal ไป `<body>` จะอยู่คนละ stacking context กับฟิลด์ แต่อยู่ context เดียวกับ overlay ของแอป ชั้นของ popup จึงต้องสูงกว่า modal มิฉะนั้นรายการจะเปิดอยู่จริงแต่ถูกบังจนดูเหมือนปุ่มเสีย ลองเปิด modal ด้านล่างแล้วกดปุ่มรายการเวลา
+
+<InModalDemo />
 
 `portal` และ `portalZIndex` ควบคุมเฉพาะรายการเวลา ไม่ได้เปลี่ยนการวาง calendar popup
 

@@ -34,8 +34,12 @@ describe("InputTag stylesheet", () => {
   });
 
   it("keeps portalled menus above application modals", () => {
+    expect(inputTagStylesheet).toContain(".rc-input-tag__menu--portal {");
+    // The layer is the application's to choose; the fallback only has to clear
+    // a typical app overlay when it chooses nothing. See src/lib/layering.ts.
     expect(inputTagStylesheet).toContain(
-      ".rc-input-tag__menu--portal {\n  position: fixed;\n  z-index: 100000;\n}",
+      "z-index: var(--rc-z-popup, 100000);",
     );
+    expect(inputTagStylesheet).not.toContain("z-index: 100000;");
   });
 });

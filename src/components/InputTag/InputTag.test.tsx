@@ -49,6 +49,27 @@ describe('InputTag', () => {
     expect(screen.getByRole('listbox', { name: 'Tags' }).parentElement).toHaveStyle({ zIndex: '10' })
   })
 
+  // The application owns its own layer order; --rc-z-popup lets it place every
+  // portalled popup at once instead of threading a prop through each field.
+  it('takes its layer from the --rc-z-popup token', async () => {
+    const user = userEvent.setup()
+    const host = document.createElement('div')
+    host.style.setProperty('--rc-z-popup', '1100')
+    document.body.appendChild(host)
+
+    try {
+      render(
+        <InputTag ariaLabel="Tags" options={options} portal removeLabel={(tag: string) => `Remove ${tag}`} />,
+        { container: host },
+      )
+      await user.click(screen.getByRole('combobox', { name: 'Tags' }))
+
+      expect(screen.getByRole('listbox', { name: 'Tags' }).parentElement).toHaveStyle({ zIndex: '1100' })
+    } finally {
+      host.remove()
+    }
+  })
+
   it('keeps a portalled menu below a caller-specified top inset', async () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(768)
@@ -277,7 +298,9 @@ describe('InputTag', () => {
     const listbox = screen.getByRole('listbox', { name: 'Tags' })
     const menu = listbox.parentElement as HTMLDivElement
     expect(menu.parentElement).toBe(document.body)
-    expect(menu).toHaveClass('z-[100000]')
+    // The layer is resolved (--rc-z-popup, else the library default) rather
+    // than pinned by a utility class, so assert the value that actually lands.
+    expect(menu).toHaveStyle({ zIndex: '100000' })
     Object.defineProperty(menu, 'scrollHeight', { configurable: true, value: 120 })
     act(() => window.dispatchEvent(new Event('resize')))
     expect(menu).toHaveStyle({ left: '100px', top: '152px', width: '300px' })

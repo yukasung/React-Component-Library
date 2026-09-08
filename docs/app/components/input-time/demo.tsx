@@ -361,3 +361,44 @@ export function DisabledDemo() {
     </div>
   )
 }
+
+// The context the field actually ships in, and the one that used to be missing
+// here: an application overlay that portals into <body> too, so only the layer
+// decides which one the user sees. Kept deliberately plain — the library has no
+// modal of its own, and the point is the stacking, not the dialog.
+export function InModalDemo() {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState<Date | null>(new Date(2026, 6, 22, 9, 30))
+
+  return (
+    <div className="not-prose my-6">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-lg bg-gray-900 px-3 py-2 text-sm text-white dark:bg-white dark:text-gray-900"
+      >
+        เปิด modal
+      </button>
+      {open ? (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900/40 p-4">
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
+            <p className="mb-3 text-sm text-gray-700 dark:text-gray-300">
+              modal นี้อยู่ที่ z-index 1000
+            </p>
+            <InputTime value={value} onChange={setValue} />
+            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+              The current value is {formatCommitted(value)}
+            </p>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="mt-4 text-sm text-gray-500 underline dark:text-gray-400"
+            >
+              ปิด
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}

@@ -636,6 +636,43 @@ describe('InputTime', () => {
       }
     })
 
+    // The application owns its own layer order; --rc-z-popup lets it place
+    // every portalled popup at once instead of threading a prop through each
+    // field. Set on an ancestor, it must cross the portal boundary the same
+    // way --rc-color-primary already does.
+    it('takes its layer from the --rc-z-popup token', async () => {
+      const user = userEvent.setup()
+      const host = document.createElement('div')
+      host.style.setProperty('--rc-z-popup', '1100')
+      document.body.appendChild(host)
+
+      try {
+        render(<InputTime defaultValue={at(9)} />, { container: host })
+        await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+
+        expect(screen.getByRole('listbox')).toHaveStyle({ zIndex: '1100' })
+      } finally {
+        host.remove()
+      }
+    })
+
+    // The prop is the per-field escape hatch, so it has to beat the token.
+    it('lets portalZIndex override the --rc-z-popup token', async () => {
+      const user = userEvent.setup()
+      const host = document.createElement('div')
+      host.style.setProperty('--rc-z-popup', '1100')
+      document.body.appendChild(host)
+
+      try {
+        render(<InputTime defaultValue={at(9)} portalZIndex={7} />, { container: host })
+        await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+
+        expect(screen.getByRole('listbox')).toHaveStyle({ zIndex: '7' })
+      } finally {
+        host.remove()
+      }
+    })
+
     it('lets portalZIndex override the stacking order', async () => {
       const user = userEvent.setup()
       render(<InputTime defaultValue={at(9)} portalZIndex={120} />)

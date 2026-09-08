@@ -1320,5 +1320,8 @@
 :where(.rc-scalar, .rc-scalar *):is(.flatpickr-day.prevMonthDay) {
   color: #98a2b3;
 }
+:where(.rc-scalar, .rc-scalar *):is(.flatpickr-calendar.open) {
+  z-index: var(--rc-z-popup, 100000);
+}
 
 }

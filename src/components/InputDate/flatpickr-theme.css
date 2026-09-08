@@ -371,3 +371,14 @@
 .flatpickr-day.prevMonthDay {
   color: #98a2b3;
 }
+
+/* The calendar is appended to <body> (static: false), so like the time list it
+   competes with the host application's overlays rather than with the field's
+   neighbours. Vendor CSS pins it at 99999, which merely ties with a typical app
+   modal and wins only by DOM insertion order — a tie the app can lose. Route it
+   through the same token the portalled lists use so one field's two popups
+   cannot end up on different layers. Later source order wins the specificity
+   tie with flatpickr.css. See src/lib/layering.ts. */
+.flatpickr-calendar.open {
+  z-index: var(--rc-z-popup, 100000);
+}

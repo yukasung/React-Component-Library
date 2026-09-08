@@ -11,7 +11,7 @@ export interface TimeListProps {
   listRef: RefObject<HTMLDivElement | null>
   anchorRef: RefObject<HTMLDivElement | null>
   portal: boolean
-  portalZIndex: number
+  portalZIndex: number | undefined
   ariaLabel: string
   maxHeight: number
   times: number[]

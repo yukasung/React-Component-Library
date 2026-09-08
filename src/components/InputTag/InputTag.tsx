@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { DEFAULT_POPUP_Z_INDEX, readPopupZIndex } from '../../lib/layering'
 import { ChevronDownIcon, CloseIcon } from './icons'
 
 type MenuPosition = {
@@ -18,6 +19,7 @@ type MenuPosition = {
   readonly top: number
   readonly width: number
   readonly maxHeight: number
+  readonly zIndex: string
 }
 
 export interface InputTagProps extends Pick<AriaAttributes,
@@ -76,7 +78,9 @@ export function InputTag({
   isDisabled = false,
   portal = false,
   portalTopInset = VIEWPORT_INSET,
-  portalZIndex = 100000,
+  // Left undefined on purpose; resolved from --rc-z-popup, then from
+  // DEFAULT_POPUP_Z_INDEX. See lib/layering.ts.
+  portalZIndex,
   className = '',
   maxCustomTagLength,
   maxSelectedTags,
@@ -160,6 +164,7 @@ export function InputTag({
         : triggerRect.bottom + MENU_GAP,
       width,
       maxHeight,
+      zIndex: readPopupZIndex(trigger) ?? String(DEFAULT_POPUP_Z_INDEX),
     })
   }, [portal, portalTopInset])
 
@@ -255,7 +260,7 @@ export function InputTag({
       onPointerDown={(event) => event.stopPropagation()}
       className={
         portal
-          ? 'rc-input-tag__menu rc-input-tag__menu--portal fixed z-[100000] overflow-y-auto rounded-lg bg-white shadow-sm dark:bg-gray-900'
+          ? 'rc-input-tag__menu rc-input-tag__menu--portal fixed overflow-y-auto rounded-lg bg-white shadow-sm dark:bg-gray-900'
           : 'rc-input-tag__menu rc-input-tag__menu--inline absolute left-0 top-full z-40 w-full max-h-select overflow-y-auto rounded-lg bg-white shadow-sm dark:bg-gray-900'
       }
       style={
@@ -265,7 +270,9 @@ export function InputTag({
               top: menuPosition?.top,
               width: menuPosition?.width,
               maxHeight: menuPosition?.maxHeight,
-              zIndex: portalZIndex,
+              // An explicit prop wins over the application's token, which
+              // wins over ours.
+              zIndex: portalZIndex ?? menuPosition?.zIndex ?? DEFAULT_POPUP_Z_INDEX,
               visibility: menuPosition ? 'visible' : 'hidden',
             }
           : undefined

@@ -146,14 +146,38 @@ spinbutton only when `step` is configured; otherwise it is a numeric textbox.
 
 InputTime and InputDateTime time lists use a body portal by default to escape
 overflow containers. They open above or below according to available viewport
-space, constrain their size, and follow scrolling/resizing. `portalZIndex`
-defaults to 100000 — a body-portalled list stacks against the application's
-own overlays (modals, drawers) rather than against the field's neighbours, so
-the default sits above a typical overlay layer. Set `portal={false}` to keep a
-list inside its field's container (for example, inside a native dialog's top
-layer). Portalled lists retain the
-field's local dark theme and `--rc-color-primary` value. The demo includes an
+space, constrain their size, and follow scrolling/resizing. Set
+`portal={false}` to keep a list inside its field's container (for example,
+inside a native dialog's top layer). Portalled lists retain the field's local
+dark theme and `--rc-color-primary` value. The demo includes an
 overflow-container example.
+
+### Layering
+
+A portalled popup is appended to `<body>`, so it leaves the field's stacking
+context and competes with the **application's** overlays instead of with the
+field's neighbours. An application modal at a higher z-index paints straight
+over a popup that only outranks its siblings, and the result reads as a dead
+control: the list is open and focusable, just underneath.
+
+Every portalled surface — the InputTime/InputDateTime time list, the InputTag
+menu, and the InputDate/InputDateTime calendar — resolves its layer the same
+way, in this order:
+
+1. `portalZIndex`, the per-field escape hatch (not available on the calendar).
+2. `--rc-z-popup`, set on the field or any ancestor. This is how an application
+   places every popup at once from its own layer scale, and it crosses the
+   portal boundary the same way `--rc-color-primary` does.
+3. `100000`, which only has to clear a typical application overlay for
+   consumers that set neither.
+
+Set `--rc-z-popup` above whatever layer your modals occupy:
+
+```css
+:root {
+  --rc-z-popup: 1100; /* app modals sit at 1000 */
+}
+```
 
 ### Date helper compatibility
 

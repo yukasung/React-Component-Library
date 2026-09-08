@@ -134,13 +134,10 @@ export const InputDateTime = forwardRef<HTMLInputElement, InputDateTimeProps>(fu
     timeFormat = DEFAULT_TIME_FORMAT,
     maxDropdownHeight = 200,
     portal = true,
-    // A portalled list is a child of <body>, so it competes with the
-    // application's own overlays rather than with its field's neighbours: an
-    // app modal at z-index 99999 painted straight over a list at 50, leaving
-    // the clock button looking inert (the list was open, just underneath).
-    // 100000 is the value InputTag's portalled menu already uses for the same
-    // reason; consumers layering their own stack still override it.
-    portalZIndex = 100000,
+    // Left undefined on purpose: TimePopup resolves the layer from the
+    // application's --rc-z-popup, then from DEFAULT_POPUP_Z_INDEX. See
+    // lib/layering.ts for why a portalled list has to clear app overlays.
+    portalZIndex,
     dropdownIcon,
     dropdownAriaLabel = 'Toggle calendar',
     calendarAriaLabel = 'Calendar',
