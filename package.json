@@ -1,6 +1,6 @@
 {
   "name": "@yukasung/react-components",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "license": "UNLICENSED",
   "description": "Internal reusable React + TypeScript UI component library (InputNumber, InputDate, InputTime, InputDateTime, InputTag) styled with Tailwind CSS v4.",

@@ -26,7 +26,7 @@ Create an access token with the `read:packages` scope, then add the GitHub Packa
 Install the published version:
 
 ```bash
-npm install @yukasung/react-components@0.1.0
+npm install @yukasung/react-components@0.2.0
 ```
 
 ## Usage
@@ -48,7 +48,7 @@ The package compiles the component utilities itself. Do not add its source or `d
 
 Library development: after editing scalar utility classes or the calendar theme, run `npm run generate:styles` to refresh the checked-in stylesheet used by the demo and docs. `npm run build` also regenerates it; `node scripts/generate-scalar-styles.mjs --check` checks for stale generated output.
 
-Published entry points at version `0.1.0` are:
+Published entry points at version `0.2.0` are:
 
 ```ts
 import { InputNumber } from '@yukasung/react-components/input-number'
