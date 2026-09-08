@@ -614,6 +614,37 @@ describe('InputTime', () => {
       expect(onChange.mock.calls[0][0]).toEqual(at(9, 30))
     })
 
+    // Regression, shared with InputDateTime: a portalled list is a child of
+    // <body>, so it stacks against the application's overlays rather than the
+    // field's siblings. The old default of 50 put it under an app modal.
+    it('opens the list above an application overlay', async () => {
+      const user = userEvent.setup()
+      const overlay = document.createElement('div')
+      overlay.style.position = 'fixed'
+      overlay.style.zIndex = '99999'
+      document.body.appendChild(overlay)
+
+      try {
+        render(<InputTime defaultValue={at(9)} />, { container: overlay })
+        await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+
+        const listbox = screen.getByRole('listbox')
+        expect(overlay.contains(listbox)).toBe(false)
+        expect(Number(listbox.style.zIndex)).toBeGreaterThan(Number(overlay.style.zIndex))
+      } finally {
+        overlay.remove()
+      }
+    })
+
+    it('lets portalZIndex override the stacking order', async () => {
+      const user = userEvent.setup()
+      render(<InputTime defaultValue={at(9)} portalZIndex={120} />)
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+
+      expect(screen.getByRole('listbox')).toHaveStyle({ zIndex: '120' })
+    })
+
     it('applies maxDropdownHeight to the list', async () => {
       const user = userEvent.setup()
       render(<InputTime defaultValue={at(9)} maxDropdownHeight={120} />)

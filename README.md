@@ -147,8 +147,11 @@ spinbutton only when `step` is configured; otherwise it is a numeric textbox.
 InputTime and InputDateTime time lists use a body portal by default to escape
 overflow containers. They open above or below according to available viewport
 space, constrain their size, and follow scrolling/resizing. `portalZIndex`
-defaults to 50. Set `portal={false}` to keep a list inside its field's container
-(for example, inside a native dialog's top layer). Portalled lists retain the
+defaults to 100000 — a body-portalled list stacks against the application's
+own overlays (modals, drawers) rather than against the field's neighbours, so
+the default sits above a typical overlay layer. Set `portal={false}` to keep a
+list inside its field's container (for example, inside a native dialog's top
+layer). Portalled lists retain the
 field's local dark theme and `--rc-color-primary` value. The demo includes an
 overflow-container example.
 

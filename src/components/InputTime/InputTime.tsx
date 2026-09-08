@@ -108,6 +108,7 @@ export interface InputTimeProps
   maxDropdownHeight?: number
   /** Render the time list outside clipping containers. Defaults to true. */
   portal?: boolean
+  /** Stacking order for the portalled list. Defaults to 100000, above typical application overlays. */
   portalZIndex?: number
   dropdownIcon?: ReactNode
   dropdownAriaLabel?: string
@@ -181,7 +182,13 @@ export const InputTime = forwardRef<HTMLInputElement, InputTimeProps>(function I
     showDropdownButton = true,
     maxDropdownHeight = 200,
     portal = true,
-    portalZIndex = 50,
+    // A portalled list is a child of <body>, so it competes with the
+    // application's own overlays rather than with its field's neighbours: an
+    // app modal at z-index 99999 painted straight over a list at 50, leaving
+    // the clock button looking inert (the list was open, just underneath).
+    // 100000 is the value InputTag's portalled menu already uses for the same
+    // reason; consumers layering their own stack still override it.
+    portalZIndex = 100000,
     dropdownIcon,
     dropdownAriaLabel = 'Toggle time list',
     optionsAriaLabel = 'Time options',

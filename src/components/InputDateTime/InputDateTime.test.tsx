@@ -879,6 +879,39 @@ describe('InputDateTime', () => {
       })
     })
 
+    // Regression: the list is a child of <body>, so it stacks against the
+    // application's overlays, not the field's siblings. At the old default of
+    // 50 it opened *underneath* an app modal (z-index 99999) — the clock
+    // button read as broken because nothing appeared.
+    it('opens the time list above an application overlay', async () => {
+      const user = userEvent.setup()
+      const overlay = document.createElement('div')
+      overlay.style.position = 'fixed'
+      overlay.style.zIndex = '99999'
+      document.body.appendChild(overlay)
+
+      try {
+        render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} />, { container: overlay })
+        await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+
+        const listbox = screen.getByRole('listbox')
+        // Portalled out of the overlay, so only z-index decides which paints on top.
+        expect(overlay.contains(listbox)).toBe(false)
+        expect(Number(listbox.style.zIndex)).toBeGreaterThan(Number(overlay.style.zIndex))
+      } finally {
+        overlay.remove()
+      }
+    })
+
+    it('lets portalZIndex override the stacking order', async () => {
+      const user = userEvent.setup()
+      render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} portalZIndex={120} />)
+
+      await user.click(screen.getByRole('button', { name: 'Toggle time list' }))
+
+      expect(screen.getByRole('listbox')).toHaveStyle({ zIndex: '120' })
+    })
+
     it('caps the list height with maxDropdownHeight', async () => {
       const user = userEvent.setup()
       render(<InputDateTime value={new Date(2026, 6, 15, 9, 30)} onChange={() => {}} maxDropdownHeight={120} />)

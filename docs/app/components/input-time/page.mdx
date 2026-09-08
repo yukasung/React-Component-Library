@@ -372,7 +372,7 @@ const [text, setText] = useState('09:30')
 
 <PropertySignature name="portalZIndex" type="number" />
 
-ค่าเริ่มต้น `50` กำหนด z-index ของรายการเวลาให้เข้ากับชั้น UI ของ application
+ค่าเริ่มต้น `100000` เนื่องจากรายการเวลาแบบ portal เป็นลูกของ `<body>` จึงต้องเรียงชั้นกับ overlay ของ application เช่น modal/drawer ไม่ใช่กับฟิลด์ข้างเคียง ค่าเริ่มต้นนี้จึงอยู่เหนือชั้น overlay ทั่วไป ปรับค่าได้หากแอปกำหนดชั้น z-index เอง
 
 ```tsx
 <InputTime defaultValue={new Date()} portalZIndex={100} />
