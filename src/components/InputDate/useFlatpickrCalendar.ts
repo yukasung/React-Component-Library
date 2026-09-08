@@ -20,7 +20,9 @@ function focusCalendar(instance: flatpickr.Instance) {
   const day = calendar.querySelector<HTMLElement>(`${enabled}.selected`)
     ?? calendar.querySelector<HTMLElement>(`${enabled}.today`)
     ?? calendar.querySelector<HTMLElement>(enabled)
-  ;(day ?? calendar).focus()
+  // flatpickr calls onOpen before positioning its body-appended popup.
+  // Moving focus must not scroll the page to that temporary position.
+  ;(day ?? calendar).focus({ preventScroll: true })
 }
 
 // set()/setDate() rebuild day nodes. Keep focus inside an open popup only

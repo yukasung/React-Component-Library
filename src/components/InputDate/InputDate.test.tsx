@@ -30,6 +30,15 @@ describe('InputDate', () => {
   })
 
   describe('calendar keyboard focus', () => {
+    it('does not scroll the page when focus enters the calendar before it is positioned', () => {
+      render(<InputDate defaultValue={new Date(2026, 6, 15)} />)
+      const selectedDay = document.querySelector<HTMLElement>('.flatpickr-day.selected')!
+      const focus = vi.spyOn(selectedDay, 'focus')
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle calendar' }))
+      expect(selectedDay).toHaveFocus()
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    })
+
     it('opens from native trigger keyboard activation', async () => {
       const user = userEvent.setup()
       render(<InputDate defaultValue={new Date(2026, 6, 15)} />)
