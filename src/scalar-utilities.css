@@ -1194,6 +1194,12 @@
 }
 :where(.rc-scalar, .rc-scalar *):is(.flatpickr-current-month) {
   padding: 0;
+  height: 2.5rem;
+  overflow: visible;
+}
+:where(.rc-scalar, .rc-scalar *):is(.flatpickr-months .flatpickr-month) {
+  height: 2.5rem;
+  overflow: visible;
 }
 :where(.rc-scalar, .rc-scalar *):is(.flatpickr-current-month .cur-month),
 :where(.rc-scalar, .rc-scalar *):is(.flatpickr-current-month input.cur-year),
