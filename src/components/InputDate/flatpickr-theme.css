@@ -154,25 +154,6 @@
 
 .flatpickr-current-month {
   padding: 0;
-  /* flatpickr's own base CSS fixes both this element and its parent
-     .flatpickr-month at height: 34px with overflow: hidden (sized for its
-     English default, line-height:1, font-size 135%). The line-height fix
-     below gives the text itself 1.75rem of headroom, but that headroom
-     still gets clipped by this ancestor's own fixed 34px/overflow:hidden
-     box — confirmed via a Thai locale screenshot showing the tone/vowel
-     mark above "สิงหาคม" cut off at the box's top edge. Growing the box to
-     match (and letting content overflow it) fixes the clipping at the
-     source instead of just giving the text room it can't use. */
-  height: 2.5rem;
-  overflow: visible;
-}
-
-/* See .flatpickr-current-month above — its own fixed height only matters
-   because the parent .flatpickr-month is *also* fixed at 34px with
-   overflow: hidden in flatpickr's base CSS; both have to grow together. */
-.flatpickr-months .flatpickr-month {
-  height: 2.5rem;
-  overflow: visible;
 }
 
 /* .flatpickr-monthDropdown-months (the <select> flatpickr actually renders
@@ -187,14 +168,26 @@
    name (e.g. "กรกฎาคม") needs real headroom for descenders like ฏ, which
    get visibly clipped at line-height:1. Matching .cur-month/input.cur-year's
    own line-height here isn't just cosmetic parity, it's required for Thai
-   to render correctly at all. */
+   to render correctly at all.
+
+   The two font declarations are !important for the same reason
+   `.flatpickr-calendar.static`'s `position` is, not as a specificity hammer:
+   a consuming app's own form reset (`button, select { font: inherit }` —
+   ordinary, and the exact rule in the MatterSolv frontend) sits *outside*
+   any cascade layer, and unlayered declarations beat every layered one no
+   matter how specific. This stylesheet is imported into a layer, so without
+   `!important` the reset wins, the <select> goes back to inheriting
+   line-height:1 from .flatpickr-current-month, and Thai months clip again —
+   which is what shipped and had to be diagnosed off a computed line-height
+   of 18.9px against a font-size of 18.9px. Important declarations reverse
+   layer order, so this is the one form that survives. */
 .flatpickr-current-month .cur-month,
 .flatpickr-current-month input.cur-year,
 .flatpickr-current-month .flatpickr-monthDropdown-months {
   height: auto;
   padding-top: 0;
-  font-size: 1.125rem;
-  line-height: 1.75rem;
+  font-size: 1.125rem !important;
+  line-height: 1.75rem !important;
   font-weight: 500;
   color: #1d2939;
 }
