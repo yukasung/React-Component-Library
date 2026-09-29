@@ -56,6 +56,17 @@ Wijmo vocabulary. The control must support these:
 | `\` | escapes the next character into a literal | — |
 | anything else | literal, rendered by the control | — |
 
+R2.1a **"Digit" means ASCII `0`-`9`; "letter" means any Unicode letter.**
+The asymmetry is deliberate. `L`/`l`/`A`/`a` exist to hold names and words,
+which must work in any script, and R11.2 says so. `0`/`9`/`#` exist to hold
+the numbers inside a formatted identifier — a phone number, a tax ID, a
+postal code — which are ASCII wherever they are stored, and which
+`inputMode="numeric"` offers an ASCII keypad for. Accepting `๐` there would
+put a digit in the committed raw value that the keyboard the control asked
+for cannot produce and the backend behind it does not expect.
+
+Widening this later is backward-compatible; narrowing it would not be.
+
 R2.2 Case conversion tokens are supported: `>` forces every following letter
 to upper case, `<` to lower case, `|` ends conversion. They occupy no
 position in the rendered text.
@@ -630,7 +641,8 @@ R11.1 No `locale` prop. Nothing in the mask vocabulary is language-dependent
 once R2.3 scopes out the localized separators.
 
 R11.2 Letter classes (`L`, `l`, `A`, `a`) accept any character the platform
-reports as a letter, Thai included. They are not restricted to ASCII.
+reports as a letter, Thai included. They are not restricted to ASCII. The
+digit classes are — see R2.1a for why the two differ.
 
 R11.3 Case conversion (`>`, `<`) applies to characters that have case. Thai
 has none, so those tokens leave Thai characters unchanged rather than

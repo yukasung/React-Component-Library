@@ -76,7 +76,12 @@ export const MAX_CLUSTER_CODE_POINTS = 8
 
 const NONSPACING_MARK = /\p{Mn}/u
 const LETTER = /\p{L}/u
-const DIGIT = /\p{Nd}/u
+// ASCII, while LETTER is not — deliberately. The letter classes exist to hold
+// names and words, which have to work in any script. The digit classes exist
+// to hold the numbers inside a formatted identifier, which are ASCII wherever
+// they are stored, and which the numeric keypad this control asks for cannot
+// produce in any other script.
+const DIGIT = /[0-9]/
 
 // Whether a cluster is one this control will store in a position at all,
 // independently of any class.
@@ -106,10 +111,7 @@ function baseChar(cluster: string): string {
   return Array.from(cluster)[0] ?? ''
 }
 
-// Unicode categories rather than ASCII ranges, for both halves. The letter
-// classes have to be Unicode to accept Thai at all, and restricting the digit
-// classes to ASCII while letters are open would be an asymmetry nothing in
-// the spec asks for.
+// Letters are Unicode, digits are ASCII — see the DIGIT/LETTER notes above.
 export function acceptsCluster(position: MaskPosition, cluster: string): boolean {
   if (position.type !== 'fillable') return false
   if (!isStorableCluster(cluster)) return false

@@ -129,6 +129,16 @@ describe('acceptsCluster', () => {
     })
   }
 
+  // Letters are Unicode so the letter classes work in any script; digits are
+  // ASCII because they hold the numbers inside an identifier.
+  it('accepts a Thai letter but refuses a Thai digit', () => {
+    expect(acceptsCluster(fillable('L'), 'ก')).toBe(true)
+    expect(acceptsCluster(fillable('A'), 'ก')).toBe(true)
+    for (const maskClass of ['0', '9', '#', 'A', 'a'] as const) {
+      expect(acceptsCluster(fillable(maskClass), '\u0E50')).toBe(false)
+    }
+  })
+
   it('never accepts anything into a literal position', () => {
     expect(acceptsCluster({ type: 'literal', text: '-' }, '-')).toBe(false)
   })
