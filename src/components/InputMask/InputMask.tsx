@@ -12,6 +12,7 @@ import {
   caretHome,
   caretLeft,
   caretRight,
+  caretTo,
   commitState,
   deleteForward,
   emptyEntry,
@@ -172,6 +173,18 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
   const lastCommittedRef = useRef(committedValue)
+  // Whether an editing session is open, which decides what a mask arriving
+  // mid-session should do: a focused field has to start editing through it,
+  // an unfocused one has nothing to start.
+  const isFocusedRef = useRef(false)
+  // The raw form of whatever the entry last held, recorded as it was written
+  // and therefore against the pattern in force at the time. A changed mask
+  // re-applies *this*, not the committed value — the edits in progress are
+  // what R12.10 means by the current raw form, and reseeding from the commit
+  // would throw them away.
+  const currentRawRef = useRef<string>('')
+  const patternRef = useRef(pattern)
+  patternRef.current = pattern
 
   useEffect(() => {
     if (pendingSelectionRef.current !== null && inputElementRef.current) {
@@ -205,11 +218,21 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
       previousControlledValueRef.current = value
       lastCommittedRef.current = value
     }
-    const moved = baseline !== previousBaselineRef.current || mask !== previousMaskRef.current
+    const maskChanged = mask !== previousMaskRef.current
+    const moved = baseline !== previousBaselineRef.current || maskChanged
     previousBaselineRef.current = baseline
     previousMaskRef.current = mask
     if (!moved) return
-    setEntry((existing) => (existing ? seedRef.current(baseline) : existing))
+    setEntry((existing) => {
+      const current = patternRef.current
+      // A mask arriving mid-session: the field was unmasked, so there is no
+      // entry to reseed and one has to be started, or the commit on blur goes
+      // down the unmasked branch and reports whatever text was typed before
+      // the mask existed.
+      if (!existing) return isFocusedRef.current && current ? seedRef.current(baseline) : existing
+      if (maskChanged && current) return rawToEntry(current, currentRawRef.current)
+      return seedRef.current(baseline)
+    })
   }, [isControlled, value, baseline, mask])
 
   function seedEntry(source: string): MaskEntry | null {
@@ -224,6 +247,7 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
   function applyEntry(next: MaskEntry, invalid?: InvalidInputInfo) {
     if (!pattern) return
     setEntry(next)
+    currentRawRef.current = entryToRaw(pattern, next)
     const start = positionToOffset(pattern, next, prompt, next.caret.start)
     const end =
       next.caret.end === next.caret.start ? start : positionToOffset(pattern, next, prompt, next.caret.end)
@@ -263,7 +287,9 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
         if (state === 'incomplete') onInvalidInput?.({ reason: 'incomplete' })
       }
       updateDraft(settledText)
-      setEntry(keepEditing ? seedEntry(settledText) : null)
+      const next = keepEditing ? seedEntry(settledText) : null
+      setEntry(next)
+      if (next) currentRawRef.current = entryToRaw(editing.pattern, next)
       return
     }
     // Unmasked: the same rule with its middle branch removed, since
@@ -275,9 +301,13 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
     updateDraft(commit(draft))
   }
 
+  // Escape returns the field to its committed value, which is the contract
+  // every scalar input here shares. Not to the baseline: with a bound `text`
+  // the baseline follows whatever the consumer last mirrored back, so
+  // reverting to it would leave the edit the user just abandoned on screen.
   function revert() {
-    updateDraft(baseline)
-    setEntry(entry === null ? null : seedEntry(baseline))
+    updateDraft(formattedValue)
+    setEntry(entry === null ? null : seedEntry(formattedValue))
   }
 
   function startEditing(el: HTMLInputElement, fromPointer: boolean) {
@@ -285,10 +315,10 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
     const seeded = seedEntry(draft)
     if (!seeded) return
     const offset = fromPointer ? (el.selectionStart ?? 0) : 0
-    const index = offsetToPosition(pattern, seeded, prompt, offset)
-    const placed = selectRange(seeded, { start: index, end: index })
+    const placed = caretTo(pattern, seeded, offsetToPosition(pattern, seeded, prompt, offset))
     setEntry(placed)
-    const at = positionToOffset(pattern, placed, prompt, index)
+    currentRawRef.current = entryToRaw(pattern, placed)
+    const at = positionToOffset(pattern, placed, prompt, placed.caret.start)
     pendingSelectionRef.current = { start: at, end: at }
   }
 
@@ -422,6 +452,7 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
         focusFromPointerRef.current = true
       })}
       onFocus={afterInputEvent((event) => {
+        isFocusedRef.current = true
         const fromPointer = focusFromPointerRef.current
         focusFromPointerRef.current = false
         if (entry === null) startEditing(event.currentTarget, fromPointer)
@@ -432,10 +463,13 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
         // plain click, since a drag leaves a selection worth keeping.
         const el = event.currentTarget
         if (!editing || el.selectionStart !== el.selectionEnd) return
+        // caretTo rather than selectRange: an offset inside a literal resolves
+        // to that literal, and a caret never rests on one.
         const index = offsetToPosition(editing.pattern, editing.entry, prompt, el.selectionStart ?? 0)
-        applyEntry(selectRange(editing.entry, { start: index, end: index }))
+        applyEntry(caretTo(editing.pattern, editing.entry, index))
       })}
       onBlur={afterInputEvent(() => {
+        isFocusedRef.current = false
         commitEntry(false)
       }, rest.onBlur)}
       onKeyDown={composeInputEvent(rest.onKeyDown, handleKeyDown)}

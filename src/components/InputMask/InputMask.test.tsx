@@ -348,12 +348,50 @@ describe('InputMask', () => {
       expect(onChange).not.toHaveBeenCalled()
     })
 
+    // R12.10 re-applies the *current* raw form. Reseeding from the committed
+    // value instead throws away whatever was being typed.
+    it('carries edits in progress across the change', () => {
+      const { rerender } = render(
+        <InputMask aria-label="Field" mask="00" value="12" overwriteMode />,
+      )
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      focus(input)
+      fireEvent.keyDown(input, { key: 'Home' })
+      typeKeys(input, '3')
+      expect(input).toHaveValue('32')
+      rerender(<InputMask aria-label="Field" mask="0-0" value="12" overwriteMode />)
+      expect(input).toHaveValue('3-2')
+    })
+
     it('lets a changed text reach the field, parsed through the mask', () => {
       const { rerender } = render(<InputMask aria-label="Field" mask="00" text="1" />)
       const input = screen.getByLabelText('Field') as HTMLInputElement
       focus(input)
       rerender(<InputMask aria-label="Field" mask="00" text="AB" />)
       expect(input).toHaveValue('__')
+    })
+  })
+
+  describe('a mask arriving while the field is focused', () => {
+    // Without an entry the commit goes down the unmasked branch, where the
+    // typed text is itself a value — so a mask that appeared mid-session was
+    // no mask at all.
+    it('starts editing through it rather than committing unmasked text', () => {
+      const onChange = vi.fn()
+      const { rerender } = render(<InputMask aria-label="Field" onChange={onChange} isRequired={false} />)
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      focus(input)
+      rerender(<InputMask aria-label="Field" mask="00" onChange={onChange} isRequired={false} />)
+      fireEvent.change(input, { target: { value: 'AB' } })
+      fireEvent.blur(input)
+      expect(onChange).not.toHaveBeenCalledWith('AB')
+      expect(input).toHaveValue('')
+    })
+
+    it('does not start one on an unfocused field', () => {
+      const { rerender } = render(<InputMask aria-label="Field" value="12" />)
+      rerender(<InputMask aria-label="Field" mask="00" value="12" />)
+      expect(screen.getByLabelText('Field')).toHaveValue('12')
     })
   })
 
@@ -429,6 +467,32 @@ describe('InputMask', () => {
       )
       rerender(<InputMask aria-label="Field" mask="00" text="34" onTextChange={onTextChange} />)
       expect(onTextChange).not.toHaveBeenCalled()
+    })
+
+    // The baseline follows whatever the consumer last mirrored back, so
+    // reverting to it would leave the abandoned edit on screen.
+    it('returns to the committed value on Escape, not to the bound text', () => {
+      function Bound() {
+        const [mirrored, setMirrored] = useState('12')
+        return (
+          <InputMask
+            aria-label="Field"
+            mask="00"
+            value="12"
+            text={mirrored}
+            onTextChange={setMirrored}
+            overwriteMode
+          />
+        )
+      }
+      render(<Bound />)
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      focus(input)
+      fireEvent.keyDown(input, { key: 'Home' })
+      typeKeys(input, '3')
+      expect(input).toHaveValue('32')
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input).toHaveValue('12')
     })
 
     it('reports the restored text when an invalid blur reverts', () => {
@@ -725,6 +789,15 @@ describe('InputMask', () => {
   it('has no third editability axis on its props', () => {
     const props = { isRequired: true, isReadOnly: true, isDisabled: true }
     expect(Object.keys(props)).not.toContain('isEditable')
+  })
+
+  it('moves the caret off a literal that was clicked', () => {
+    const input = field({ mask: '00-00', value: '1234' })
+    act(() => {
+      input.setSelectionRange(2, 2)
+    })
+    fireEvent.click(input)
+    expect(input.selectionStart).toBe(3)
   })
 
   it('forwards a ref to the input', () => {

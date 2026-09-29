@@ -39,6 +39,7 @@ amended requirement has a visible criterion to amend with it
 | | Criterion | Covers |
 | --- | --- | --- |
 | V3.1 | `onChange` receives the raw form; `onTextChange` receives the formatted text; neither is ever the other | R3.2 |
+| V3.1d | **Escape returns to the committed value, not to a bound `text`** — a consumer mirroring the text back must not keep the abandoned edit on screen | R3.2, standards §4.5 |
 | V3.1a | **`onTextChange` reports a revert.** A field showing `"32"` that Escape returns to `"12"` reports `"12"`, so a consumer mirroring the text is not left holding what the field has stopped showing | R3.2, standards §2.6 |
 | V3.1b | An invalid blur that reverts reports the restored text the same way | R3.2, R3.7 |
 | V3.1c | Setting the `text` prop does not echo back through `onTextChange` | standards §2.6 |
@@ -79,7 +80,7 @@ amended requirement has a visible criterion to amend with it
 | V4.5 | The swallow is consumed once per skipped literal: typing `-` twice after `081` in `000-000-0000` swallows the first and refuses the second | R4.5, R4.6 |
 | V4.5a | **A literal run is a queue**: `mask="00--00"` typed `12--34` produces `12--34`, both dashes swallowed, with no rejection and no `onInvalidInput` | R4.6 |
 | V4.5b | A literal in the queue but not at its head is rejected | R4.6 |
-| V4.5c | The caret never rests on a literal position: a click on one lands on the fillable position after it | R4.5, R9.4 |
+| V4.5c | The caret never rests on a literal position: a click on one lands on the fillable position after it, asserted through the component as well as the model | R4.5, R9.4 |
 | V4.6 | Each of the operations R4.6 names — rejected key, arrow, click, Backspace, Delete, paste, commit, prop re-render — clears the flag, asserted individually | R4.6 |
 | V4.7 | Insert mode shifts within fillable positions across literals; overwrite mode replaces and shifts nothing | R4.7, R12.6, R12.9 |
 | V4.8 | Insert refused all-or-nothing on a class mismatch (`000-LL` cannot shift a digit into a letter position): nothing moves, the key is refused, `onInvalidInput` fires `'character'` | R12.7 |
@@ -202,6 +203,8 @@ amended requirement has a visible criterion to amend with it
 | V12.4 | R12.14's three rows asserted: `text="12"` commits `"12"`; `text="AB"` commits `null` or reverts; `text="1"` reverts | R12.14 |
 | V12.4a | **R12.15's rows asserted separately**, with `value="12"`: `text="34"` commits `"34"`; `text="1"` and `text="AB"` both revert to `"12"` and fire no `onChange` — the `value` is discarded only where the text parses to a complete one | R12.15 |
 | V12.6 | A `mask` changed **while the field is focused** re-applies the current value and fires no `onChange` | R12.10, R12.11 |
+| V12.6a | It re-applies the **edits in progress**, not the committed value: `mask="00"` holding a committed `12` overtyped to `32`, then changed to `0-0`, shows `3-2` | R12.10 |
+| V12.6b | A `mask` **arriving** while the field is focused starts an editing session, so the blur that follows cannot commit unmasked text | R2.9, R12.10 |
 | V12.7 | A `text` changed while the field is focused reaches the field, parsed through the mask | R12.12 |
 | V12.5 | The `text` divergence from `standards.md` §2.6 is stated in the prop's doc comment | R12.12 |
 
