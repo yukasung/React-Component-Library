@@ -486,6 +486,48 @@ describe('a space in an optional position', () => {
   })
 })
 
+describe('the caret after the last position', () => {
+  const p = pattern('00')
+  const full = () => caretEnd(p, rawToEntry(p, '12'))
+
+  // Where the caret already is once the field is full, so End goes there too.
+  it('is where End lands', () => {
+    expect(full().caret).toEqual({ start: 2, end: 2 })
+  })
+
+  it('stays there on a further Right', () => {
+    expect(caretRight(p, full()).caret).toEqual({ start: 2, end: 2 })
+  })
+
+  it('refuses a character in both modes, there being no position to take it', () => {
+    expect(typeInto(p, full(), '9', false).invalid?.reason).toBe('full')
+    expect(typeInto(p, full(), '9', true).invalid?.reason).toBe('full')
+  })
+
+  it('returns to the last position on Left', () => {
+    expect(caretLeft(p, full()).caret).toEqual({ start: 1, end: 1 })
+  })
+
+  // A caret sits before the position it names, so resting *on* the last
+  // position would have made this clear the second-to-last.
+  it('clears the last position on Backspace', () => {
+    expect(entryText(p, backspace(p, full()), PROMPT)).toBe('1_')
+  })
+
+  it('still lets a combining mark join the cluster before it', () => {
+    const letters = pattern('LL')
+    const entry = caretEnd(letters, rawToEntry(letters, 'กข'))
+    const result = typeInto(letters, entry, '\u0E34', false)
+    expect(result.invalid).toBeUndefined()
+    expect(entryText(letters, result.entry, PROMPT)).toBe('กขิ')
+  })
+
+  it('ends after a trailing literal, at the end of the text', () => {
+    const trailing = pattern('00-')
+    expect(caretEnd(trailing, rawToEntry(trailing, '12')).caret.start).toBe(trailing.positions.length)
+  })
+})
+
 describe('backspace and delete', () => {
   it('backspace clears the position before the caret and moves back', () => {
     const p = pattern('000')
@@ -634,6 +676,19 @@ describe('applyText', () => {
       const p = pattern('000-000')
       const entry = caretTo(p, emptyEntry(p), 4)
       expect(entryText(p, applyText(p, entry, '99', PROMPT).entry, PROMPT)).toBe('___-99_')
+    })
+
+    // Sequential means "fill the acceptable clusters consecutively", where
+    // raw means "match by position". The same mask, one cluster apart in
+    // length, answers differently on purpose.
+    it('keeps the acceptable clusters together, dropping without advancing', () => {
+      const p = pattern('0000')
+      expect(entryText(p, applyText(p, emptyEntry(p), '1a2', PROMPT).entry, PROMPT)).toBe('12__')
+    })
+
+    it('differs from the raw step, which matches by position', () => {
+      const p = pattern('0000')
+      expect(entryText(p, applyText(p, emptyEntry(p), '1a23', PROMPT).entry, PROMPT)).toBe('1_23')
     })
 
     it('reports one invalid for the whole paste when something was dropped', () => {

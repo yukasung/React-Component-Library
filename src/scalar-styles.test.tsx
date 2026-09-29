@@ -5,10 +5,10 @@ import postcss from 'postcss'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 const scalarStyles = readFileSync(resolve(process.cwd(), 'src/scalar-utilities.css'), 'utf8')
-import { InputNumber, InputDate, InputTime, InputDateTime } from './index'
+import { InputNumber, InputDate, InputTime, InputDateTime, InputMask } from './index'
 
 describe('standalone scalar style scope', () => {
-  for (const [name, Component] of Object.entries({ InputNumber, InputDate, InputTime, InputDateTime })) {
+  for (const [name, Component] of Object.entries({ InputNumber, InputDate, InputTime, InputDateTime, InputMask })) {
     it(`${name} scopes its input, buttons and popups`, async () => {
       const user = userEvent.setup()
       const { container } = render(<Component />)

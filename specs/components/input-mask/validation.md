@@ -19,6 +19,7 @@ amended requirement has a visible criterion to amend with it
 | V1.3 | `>` upper-cases following letters, `<` lower-cases, `|` ends conversion; none of the three occupies a rendered position | R2.2 |
 | V1.4 | `.` `,` `:` `/` `$` behave as plain literals, with no culture lookup anywhere in the source | R2.3 |
 | V1.5 | An untokenizable mask (trailing `\`) returns `undefined` from the tokenizer, does not throw, and the field falls back to unmasked mode | R2.4 |
+| V1.5a | **A mask with no fillable positions is unmasked**: `"--"` leaves an ordinary text field rather than one that refuses every keystroke and can never hold a value | R2.5a |
 | V1.6 | The rendered width never varies with what is typed | R2.6 |
 
 ## 2. Unmasked mode
@@ -39,6 +40,10 @@ amended requirement has a visible criterion to amend with it
 | | Criterion | Covers |
 | --- | --- | --- |
 | V3.1 | `onChange` receives the raw form; `onTextChange` receives the formatted text; neither is ever the other | R3.2 |
+| V3.1d | **Escape returns to the committed value, not to a bound `text`** — a consumer mirroring the text back must not keep the abandoned edit on screen | R4.17 |
+| V3.1a | **`onTextChange` reports a revert.** A field showing `"32"` that Escape returns to `"12"` reports `"12"`, so a consumer mirroring the text is not left holding what the field has stopped showing | R3.2, standards §2.6 |
+| V3.1b | An invalid blur that reverts reports the restored text the same way | R3.2, R3.7 |
+| V3.1c | Setting the `text` prop does not echo back through `onTextChange` | standards §2.6 |
 | V3.2 | R3.3's table reproduced exactly as test cases: `1_-23` → `"1 23"`, `_1-23` → `" 123"`, `(___) 555-1234` → `"   5551234"`, `(02_) 555-1234` → `"02 5551234"` | R3.3 |
 | V3.3 | Unfilled optional positions raw as U+0020, **not** `promptChar` — asserted with a non-default `promptChar` so the two cannot be confused | R3.3 |
 | V3.4 | Raw **cluster count** always equals the mask's fillable count, for every state including fully empty | R3.3 |
@@ -46,6 +51,7 @@ amended requirement has a visible criterion to amend with it
 | V3.3b | A required position refuses a space | R3.3a |
 | V3.4a | A mask filled with Thai clusters has a raw whose `String.length` exceeds its fillable count, and every rule still holds — proving nothing is implemented against `.length` | R3.3 |
 | V3.5 | **Controlled round trip**: for each case in V3.2, feeding the raw value back as `value` reproduces the identical rendered text | R3.3, R3.5 |
+| V3.5a | **A `value` changed while the field is focused reaches it**: `value="12"`, focus, `value="34"` shows `34`, and the following blur neither restores `12` nor commits it | R4.16, R3.6 |
 | V3.6 | R3.5's four cases: equal-length positional; shorter filled left to right; longer truncated; a character its position rejects leaving that position unfilled and the rest continuing | R3.5 |
 | V3.7 | Applying `value`, `defaultValue`, `text` or a changed `mask` fires no `onChange` | R3.6 |
 | V3.8 | No production code reduces raw to digits; the docs say the consumer does it | R3.4 |
@@ -66,13 +72,16 @@ amended requirement has a visible criterion to amend with it
 | | Criterion | Covers |
 | --- | --- | --- |
 | V4.1 | `onChange` fires only on blur and Enter; typing alone never commits | R4.1 |
+| V4.1a | **One editing session survives its commits**: Enter then blur with nothing changed in between fires `onChange` once, not twice | R4.15, R3.7 |
+| V4.1b | The mask still applies after Enter and after Escape — the field does not fall back to the unmasked branch, where the formatted text would itself be a value | R4.15 |
+| V4.1c | Every commit in a session reports the raw form, never the formatted text | R3.2, R4.1 |
 | V4.2 | A refused character neither appears nor moves the caret | R4.3 |
 | V4.3 | An accepted character fills and advances past literals | R4.4 |
 | V4.4 | **Typing `081-234-5678` into `000-000-0000` one key at a time produces exactly that**, with no rejection and no `onInvalidInput` | R4.5 |
 | V4.5 | The swallow is consumed once per skipped literal: typing `-` twice after `081` in `000-000-0000` swallows the first and refuses the second | R4.5, R4.6 |
 | V4.5a | **A literal run is a queue**: `mask="00--00"` typed `12--34` produces `12--34`, both dashes swallowed, with no rejection and no `onInvalidInput` | R4.6 |
 | V4.5b | A literal in the queue but not at its head is rejected | R4.6 |
-| V4.5c | The caret never rests on a literal position: a click on one lands on the fillable position after it | R4.5, R9.4 |
+| V4.5c | The caret never rests on a literal position: a click on one lands on the fillable position after it, asserted through the component as well as the model | R4.5, R9.4 |
 | V4.6 | Each of the operations R4.6 names — rejected key, arrow, click, Backspace, Delete, paste, commit, prop re-render — clears the flag, asserted individually | R4.6 |
 | V4.7 | Insert mode shifts within fillable positions across literals; overwrite mode replaces and shifts nothing | R4.7, R12.6, R12.9 |
 | V4.8 | Insert refused all-or-nothing on a class mismatch (`000-LL` cannot shift a digit into a letter position): nothing moves, the key is refused, `onInvalidInput` fires `'character'` | R12.7 |
@@ -111,6 +120,8 @@ amended requirement has a visible criterion to amend with it
 | V6.4a | **Ambiguity regression**: the same mask pasted `"1203"` raws to `"1203"`, **not** `"123 "` — the raw interpretation is tried before the sequential one, so a data `0` is never eaten as the literal | R6.1 step 2, R6.2 |
 | V6.4b | No literal position ever contributes a cluster to the raw form, under any of the three steps | R6.2 |
 | V6.4c | A mask with no literals resolves identically under steps 1 and 2 | R6.1 |
+| V6.4d | **Sequential keeps the acceptable clusters together**: `0000` pasted `"1a2"` gives `12__` | R6.1 step 3 |
+| V6.4e | **Raw matches by position**: the same mask pasted `"1a23"` gives `1_23`, so the two interpretations differ deliberately rather than by accident | R6.1 step 2 |
 | V6.5 | A paste with dropped characters applies the rest and fires `onInvalidInput` exactly once with `reason: 'paste'` | R6.3, R8.4 |
 | V6.6 | A paste in which everything was placed fires nothing | R8.4 |
 | V6.7 | Pasting over a selection clears the selected positions first | R6.4 |
@@ -148,7 +159,9 @@ amended requirement has a visible criterion to amend with it
 | V9.1 | The input exposes the `textbox` role — no `combobox`, no `spinbutton`, no explicit `role` attribute | R9.1 |
 | V9.2 | `inputMode` is `numeric` for an all-`0`/`9` mask, `text` when the mask contains `#`, `text` when unmasked | R9.3 |
 | V9.3 | **A consumer-supplied `inputMode` wins** — `inputMode="tel"` survives, proving the derived value sits underneath the spread | R9.3 |
-| V9.4 | Left/Right move one position, Home/End reach the first/last fillable position, Enter commits, Escape reverts, Tab leaves | R9.4 |
+| V9.4 | Left/Right move one position, Home reaches the first fillable position, Enter commits, Escape reverts, Tab leaves | R9.4 |
+| V9.4e | **`End` rests after the last position**, where the caret already sits once the field is full, and a further Right stays there | R4.14, R9.4 |
+| V9.4f | From that position: a character gives `'full'` in both modes, Left returns to the last position, Backspace clears it, and a combining mark still joins the cluster before the caret | R4.14 |
 | V9.4a | **Caret placement is correct across multi-unit clusters**: in `mask="LL"` showing `กิ๊_`, Home then Right puts the caret at the second position — offset 3, not offset 1 | R4.11 |
 | V9.4b | A click at any offset inside a cluster resolves to that cluster's position and never splits it | R4.11 |
 | V9.4c | Highlighting a filled position spans the cluster's full UTF-16 length, not one unit | R4.11 |
@@ -188,7 +201,12 @@ amended requirement has a visible criterion to amend with it
 | V12.2 | `text` is parsed through the mask by the **three-step** algorithm; `mask="00"` with `text="AB"` leaves the field showing `__` rather than `AB` | R12.12 |
 | V12.2a | `mask="00\\000"` with `text="1203"` shows `12003`, not `1230_` — the raw step applies to `text` exactly as it does to a paste | R12.12, R6.1 |
 | V12.3 | Applying `text` fires no `onInvalidInput`, dropped characters included | R12.13 |
-| V12.4 | R12.14's three rows asserted: `text="12"` commits `"12"`; `text="AB"` commits `null` or reverts; `text="1"` reverts — so a `value` the `text` contradicts is discarded at that commit | R12.14, R12.15 |
+| V12.4 | R12.14's three rows asserted: `text="12"` commits `"12"`; `text="AB"` commits `null` or reverts; `text="1"` reverts | R12.14 |
+| V12.4a | **R12.15's rows asserted separately**, with `value="12"`: `text="34"` commits `"34"`; `text="1"` and `text="AB"` both revert to `"12"` and fire no `onChange` — the `value` is discarded only where the text parses to a complete one | R12.15 |
+| V12.6 | A `mask` changed **while the field is focused** re-applies the current value and fires no `onChange` | R4.16, R12.10, R12.11 |
+| V12.6a | It re-applies the **edits in progress**, not the committed value: `mask="00"` holding a committed `12` overtyped to `32`, then changed to `0-0`, shows `3-2` | R4.16, R12.10 |
+| V12.6b | A `mask` **arriving** while the field is focused starts an editing session, so the blur that follows cannot commit unmasked text | R4.16 |
+| V12.7 | A `text` changed while the field is focused reaches the field, parsed through the mask | R4.16, R12.12 |
 | V12.5 | The `text` divergence from `standards.md` §2.6 is stated in the prop's doc comment | R12.12 |
 
 ## 13. Code standards

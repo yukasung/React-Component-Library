@@ -14,7 +14,7 @@ const fail = (message) => {
   throw new Error(`Package verification failed: ${message}`)
 }
 
-const expectedEntries = ['.', './input-number', './input-date', './input-time', './input-date-time', './input-tag']
+const expectedEntries = ['.', './input-number', './input-date', './input-time', './input-date-time', './input-tag', './input-mask']
 
 for (const entry of expectedEntries) {
   const target = manifest.exports?.[entry]
@@ -168,7 +168,7 @@ while (graph.length > 0) {
 
 // Import the public built entry points, not source aliases. This also walks
 // every component's runtime dependency graph and fails on missing chunks.
-const components = ['InputNumber', 'InputDate', 'InputTime', 'InputDateTime', 'InputTag']
+const components = ['InputNumber', 'InputDate', 'InputTime', 'InputDateTime', 'InputTag', 'InputMask']
 const barrel = await import(pathToFileURL(resolve(root, manifest.exports['.'].import)).href)
 for (const [index, entry] of expectedEntries.slice(1).entries()) {
   const name = components[index]

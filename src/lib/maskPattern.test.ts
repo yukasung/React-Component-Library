@@ -102,6 +102,15 @@ describe('resolvePattern', () => {
     expect(resolvePattern('><|')).toBeNull()
   })
 
+  // "--" tokenizes into two literals, leaving a field that refuses every
+  // keystroke for want of somewhere to put it and reports itself empty
+  // forever. That is a field with nothing to fill in.
+  it('returns null for a mask with no fillable positions', () => {
+    expect(tokenizeMask('--')?.positions).toHaveLength(2)
+    expect(resolvePattern('--')).toBeNull()
+    expect(resolvePattern('\\0')).toBeNull()
+  })
+
   it('returns a pattern for a usable mask', () => {
     expect(resolvePattern('000')?.fillableCount).toBe(3)
   })

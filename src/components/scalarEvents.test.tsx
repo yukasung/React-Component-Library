@@ -4,15 +4,25 @@ import { InputNumber } from './InputNumber/InputNumber'
 import { InputDate } from './InputDate/InputDate'
 import { InputTime } from './InputTime/InputTime'
 import { InputDateTime } from './InputDateTime/InputDateTime'
+import { InputMask } from './InputMask/InputMask'
 
+// `selectionOnClick` is what a non-cancelled click leaves behind. The group
+// editors highlight the group the pointer landed in, so the selection has
+// width; InputMask is a caret editor and collapses instead. Both still have
+// to honour a cancelled click by preserving the caret, which is the contract
+// this suite exists to protect — so the shape is per case rather than a
+// reason to leave a control out.
 const cases = [
   { name: 'number', Component: InputNumber, draft: '15' },
   { name: 'date', Component: InputDate, draft: '2026-09-08', format: 'Y-m-d' },
   { name: 'time', Component: InputTime, draft: '15:30', format: 'HH:mm' },
   { name: 'datetime', Component: InputDateTime, draft: '2026-09-08 15:30', format: 'Y-m-d H:i' },
+  // A mask rather than a format, and a caret rather than a group highlight —
+  // see selectionOnClick below.
+  { name: 'mask', Component: InputMask, draft: '123456', mask: '000-000', selectionOnClick: 'caret' },
 ]
 
-describe.each(cases)('$name native events', ({ Component, draft, format }) => {
+describe.each(cases)('$name native events', ({ Component, draft, format, mask }) => {
   it('calls focus and blur once, committing before the consumer blur callback', () => {
     const calls: string[] = []
     const onFocus = vi.fn((event: React.FocusEvent<HTMLInputElement>) => event.preventDefault())
@@ -20,7 +30,7 @@ describe.each(cases)('$name native events', ({ Component, draft, format }) => {
       event.preventDefault()
       calls.push('blur')
     })
-    render(<Component isRequired={false} format={format} onFocus={onFocus} onBlur={onBlur} onChange={() => calls.push('change')} />)
+    render(<Component isRequired={false} format={format} mask={mask} onFocus={onFocus} onBlur={onBlur} onChange={() => calls.push('change')} />)
     const input = document.querySelector('input')!
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: draft } })
@@ -33,7 +43,7 @@ describe.each(cases)('$name native events', ({ Component, draft, format }) => {
   it('lets consumer key cancellation prevent committing and still commits on blur', () => {
     const onChange = vi.fn()
     const onKeyDown = vi.fn((event: React.KeyboardEvent<HTMLInputElement>) => event.preventDefault())
-    render(<Component isRequired={false} format={format} onKeyDown={onKeyDown} onChange={onChange} />)
+    render(<Component isRequired={false} format={format} mask={mask} onKeyDown={onKeyDown} onChange={onChange} />)
     const input = document.querySelector('input')!
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: draft } })
@@ -46,14 +56,14 @@ describe.each(cases)('$name native events', ({ Component, draft, format }) => {
 })
 
 // Number has no pointer behavior to compose; its native props pass through.
-describe.each(cases.slice(1))('$name pointer events', ({ Component, draft, format }) => {
+describe.each(cases.slice(1))('$name pointer events', ({ Component, draft, format, mask, selectionOnClick }) => {
   it('calls pointer consumers once and lets a canceled click preserve the caret', async () => {
     const onMouseDown = vi.fn((event: React.MouseEvent<HTMLInputElement>) => event.preventDefault())
     let cancelClick = true
     const onClick = vi.fn((event: React.MouseEvent<HTMLInputElement>) => {
       if (cancelClick) event.preventDefault()
     })
-    render(<Component isRequired={false} format={format} onMouseDown={onMouseDown} onClick={onClick} />)
+    render(<Component isRequired={false} format={format} mask={mask} onMouseDown={onMouseDown} onClick={onClick} />)
     const input = document.querySelector('input')!
     fireEvent.mouseDown(input)
     act(() => input.focus())
@@ -68,6 +78,10 @@ describe.each(cases.slice(1))('$name pointer events', ({ Component, draft, forma
     cancelClick = false
     fireEvent.click(input)
     expect(onClick).toHaveBeenCalledTimes(2)
-    await waitFor(() => expect(input.selectionEnd! - input.selectionStart!).toBeGreaterThan(0))
+    await waitFor(() => {
+      const width = input.selectionEnd! - input.selectionStart!
+      if (selectionOnClick === 'caret') expect(width).toBe(0)
+      else expect(width).toBeGreaterThan(0)
+    })
   })
 })

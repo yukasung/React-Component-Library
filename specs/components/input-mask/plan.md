@@ -159,6 +159,12 @@ R6.2's literal-vs-data resolution. The raw step is not optional — without it
 the `"1203"` case loses a digit. Reports what was dropped so the component can
 fire one `onInvalidInput`.
 
+In the sequential step a cluster a position refuses is dropped **without
+advancing the target**, so the next cluster is offered the same position.
+That is what separates it from the raw step, deliberately: sequential means
+*fill the acceptable clusters consecutively*, raw means *match by position*,
+and `0000` therefore takes `"1a2"` as `12__` and `"1a23"` as `1_23`.
+
 The same function serves paste (R6.1), the `text` prop (R12.12) and
 autofill/IME (R6.7); all three are whole-string applications, differing only
 in the range they replace.
@@ -166,8 +172,16 @@ in the range they replace.
 2.7 `commitState(pattern, entry)` → `'empty' | 'complete' | 'incomplete'`,
 tested in the order R3.7 fixes (empty first).
 
-2.8 Caret movement: next/previous fillable position, first/last, and the
-literal-skipping of R9.4 — all in **position indices**, never offsets.
+2.8 Caret movement: next/previous fillable position, Home to the first, and
+the literal-skipping of R9.4 — all in **position indices**, never offsets.
+
+`End` is the one that does not name a position: it rests **past** the last
+one (R4.14), which is the ordinary caret at the end of the text and where the
+caret already sits once the field is full. Resting *on* the last position —
+the group editor's rule, where a completed last group stays highlighted —
+does not transfer, because a caret sits before the position it names, so
+overwrite typing there would replace the character just entered and Backspace
+would take the second-to-last.
 
 2.9 **The offset bridge** (R4.11). `slotToOffset(pattern, entry, index)` and
 `offsetToSlot(pattern, entry, offset)`, both computed from the **currently
@@ -231,7 +245,17 @@ through the mask (R12.12).
 `<input>` per §2.10.
 
 4.3 The commit model: draft state, commit on blur and Enter only, Escape
-reverts (§4.1, §4.5). The commit branch implements R3.7 in its fixed order.
+reverts to the committed value (R4.17). The commit branch implements R3.7 in
+its fixed order.
+
+The **session** is the part to get right, and it is where three defects have
+already come from. It opens on focus and closes on blur only, so Enter and
+Escape re-seed rather than clear it (R4.15) — clearing it hands the next
+commit to the unmasked branch, where the mask's literals are part of the
+value. And anything that changes what the field should show has to reach it
+(R4.16): a controlled `value`, a `text` override, a changed `mask`, and a
+mask *arriving* where there was none, which is a creation rather than a
+refresh and needs to know the field is focused.
 Typing, Backspace and Delete read the live selection and clear it first
 (R4.10), so `Ctrl+A` then a digit replaces the field instead of being refused
 as full.

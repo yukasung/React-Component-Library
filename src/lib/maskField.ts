@@ -295,8 +295,18 @@ export function caretHome(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
   return settled(collapsed(firstFillable(pattern)), entry.slots)
 }
 
+// End goes *past* the last position, not onto it — the ordinary caret at the
+// end of the text, and the same place the caret already lands after filling
+// the field.
+//
+// Resting on the last position instead would borrow the group editor's
+// "a completed last group stays highlighted" behaviour, and it does not
+// transfer: a caret sits *before* the position it names, so overwrite typing
+// there would replace the last character the user just entered, and Backspace
+// would take the second-to-last. Neither is what a caret at the end of a
+// field does anywhere else.
 export function caretEnd(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
-  return settled(collapsed(lastFillable(pattern)), entry.slots)
+  return settled(collapsed(pattern.positions.length), entry.slots)
 }
 
 export function selectRange(entry: MaskEntry, range: PositionRange): MaskEntry {
@@ -386,12 +396,9 @@ export function typeInto(
   // A space blanks its position rather than pushing anything along: there is
   // no character arriving for the rest of the field to make room for.
   if (stored !== null && !overwriteMode && slots[index] !== null) {
-    const shifted = shiftRight(pattern, slots, index)
-    if (!shifted.ok) {
-      return {
-        entry: { ...base, owedLiterals: [] },
-        invalid: { reason: shifted.reason, input: cluster, position: shifted.position },
-      }
+    const refusal = shiftRight(pattern, slots, index)
+    if (refusal) {
+      return { entry: { ...base, owedLiterals: [] }, invalid: { ...refusal, input: cluster } }
     }
   }
   slots[index] = stored
@@ -458,14 +465,19 @@ function typeLiteral(pattern: MaskPattern, entry: MaskEntry, cluster: string): E
 // as far as the first empty fillable position at or after it. All-or-nothing
 // and class-checked: a "000-LL" mask cannot shift a digit into a letter
 // position, and silently dropping it would lose data the user can see.
+// Returns undefined when the shift happened, or why it could not.
+// Refusal-or-nothing rather than a tagged success: the caller only ever asks
+// "did this fail, and why", and a discriminated union makes that answer
+// depend on narrowing that not every TypeScript configuration performs the
+// same way.
 function shiftRight(
   pattern: MaskPattern,
   slots: (string | null)[],
   index: number,
-): { ok: true } | { ok: false; reason: 'full' | 'character'; position?: number } {
+): { reason: 'full' | 'character'; position?: number } | undefined {
   const indices = pattern.fillableIndices
   const from = indices.indexOf(index)
-  if (from === -1) return { ok: false, reason: 'full' }
+  if (from === -1) return { reason: 'full' }
 
   // The first empty fillable position at or after the caret is where the
   // displaced characters come to rest. Without one there is nowhere to shift
@@ -473,7 +485,7 @@ function shiftRight(
   // earlier rule had it, the last position being occupied, which refuses a
   // field like "1_3" although its hole is perfectly usable.
   const hole = indices.findIndex((position, ordinal) => ordinal >= from && slots[position] === null)
-  if (hole === -1) return { ok: false, reason: 'full' }
+  if (hole === -1) return { reason: 'full' }
 
   // Everything between the caret and the hole is occupied, by definition of
   // the hole, so each move below carries a real value. Collected and checked
@@ -486,7 +498,7 @@ function shiftRight(
     const value = slots[indices[ordinal - 1]]
     if (target === undefined || value === null) continue
     const cased = applyCase(value, target.caseMode)
-    if (!acceptsCluster(target, cased)) return { ok: false, reason: 'character', position: to }
+    if (!acceptsCluster(target, cased)) return { reason: 'character', position: to }
     moves.push({ to, value: cased })
   }
 
@@ -494,7 +506,7 @@ function shiftRight(
   // The caller fills this position immediately; clearing it keeps the
   // postcondition true for anyone who reads this function on its own.
   slots[index] = null
-  return { ok: true }
+  return undefined
 }
 
 // ----------------------------------------------------------- applying text
