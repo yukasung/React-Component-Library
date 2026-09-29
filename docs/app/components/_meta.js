@@ -4,4 +4,5 @@ export default {
   'input-time': 'InputTime',
   'input-date-time': 'InputDateTime',
   'input-tag': 'InputTag',
+  'input-mask': 'InputMask',
 }
