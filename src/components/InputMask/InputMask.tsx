@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ChangeEvent, ClipboardEvent, InputHTMLAttributes, KeyboardEvent } from 'react'
 import { afterInputEvent, composeInputEvent } from '../../lib/inputEvents'
 import { useSyncedState } from '../../hooks/useSyncedState'
@@ -94,17 +94,6 @@ function inputStateClassName(isDisabled: boolean, isReadOnly: boolean): string {
   return 'border-gray-300 bg-transparent text-gray-800 focus:border-[var(--rc-color-primary,#465fff)] focus:ring-[color-mix(in_srgb,var(--rc-color-primary,#465fff)_20%,transparent)] dark:border-gray-700 dark:bg-gray-900 dark:focus:border-[var(--rc-color-primary,#465fff)]'
 }
 
-// A key the editor acts on itself. Anything else — a modifier chord, a
-// composition, a named key with no meaning here — is left to the browser, and
-// crucially is not preventDefault'ed: Ctrl/Cmd+C, +V, +X, +A and +Z all
-// arrive with a printable `event.key`, and swallowing them would disable the
-// copy and paste this control depends on.
-function isTextEntry(event: KeyboardEvent<HTMLInputElement>): boolean {
-  if (event.ctrlKey || event.metaKey || event.altKey) return false
-  if (event.nativeEvent.isComposing || event.keyCode === 229) return false
-  return splitClusters(event.key).length === 1
-}
-
 export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function InputMask(
   {
     value,
@@ -137,6 +126,7 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
   // below to take that branch deliberately.
   const pattern = resolvePattern(mask)
   const prompt = resolvePromptChar(pattern, promptChar)
+  const wholeField = pattern ? { start: 0, end: pattern.positions.length } : { start: 0, end: 0 }
 
   function formatValue(raw: string | null): string {
     if (raw === null) return ''
@@ -144,19 +134,40 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
     return entryText(pattern, rawToEntry(pattern, raw), prompt)
   }
 
-  const formattedValue = formatValue(committedValue)
-  const [draft, setDraft] = useSyncedState(text !== undefined ? text : formattedValue)
-  function updateDraft(next: string) {
-    if (next !== draft) onTextChange?.(next)
-    setDraft(next)
+  // A `text` override is read *through* the mask rather than written
+  // verbatim. "As if the user had typed it" is kept faithfully — that is
+  // exactly what typing does — while the field's central invariant holds:
+  // what it renders is always a valid rendering of the mask, which is the
+  // only thing a raw value can be derived from. mask="00" with text="AB"
+  // therefore shows the empty field, not "AB".
+  function throughMask(source: string): string {
+    if (!pattern) return source
+    return entryText(pattern, applyText(pattern, emptyEntry(pattern), source, prompt, wholeField).entry, prompt)
   }
 
-  // Editing state for a masked field: created on focus, cleared on commit.
-  // While it exists it is what the field displays, and the draft still holds
-  // the last committed text.
+  const formattedValue = formatValue(committedValue)
+  const baseline = text !== undefined ? throughMask(text) : formattedValue
+  const [draft, setDraft] = useSyncedState(baseline)
+
+  // Editing state for a masked field: created on focus, kept until blur.
+  // While it exists it is what the field displays, and the draft holds the
+  // last committed text.
   const [entry, setEntry] = useState<MaskEntry | null>(null)
   const editing = pattern && entry ? { pattern, entry } : null
   const displayed = editing ? entryText(editing.pattern, editing.entry, prompt) : draft
+
+  // Compared against what the field is *showing*, not against the draft: the
+  // draft does not move while groups are being edited, so a revert back to it
+  // would look like no change at all and the consumer would be left holding
+  // text the field has stopped displaying.
+  function notifyText(next: string) {
+    if (next !== displayed) onTextChange?.(next)
+  }
+
+  function updateDraft(next: string) {
+    notifyText(next)
+    setDraft(next)
+  }
 
   const inputElementRef = useRef<HTMLInputElement | null>(null)
   const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null)
@@ -170,18 +181,40 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
     }
   })
 
+  // A controlled parent may change the value while the field is focused, and
+  // the entry would otherwise go on showing — and then commit — what the
+  // field held before. Publishing after the render commits, rather than
+  // during it, keeps a suspended render from replacing the visible baseline.
+  const previousControlledValueRef = useRef(value)
+  // Read through a ref rather than listed as a dependency: the pattern is
+  // rebuilt every render, so depending on it would re-run this effect every
+  // render for a value that has not changed.
+  const patternRef = useRef(pattern)
+  patternRef.current = pattern
+  useLayoutEffect(() => {
+    if (!isControlled || value === previousControlledValueRef.current) return
+    previousControlledValueRef.current = value
+    lastCommittedRef.current = value
+    const current = patternRef.current
+    setEntry((existing) => (existing && current ? rawToEntry(current, value ?? '') : existing))
+  }, [isControlled, value])
+
+  function seedEntry(source: string): MaskEntry | null {
+    if (!pattern) return null
+    return applyText(pattern, emptyEntry(pattern), source, prompt, wholeField).entry
+  }
+
   // Every edit lands here, so the caret the model chose becomes the caret the
   // browser shows — converted from a position index to a text offset once, at
   // this boundary, against the text this render is about to show.
   function applyEntry(next: MaskEntry, invalid?: InvalidInputInfo) {
     if (!pattern) return
     setEntry(next)
-    const offset = positionToOffset(pattern, next, prompt, next.caret.start)
-    const end = next.caret.end === next.caret.start
-      ? offset
-      : positionToOffset(pattern, next, prompt, next.caret.end)
-    pendingSelectionRef.current = { start: offset, end }
-    onTextChange?.(entryText(pattern, next, prompt))
+    const start = positionToOffset(pattern, next, prompt, next.caret.start)
+    const end =
+      next.caret.end === next.caret.start ? start : positionToOffset(pattern, next, prompt, next.caret.end)
+    pendingSelectionRef.current = { start, end }
+    notifyText(entryText(pattern, next, prompt))
     if (invalid) onInvalidInput?.(invalid)
   }
 
@@ -192,103 +225,133 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
       if (!isControlled) setInternalValue(next)
       onChange?.(next)
     }
-    updateDraft(formatValue(next))
+    return formatValue(next)
   }
 
   // The three-way rule, emptiness first: a mask whose positions are all
   // optional has no required position to be missing, so testing completeness
   // first would report an untouched field complete and commit a row of
   // blanks instead of null.
-  function commitEntry() {
+  //
+  // `keepEditing` is what separates Enter from blur. Enter commits and the
+  // user carries on typing in the same field, so the entry is re-seeded from
+  // what was just committed rather than dropped — dropping it would send the
+  // next commit down the unmasked branch, where "12-34" is a value.
+  function commitEntry(keepEditing: boolean) {
     if (isReadOnly) return
     if (editing) {
       const state = commitState(editing.pattern, editing.entry)
-      setEntry(null)
-      if (state === 'complete') commit(entryToRaw(editing.pattern, editing.entry))
-      else if (state === 'empty' && !isRequired) commit(null)
+      let settledText: string
+      if (state === 'complete') settledText = commit(entryToRaw(editing.pattern, editing.entry))
+      else if (state === 'empty' && !isRequired) settledText = commit(null)
       else {
-        updateDraft(formattedValue)
+        settledText = formattedValue
         if (state === 'incomplete') onInvalidInput?.({ reason: 'incomplete' })
       }
+      updateDraft(settledText)
+      setEntry(keepEditing ? seedEntry(settledText) : null)
       return
     }
     // Unmasked: the same rule with its middle branch removed, since
     // "incomplete" has no meaning where there are no required positions.
     if (draft === '') {
-      if (!isRequired) commit(null)
-      else updateDraft(formattedValue)
+      updateDraft(!isRequired ? commit(null) : formattedValue)
       return
     }
-    commit(draft)
+    updateDraft(commit(draft))
   }
 
-  function startEditing(el: HTMLInputElement, fromPointer: boolean): MaskEntry | null {
-    if (!pattern || isReadOnly) return null
-    const seeded = rawToEntry(pattern, committedValue ?? '')
+  function revert() {
+    updateDraft(baseline)
+    setEntry(entry === null ? null : seedEntry(baseline))
+  }
+
+  function startEditing(el: HTMLInputElement, fromPointer: boolean) {
+    if (!pattern || isReadOnly) return
+    const seeded = seedEntry(draft)
+    if (!seeded) return
     const offset = fromPointer ? (el.selectionStart ?? 0) : 0
-    const placed = selectRange(seeded, (() => {
-      const index = offsetToPosition(pattern, seeded, prompt, offset)
-      return { start: index, end: index }
-    })())
+    const index = offsetToPosition(pattern, seeded, prompt, offset)
+    const placed = selectRange(seeded, { start: index, end: index })
     setEntry(placed)
-    pendingSelectionRef.current = (() => {
-      const at = positionToOffset(pattern, placed, prompt, placed.caret.start)
-      return { start: at, end: at }
-    })()
-    return placed
+    const at = positionToOffset(pattern, placed, prompt, index)
+    pendingSelectionRef.current = { start: at, end: at }
+  }
+
+  // The live selection, which the model cannot know on its own: a click or a
+  // drag moved the caret without passing through any handler here. Returned
+  // unchanged when nothing actually moved, because rebuilding the range
+  // empties the owed-literal queue — and then a separator typed right after
+  // the caret auto-advanced past it would be refused, which is the one thing
+  // that queue exists to prevent.
+  function withLiveSelection(p: MaskPattern, current: MaskEntry, el: HTMLInputElement): MaskEntry {
+    const start = offsetToPosition(p, current, prompt, el.selectionStart ?? 0)
+    const end = offsetToPosition(p, current, prompt, el.selectionEnd ?? 0)
+    if (start === current.caret.start && end === current.caret.end) return current
+    return selectRange(current, { start, end })
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // Guards first, before any key is dispatched on. A composition's Enter is
+    // the IME's, not a commit, and Ctrl+Backspace or Cmd+ArrowLeft belong to
+    // the browser's own word- and line-wise editing.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+
     if (event.key === 'Enter') {
-      commitEntry()
+      commitEntry(true)
       return
     }
     if (event.key === 'Escape') {
-      setEntry(null)
-      updateDraft(formattedValue)
+      revert()
       return
     }
     if (!editing || isDisabled || isReadOnly) return
-    const { pattern: p, entry: current } = editing
+    const { pattern: p } = editing
     const el = event.currentTarget
-    // The live selection, which the model needs and its own copy cannot know:
-    // a drag or a click moved the caret without going through any of these
-    // handlers.
-    const selected = selectRange(current, {
-      start: offsetToPosition(p, current, prompt, el.selectionStart ?? 0),
-      end: offsetToPosition(p, current, prompt, el.selectionEnd ?? 0),
-    })
+    const current = withLiveSelection(p, editing.entry, el)
+
+    // Shift plus a movement key is a selection gesture. The browser extends
+    // the native selection better than this model can, and the next edit
+    // reads whatever it produced through withLiveSelection, so the handler
+    // stays out of the way rather than collapsing the caret.
+    const isMovement =
+      event.key === 'ArrowLeft' ||
+      event.key === 'ArrowRight' ||
+      event.key === 'Home' ||
+      event.key === 'End'
+    if (event.shiftKey && isMovement) return
 
     switch (event.key) {
       case 'ArrowLeft':
         event.preventDefault()
-        applyEntry(caretLeft(p, selected))
+        applyEntry(caretLeft(p, current))
         return
       case 'ArrowRight':
         event.preventDefault()
-        applyEntry(caretRight(p, selected))
+        applyEntry(caretRight(p, current))
         return
       case 'Home':
         event.preventDefault()
-        applyEntry(caretHome(p, selected))
+        applyEntry(caretHome(p, current))
         return
       case 'End':
         event.preventDefault()
-        applyEntry(caretEnd(p, selected))
+        applyEntry(caretEnd(p, current))
         return
       case 'Backspace':
         event.preventDefault()
-        applyEntry(backspace(p, selected))
+        applyEntry(backspace(p, current))
         return
       case 'Delete':
         event.preventDefault()
-        applyEntry(deleteForward(p, selected))
+        applyEntry(deleteForward(p, current))
         return
     }
 
-    if (!isTextEntry(event)) return
+    if (splitClusters(event.key).length !== 1) return
     event.preventDefault()
-    const result = typeInto(p, selected, event.key, overwriteMode)
+    const result = typeInto(p, current, event.key, overwriteMode)
     applyEntry(result.entry, result.invalid)
   }
 
@@ -303,10 +366,7 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
       updateDraft(incoming)
       return
     }
-    const result = applyText(editing.pattern, editing.entry, incoming, prompt, {
-      start: 0,
-      end: editing.pattern.positions.length,
-    })
+    const result = applyText(editing.pattern, editing.entry, incoming, prompt, wholeField)
     applyEntry(result.entry, result.invalid)
   }
 
@@ -314,12 +374,9 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
     if (!editing || isReadOnly) return
     event.preventDefault()
     const el = event.currentTarget
-    const { pattern: p, entry: current } = editing
-    const range = {
-      start: offsetToPosition(p, current, prompt, el.selectionStart ?? 0),
-      end: offsetToPosition(p, current, prompt, el.selectionEnd ?? 0),
-    }
-    const result = applyText(p, current, event.clipboardData.getData('text'), prompt, range)
+    const { pattern: p } = editing
+    const current = withLiveSelection(p, editing.entry, el)
+    const result = applyText(p, current, event.clipboardData.getData('text'), prompt, current.caret)
     applyEntry(result.entry, result.invalid)
   }
 
@@ -365,7 +422,7 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
         applyEntry(selectRange(editing.entry, { start: index, end: index }))
       })}
       onBlur={afterInputEvent(() => {
-        commitEntry()
+        commitEntry(false)
       }, rest.onBlur)}
       onKeyDown={composeInputEvent(rest.onKeyDown, handleKeyDown)}
       className={`rc-scalar ${inputBaseClassName} ${inputStateClassName(isDisabled, isReadOnly)} ${className ?? ''}`}

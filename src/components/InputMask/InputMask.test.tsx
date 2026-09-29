@@ -285,6 +285,132 @@ describe('InputMask', () => {
     })
   })
 
+  describe('the field stays masked while it is focused', () => {
+    // Dropping the entry on Enter sent the next commit down the unmasked
+    // branch, where the formatted text is itself a value.
+    it('commits once on Enter and once more on blur, with the same value', () => {
+      const onChange = vi.fn()
+      const input = field({ mask: '00-00', onChange })
+      typeKeys(input, '1234')
+      fireEvent.keyDown(input, { key: 'Enter' })
+      fireEvent.blur(input)
+      expect(onChange).toHaveBeenCalledTimes(1)
+      expect(onChange).toHaveBeenCalledWith('1234')
+    })
+
+    it('keeps refusing what the mask refuses after Enter', () => {
+      const onChange = vi.fn()
+      const input = field({ mask: '00-00', onChange })
+      typeKeys(input, '1234')
+      fireEvent.keyDown(input, { key: 'Enter' })
+      fireEvent.keyDown(input, { key: 'Home' })
+      typeKeys(input, 'AB')
+      fireEvent.blur(input)
+      expect(input).toHaveValue('12-34')
+      expect(onChange).toHaveBeenCalledTimes(1)
+    })
+
+    // Deleting a position is the proof, not typing one: the field is full,
+    // and insert mode has nowhere to shift to, so a digit is rightly refused.
+    it('keeps editing after Escape', () => {
+      const input = field({ mask: '00-00', value: '1234' })
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input).toHaveValue('12-34')
+      fireEvent.keyDown(input, { key: 'Home' })
+      fireEvent.keyDown(input, { key: 'Delete' })
+      expect(input).toHaveValue('_2-34')
+    })
+  })
+
+  describe('an external value change while focused', () => {
+    it('replaces what the field is showing', () => {
+      const { rerender } = render(<InputMask aria-label="Field" mask="00" value="12" />)
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      focus(input)
+      expect(input).toHaveValue('12')
+      rerender(<InputMask aria-label="Field" mask="00" value="34" />)
+      expect(input).toHaveValue('34')
+    })
+
+    it('is what the next commit reads', () => {
+      const onChange = vi.fn()
+      const { rerender } = render(<InputMask aria-label="Field" mask="00" value="12" onChange={onChange} />)
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      focus(input)
+      rerender(<InputMask aria-label="Field" mask="00" value="34" onChange={onChange} />)
+      fireEvent.blur(input)
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input).toHaveValue('34')
+    })
+  })
+
+  it('does not report a separator it swallowed as invalid', () => {
+    const onInvalidInput = vi.fn()
+    const input = field({ mask: '00-00', onInvalidInput })
+    typeKeys(input, '12-34')
+    expect(input).toHaveValue('12-34')
+    expect(onInvalidInput).not.toHaveBeenCalled()
+  })
+
+  describe('text', () => {
+    it('is applied through the mask, not written verbatim', () => {
+      render(<InputMask aria-label="Field" mask="00" text="AB" />)
+      expect(screen.getByLabelText('Field')).toHaveValue('__')
+    })
+
+    it('is what editing starts from', () => {
+      const input = field({ mask: '00', text: '9' })
+      expect(input).toHaveValue('9_')
+    })
+
+    it('reports the text again when a revert puts it back', () => {
+      const onTextChange = vi.fn()
+      const input = field({ mask: '00', value: '12', overwriteMode: true, onTextChange })
+      typeKeys(input, '3')
+      expect(input).toHaveValue('32')
+      onTextChange.mockClear()
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input).toHaveValue('12')
+      expect(onTextChange).toHaveBeenCalledWith('12')
+    })
+  })
+
+  describe('keys the editor does not claim', () => {
+    it('leaves Enter during a composition to the IME', () => {
+      const onChange = vi.fn()
+      const input = field({ mask: '00-00', onChange })
+      typeKeys(input, '1234')
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'isComposing', { value: true })
+      act(() => {
+        input.dispatchEvent(event)
+      })
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('leaves a modified movement or deletion key to the browser', () => {
+      const input = field({ mask: '000', value: '123' })
+      for (const init of [{ key: 'Backspace', ctrlKey: true }, { key: 'ArrowLeft', metaKey: true }]) {
+        const event = new KeyboardEvent('keydown', { ...init, bubbles: true, cancelable: true })
+        act(() => {
+          input.dispatchEvent(event)
+        })
+        expect(event.defaultPrevented).toBe(false)
+      }
+      expect(input).toHaveValue('123')
+    })
+
+    it('leaves Shift+Arrow to the browser so it can extend the selection', () => {
+      const input = field({ mask: '000', value: '123' })
+      fireEvent.keyDown(input, { key: 'End' })
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', shiftKey: true, bubbles: true, cancelable: true })
+      act(() => {
+        input.dispatchEvent(event)
+      })
+      expect(event.defaultPrevented).toBe(false)
+    })
+  })
+
   it('forwards a ref to the input', () => {
     const ref = createRef<HTMLInputElement>()
     render(<InputMask aria-label="Field" mask="000" ref={ref} />)
