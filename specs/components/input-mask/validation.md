@@ -82,10 +82,10 @@ amended requirement has a visible criterion to amend with it
 | V4.11b | Backspace and Delete over a non-empty selection clear exactly the spanned fillable positions and collapse the caret to the start, deleting no neighbour | R4.10 |
 | V4.11c | A selection partly covering literals clears only the fillable positions inside it | R4.10, R4.8 |
 | V4.11d | Partial-selection and select-all cases both asserted, not only select-all | R4.10 |
-| V4.12 | **`Ctrl/Cmd+C`, `+V`, `+X`, `+A`, `+Z` are not `preventDefault`ed** and reach the browser; asserted with real key events, one per shortcut | R4.12 |
-| V4.13 | `Shift` is not treated as a blocking modifier: `Shift+ArrowLeft` and capital letters still work | R4.12 |
-| V4.14 | A keydown with `isComposing` (and one with `keyCode === 229`) is not `preventDefault`ed and changes nothing; the composed text arrives through the `change` path | R4.12 |
-| V4.15 | The handler never `preventDefault`s a key it did not act on | R4.12 |
+| V4.12 | **`Ctrl/Cmd+C`, `+V`, `+X`, `+A`, `+Z` are not `preventDefault`ed** and reach the browser; asserted with real key events, one per shortcut | R4.13 |
+| V4.13 | `Shift` is not treated as a blocking modifier: `Shift+ArrowLeft` and capital letters still work | R4.13 |
+| V4.14 | A keydown with `isComposing` (and one with `keyCode === 229`) is not `preventDefault`ed and changes nothing; the composed text arrives through the `change` path | R4.13 |
+| V4.15 | The handler never `preventDefault`s a key it did not act on | R4.13 |
 
 ## 5. Prompt and placeholder
 
@@ -101,7 +101,7 @@ amended requirement has a visible criterion to amend with it
 
 | | Criterion | Covers |
 | --- | --- | --- |
-| V6.1 | **Copy-paste identity**: copying the formatted text out of a `99-00` field showing `1_-23` and pasting it back reproduces `1_-23`, not `12-3_` | R6.1 step 1, R6.5 |
+| V6.1 | **Copy-paste identity**: copying the formatted text out of a `99-00` field showing `1_-23` and pasting it back reproduces `1_-23`, not `12-3_` | R6.1 step 1, R6.6 |
 | V6.2 | Pasting with `promptChar` and with spaces in the unfilled positions both take the positional path | R6.1 step 1 |
 | V6.3 | `081-234-5678` and `0812345678` pasted into `000-000-0000` produce the same result | R6.1 step 2 |
 | V6.4 | **R6.2's table, all four rows, rendered text and raw both**: `mask="00\\000"` pasted `"12034"` (step 1) and `"1234"` (step 2) render `12034` and raw to `"1234"`; `"1203"` (step 2) renders `12003`; `"12"` (step 3) renders **`120__`** — the literal is always present — and raws to `"12  "` | R6.2 |
@@ -119,7 +119,7 @@ amended requirement has a visible criterion to amend with it
 
 | | Criterion | Covers |
 | --- | --- | --- |
-| V7.1 | `isRequired` defaults to `true` and sets the native `required` attribute | R7.1, standards §5.4 |
+| V7.1 | `isRequired` defaults to `true` and sets the native `required` attribute, which is what carries `aria-required` | R7.1, R9.2, standards §5.4 |
 | V7.2 | Required + wiped reverts to the committed value | R7.2 |
 | V7.3 | Required + wiped with a committed value of `null` leaves the field **empty** — no fabricated value | R7.2 |
 | V7.4 | Blur always completes; focus is never retained | R7.2, R8.3 |
@@ -132,7 +132,7 @@ amended requirement has a visible criterion to amend with it
 | | Criterion | Covers |
 | --- | --- | --- |
 | V8.1 | No `error`, `isInvalid`, `errorMessage` or `helperText` prop exists; `aria-invalid`/`aria-describedby`/`aria-errormessage` pass through to the `<input>` | R8.1 |
-| V8.2 | `onInvalidInput` is **not** cancelable: calling `preventDefault()` on anything available to the handler changes nothing, and the prop is not routed through `composeInputEvent` | R8.3 |
+| V8.2 | `onInvalidInput` exists and is **not** cancelable: calling `preventDefault()` on anything available to the handler changes nothing, and the prop is not routed through `composeInputEvent` | R8.2, R8.3 |
 | V8.3 | Every row of R8.4's table asserted, including the three that must **not** fire: a fitting paste, a prop that does not fit, and Backspace/Delete on a literal | R8.4 |
 | V8.4 | The payload is a plain object with `reason` and the documented optional `input`/`position`, not a React `SyntheticEvent` | R8.5 |
 | V8.5 | The divergence from the reference is stated in `onInvalidInput`'s own doc comment | R8.3 |
@@ -146,10 +146,10 @@ amended requirement has a visible criterion to amend with it
 | V9.2 | `inputMode` is `numeric` for an all-`0`/`9` mask, `text` when the mask contains `#`, `text` when unmasked | R9.3 |
 | V9.3 | **A consumer-supplied `inputMode` wins** — `inputMode="tel"` survives, proving the derived value sits underneath the spread | R9.3 |
 | V9.4 | Left/Right move one position, Home/End reach the first/last fillable position, Enter commits, Escape reverts, Tab leaves | R9.4 |
-| V9.4a | **Caret placement is correct across multi-unit clusters**: in `mask="LL"` showing `กิ๊_`, Home then Right puts the caret at the second position — offset 3, not offset 1 | R4.10 |
-| V9.4b | A click at any offset inside a cluster resolves to that cluster's position and never splits it | R4.10 |
-| V9.4c | Highlighting a filled position spans the cluster's full UTF-16 length, not one unit | R4.10 |
-| V9.4d | No offset table is precomputed from the mask alone; offsets are derived from the rendered text | R4.10 |
+| V9.4a | **Caret placement is correct across multi-unit clusters**: in `mask="LL"` showing `กิ๊_`, Home then Right puts the caret at the second position — offset 3, not offset 1 | R4.11 |
+| V9.4b | A click at any offset inside a cluster resolves to that cluster's position and never splits it | R4.11 |
+| V9.4c | Highlighting a filled position spans the cluster's full UTF-16 length, not one unit | R4.11 |
+| V9.4d | No offset table is precomputed from the mask alone; offsets are derived from the rendered text | R4.11 |
 | V9.5 | Keyboard operation is verified with real key events, not by calling handlers | standards §9.1, §9.6 |
 
 ## 10. Form integration
@@ -166,7 +166,7 @@ amended requirement has a visible criterion to amend with it
 | --- | --- | --- |
 | V11.1 | No `locale` prop | R11.1 |
 | V11.2 | `L`/`A` accept Thai letters | R11.2 |
-| V11.3 | **`กิ๊` and `ที่` each occupy one position** — two `Mn` marks on one base are accepted, which a one-mark cap would have broken | R12.1, R12.3 |
+| V11.3 | **`กิ๊` and `ที่` each occupy one position** — two `Mn` marks on one base are accepted, which a one-mark cap would have broken, and the cluster is classified by its base | R12.1, R12.2, R12.3 |
 | V11.4 | An `Mc` spacing mark and a ZWJ sequence are refused with `onInvalidInput` `'character'` | R12.3 |
 | V11.3a | **Typing `ก`, then the vowel, then the tone mark as three keystrokes fills one position with `กิ๊`** — the marks join the consonant instead of being offered to the next position, which is what makes Thai typable at all | R12.3b |
 | V11.3b | The caret does not advance on a mark, so the next base character starts the next position | R12.3b |
@@ -185,7 +185,7 @@ amended requirement has a visible criterion to amend with it
 | V12.2 | `text` is parsed through the mask by the **three-step** algorithm; `mask="00"` with `text="AB"` leaves the field showing `__` rather than `AB` | R12.12 |
 | V12.2a | `mask="00\\000"` with `text="1203"` shows `12003`, not `1230_` — the raw step applies to `text` exactly as it does to a paste | R12.12, R6.1 |
 | V12.3 | Applying `text` fires no `onInvalidInput`, dropped characters included | R12.13 |
-| V12.4 | R12.14's three rows asserted: `text="12"` commits `"12"`; `text="AB"` commits `null` or reverts; `text="1"` reverts | R12.14 |
+| V12.4 | R12.14's three rows asserted: `text="12"` commits `"12"`; `text="AB"` commits `null` or reverts; `text="1"` reverts — so a `value` the `text` contradicts is discarded at that commit | R12.14, R12.15 |
 | V12.5 | The `text` divergence from `standards.md` §2.6 is stated in the prop's doc comment | R12.12 |
 
 ## 13. Code standards
@@ -257,7 +257,7 @@ Every numbered requirement maps to at least one criterion:
 | R1 purpose/scope | V13.2, V13.6 (no preset catalogue, no new dependency), V8.1 |
 | R2 mask syntax + unmasked | V1.1–V1.6, V2.1–V2.5 |
 | R3 value contract | V3.1–V3.14 |
-| R4 editing | V4.1–V4.15, V9.4a–V9.4d (R4.11) |
+| R4 editing | V4.1–V4.15; V9.4a–V9.4d cover R4.11 |
 | R5 prompt/placeholder | V5.1–V5.4 |
 | R6 copy/paste | V6.1–V6.10, V5.2a, V12.2a |
 | R7 states | V7.1–V7.7 |
@@ -265,5 +265,16 @@ Every numbered requirement maps to at least one criterion:
 | R9 accessibility | V9.1–V9.5 |
 | R10 form integration | V10.1–V10.3 |
 | R11 localization | V11.1, V11.2, V11.7 |
-| R12 edge cases | V11.3–V11.7, V4.7–V4.9, V12.1–V12.5 |
+| R12 edge cases | V11.3–V11.7, V11.3a–V11.3e, V4.7–V4.9b, V12.1–V12.5 |
 | R13 naming | V13.1, V13.3 |
+
+**Deliberately not asserted individually.** `R1.1`, `R1.2`, `R1.3`, `R1.4`
+(purpose and scope), `R3.1` (the two representations, a definition the rest of §3 rests
+on), `R4.2` (the record of why editing is caret-based rather than grouped),
+`R9.5` (what a screen reader makes of prompt characters, which is native
+`<input>` behaviour this control neither adds to nor can test) and `R13.1`
+(the component's name) state scope, definitions and decisions rather than
+behaviour. There is nothing a test could observe that would distinguish them
+being honoured from being ignored. They are listed here so that "no criterion
+cites this" reads as a decision rather than an oversight — the check to run
+is that this list and the uncited set are the same.

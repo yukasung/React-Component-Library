@@ -338,7 +338,7 @@ R4.9 Clearing a position restores the prompt character there, so an unfilled
 position always looks unfilled.
 
 R4.10 **Every edit is selection-aware, not just paste.** The key handler owns
-typing, Backspace and Delete (R4.11), so it — not only the paste path — has to
+typing, Backspace and Delete (R4.12), so it — not only the paste path — has to
 answer what happens when the selection spans more than a caret:
 
 - **Typing with a non-empty selection**: the spanned positions are cleared
@@ -588,6 +588,8 @@ R8.4 **When it fires.** Once per rejected *user* action:
 | Paste in which every character was placed | no | — |
 | A commit point reached with required positions unfilled (R3.7 test 3) | yes | `'incomplete'` |
 | Applying a `value`/`defaultValue`/`text`/`mask` prop that does not fit (R3.5, R12.13) | **no** — not user input | — |
+| A combining mark with nothing before it to attach to (R12.3b) | yes | `'character'` |
+| A combining mark offered to a position whose base is not a letter (R12.3a) | yes | `'character'` |
 | Backspace/Delete on a literal, or at a boundary | no — a no-op, not invalid input | — |
 
 R8.5 **Payload.** `onInvalidInput?: (info: InvalidInputInfo) => void` where
@@ -846,7 +848,6 @@ Settled in review:
 | 5 | Include `onInvalidInput`? | **Yes**, notification-only — a recorded divergence from Wijmo, with payload and firing points specified (R8.2–R8.5). |
 | 6 | Submit raw value via `name`? | **No.** `name` submits the formatted text as every scalar does; the committed value is what builds a payload (§10). |
 | 7 | Name collision with `src/lib/inputMask.ts` | Keep `InputMask`; rename the utility as a separate, non-blocking change (§13). |
-
 | 8 | Cap on combining marks per position | **No count cap.** `Mn` (nonspacing) accepted freely — Thai needs two per base; `Mc` and ZWJ refused, since those add width; an 8-code-point abuse guard only (R12.3). |
 
 No open decisions remain. This document is complete and awaiting approval.
@@ -882,7 +883,7 @@ export interface InputMaskProps
 ```
 
 Wijmo members deliberately **not** mapped: `maskFull` (control state is not
-exposed as a prop — see R3.5), `inputElement`/`hostElement` (the forwarded
+exposed as a prop — see R3.8), `inputElement`/`hostElement` (the forwarded
 `ref` covers it), `selectAll`/`focus`/`beginUpdate`/`endUpdate` and the rest of
 the imperative `Control` base (not a React API), `tabOrder` (native
 `tabIndex`), `rightToLeft` (no RTL support anywhere in this library yet),

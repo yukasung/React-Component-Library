@@ -121,9 +121,30 @@ four-case reapplication of R3.5 (equal length positional, shorter left to
 right, longer truncated, rejected characters leaving a hole).
 
 2.4 `typeInto(pattern, entry, cluster)` — R4.3 rejection, R4.4 fill and
-auto-advance, R4.5's two literal cases including the swallow, R12.6–R12.9's
-insert shifting (all-or-nothing, class-checked, `'full'` when the tail is
-occupied) and overwrite.
+auto-advance, R4.5's literal swallow, and R12.6–R12.9's insert shifting
+(all-or-nothing, class-checked, `'full'` when there is no hole at or after the
+caret) and overwrite.
+
+Two rules that are easy to read past, because both make a keystroke do
+something other than fill the position at the caret:
+
+- **A combining mark joins the position before the caret** (R12.3b), and
+  leaves the caret alone. A Thai keyboard sends `กิ๊` as three keystrokes, so
+  without this path the marks are offered to the *next* position, which
+  refuses them, and the field cannot hold Thai at all. The mark is refused
+  when there is nothing to attach to, when the result stops being one storable
+  cluster, and when the base is not a letter (R12.3a — classification goes by
+  the base, so a digit position would otherwise accept a decorated digit and
+  break R2.1a's ASCII promise). The owed-literal queue survives the append,
+  since no new position was started.
+- **An accepted space blanks its position rather than storing a character**
+  (R3.3a). R3.3 already spends a space on an unfilled optional position, so
+  storing one would give two states that render differently and raw
+  identically, and the positional round trip would stop reproducing what the
+  field was showing. A required position refuses a space as it refuses
+  anything else outside its class.
+
+
 
 2.5 `clearAt` / `clearBefore` / `clearRange` — Backspace/Delete of R4.8–R4.9,
 never deleting a literal, plus the selection clearing R4.10 requires. Every
@@ -148,7 +169,7 @@ tested in the order R3.7 fixes (empty first).
 2.8 Caret movement: next/previous fillable position, first/last, and the
 literal-skipping of R9.4 — all in **position indices**, never offsets.
 
-2.9 **The offset bridge** (R4.10). `slotToOffset(pattern, entry, index)` and
+2.9 **The offset bridge** (R4.11). `slotToOffset(pattern, entry, index)` and
 `offsetToSlot(pattern, entry, offset)`, both computed from the **currently
 rendered text** by walking its clusters and accumulating UTF-16 lengths.
 
@@ -216,7 +237,7 @@ Typing, Backspace and Delete read the live selection and clear it first
 as full.
 
 4.4 `handleKeyDown` — text entry, Backspace/Delete, arrows, Home/End, each
-`preventDefault`ed **only when the handler acts on it** (R4.11, R4.12). The
+`preventDefault`ed **only when the handler acts on it** (R4.12, R4.13). The
 guards come first, before any key is classified as printable:
 
 - `event.ctrlKey || event.metaKey || event.altKey` → return untouched, so
@@ -286,7 +307,7 @@ await waitFor(() => expect(input.selectionEnd! - input.selectionStart!).toBeGrea
 — a non-cancelled click must produce a **non-empty** selection. That is the
 group editor's behavior (a click highlights the whole group), and the three
 controls in that suite today are all group editors. `InputMask` places a
-**collapsed** caret at a position (R4.10, R9.4), so it would fail an assertion
+**collapsed** caret at a position (R4.11, R9.4), so it would fail an assertion
 about a behavior it is right not to have.
 
 The fix is to make the expected shape part of the case, not to drop
