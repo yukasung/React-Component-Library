@@ -35,3 +35,29 @@ Copyable examples use the real package name. Published-package consumers must
 also import `@yukasung/react-components/style.css` once at their application
 entry point, as described in the root README. The docs site's source aliases
 and explicit CSS imports are development configuration, not consumer setup.
+
+## Why this project installs the repository root
+
+`vercel.json` sets the install command to `npm ci --prefix .. && npm ci`, and
+both halves are load-bearing.
+
+This site does not consume the built package. `next.config.mjs` aliases
+`@yukasung/react-components` straight at `../src/index.ts`, so the docs build
+compiles the library's TypeScript source — and that source imports the
+library's own runtime dependencies, `flatpickr` among them. Module resolution
+for a bare specifier walks up from the importing file, so `flatpickr` imported
+by `../src/lib/date.ts` is looked for in `../node_modules`, never in this
+project's own.
+
+On a developer's machine and in CI that directory exists, because both install
+the repository root as well. Vercel builds this project with `docs/` as its
+root directory and installs only this package-lock, so it did not — every
+deployment failed with `Module not found: Can't resolve 'flatpickr'` while the
+same build passed everywhere else.
+
+Declaring `flatpickr` here instead would not fix it: it would land in
+`docs/node_modules`, which is not on the lookup path from `../src`. Installing
+the root is also what keeps a single copy of `@types/react` in play — without
+it, `next build` installs its own, and the two copies give the library's
+components a different `SVGProps`/`AriaAttributes` identity than the pages
+using them.
