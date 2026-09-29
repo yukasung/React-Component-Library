@@ -3,7 +3,7 @@
   "version": "0.2.4",
   "type": "module",
   "license": "UNLICENSED",
-  "description": "Internal reusable React + TypeScript UI component library (InputNumber, InputDate, InputTime, InputDateTime, InputTag) styled with Tailwind CSS v4.",
+  "description": "Internal reusable React + TypeScript UI component library (InputNumber, InputDate, InputTime, InputDateTime, InputTag, InputMask) styled with Tailwind CSS v4.",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -44,6 +44,10 @@
     "./input-tag": {
       "types": "./dist/input-tag.d.ts",
       "import": "./dist/input-tag.js"
+    },
+    "./input-mask": {
+      "types": "./dist/input-mask.d.ts",
+      "import": "./dist/input-mask.js"
     },
     "./style.css": "./dist/style.css"
   },
