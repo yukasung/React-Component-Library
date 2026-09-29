@@ -376,9 +376,11 @@ line and a `<DefaultDemo />`, `## Import`, `## Properties` with
 `<PropertySignature />`, Thai prose, a demo and a `tsx` snippet. Prose is
 Thai; code, prop names and types are not translated.
 
-10.3 **[C]** Docs content must not mention Wijmo, Linear, or the Reviewed-status
-process. A property is documented only once its Linear sub-issue reaches
-**Reviewed**. See `CLAUDE.md`.
+10.3 **[C]** Docs content must not mention Wijmo, Linear, issue numbers or any
+part of how the work gets reviewed — internal workflow is not something a docs
+reader needs. There is **no** review-status gate on what may be documented: a
+property is documented once it is implemented and its behaviour is settled.
+See `CLAUDE.md`.
 
 10.4 **[C]** `demo/App.tsx` gets a `<Section>` for the component exercising the
 live states developers need to eyeball, including at least one

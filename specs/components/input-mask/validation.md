@@ -254,8 +254,7 @@ amended requirement has a visible criterion to amend with it
 | --- | --- | --- |
 | V17.1 | `demo/App.tsx` section shows masked, unmasked, insert vs. overwrite, and the raw value beside the displayed text | plan §8.1 |
 | V17.2 | `docs/app/components/input-mask/` has `page.mdx`, `demo.tsx`, `property-index.tsx`, registered in `_meta.js`, following §10.2's structure with Thai prose | standards §10.1, §10.2 |
-| V17.3 | **No mention of Wijmo, Linear, or the review process** anywhere under `docs/app/components/` | standards §10.3 |
-| V17.4 | Only properties whose Linear sub-issue has reached **Reviewed** are documented | standards §10.3 |
+| V17.3 | **No mention of Wijmo, Linear, issue numbers or the review process** anywhere under `docs/app/components/` | standards §10.3 |
 | V17.5 | `README.md` lists the new entry point and carries the raw-vs-submitted section | plan §8.3 |
 | V17.6 | `CHANGELOG.md` entry present | standards §10.6 |
 

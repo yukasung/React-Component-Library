@@ -365,7 +365,8 @@ insert vs. overwrite, and the committed raw value beside the displayed text —
 the gap between them is the thing a developer most needs to see.
 
 8.2 `docs/app/components/input-mask/{page.mdx,demo.tsx,property-index.tsx}`
-and the `_meta.js` entry, per §10.1–§10.2. Thai prose, no Wijmo, no Linear.
+and the `_meta.js` entry, per §10.1–§10.2. Thai prose; no Wijmo, no Linear,
+nothing about how the work was reviewed.
 
 8.3 `README.md`: the entry point in the published list, and a `###` section
 for the two things a consumer cannot guess — that `value` is raw and
@@ -373,9 +374,6 @@ positional while `name` submits the formatted text (R10.3), and that
 `InputMask.value` is the opposite of the reference API's (R3.2).
 
 8.4 `CHANGELOG.md` entry.
-
-**Docs gating:** §10.3 — a property is documented only once its Linear
-sub-issue reaches **Reviewed**. Group 8.2 may therefore land behind the rest.
 
 ### 9. Validation
 

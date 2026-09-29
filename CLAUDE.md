@@ -184,11 +184,14 @@ What it does *not* restate: the token sets and their widths/ranges come from `da
 
 ### `docs/` content scope
 
-The docs site documents a property only once its corresponding Linear sub-issue (under the `React Component Library` project) has reached **"Reviewed"** status specifically — not merely "In Review". This is a deliberate, ongoing content policy, not a one-time gate.
+There is no review-status gate on what the docs site may document. A property
+is documented when it is implemented and its behaviour is settled. (This
+replaces an earlier policy that held a property back until its Linear
+sub-issue reached "Reviewed"; the gate is gone, not merely relaxed.)
 
 The published docs content (`docs/app/components/**/*.mdx`) must **not** reference or link to Wijmo anywhere — no mentions, no links to `developer.mescius.com`, no "matches Wijmo API" framing in user-facing text. Wijmo stays an internal-only reference (see above); it should not be visible to anyone reading the docs site.
 
-The published docs content must also **not** mention Linear or the Reviewed-status review process itself (e.g. "ผ่านสถานะ Reviewed บน Linear") — that's internal workflow, not something a docs reader needs to know. It's fine to say what's currently documented; just don't say why or via what process.
+The published docs content must also **not** mention Linear, issue numbers, or any part of how the work gets reviewed — that's internal workflow, not something a docs reader needs to know. It's fine to say what's currently documented; just don't say why or via what process.
 
 ### Nextra patch
 
