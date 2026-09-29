@@ -385,6 +385,57 @@ describe('typing', () => {
   })
 })
 
+describe('combining marks', () => {
+  // A Thai keyboard sends "กิ๊" as three keystrokes. Offering the marks to
+  // the next position means Thai cannot be typed at all.
+  it('attaches a mark typed after a consonant to that consonant', () => {
+    const p = pattern('LL')
+    let entry = emptyEntry(p)
+    for (const cluster of ['ก', '\u0E34', '\u0E4A']) {
+      const result = typeInto(p, entry, cluster, false)
+      expect(result.invalid).toBeUndefined()
+      entry = result.entry
+    }
+    expect(entryText(p, entry, PROMPT)).toBe('กิ๊_')
+    expect(entryToRaw(p, entry)).toBe('กิ๊ ')
+  })
+
+  it('leaves the caret where it is, so the next base starts the next position', () => {
+    const p = pattern('LL')
+    const entry = type('LL', emptyEntry(p), 'ก\u0E34\u0E4Aข')
+    expect(entryText(p, entry, PROMPT)).toBe('กิ๊ข')
+  })
+
+  it('keeps the owed-literal queue, since no new position was started', () => {
+    const p = pattern('LL-LL')
+    const entry = type('LL-LL', emptyEntry(p), 'aก\u0E34')
+    expect(entry.owedLiterals).toEqual(['-'])
+    expect(typeInto(p, entry, '-', false).invalid).toBeUndefined()
+  })
+
+  it('refuses a mark with nothing to attach to', () => {
+    const p = pattern('LL')
+    const result = typeInto(p, emptyEntry(p), '\u0E34', false)
+    expect(result.invalid?.reason).toBe('character')
+    expect(entryText(p, result.entry, PROMPT)).toBe('__')
+  })
+
+  it('refuses a mark that would push the cluster past the code-point guard', () => {
+    const p = pattern('L')
+    let entry = typeInto(p, emptyEntry(p), 'ก', false).entry
+    for (let i = 0; i < 7; i++) {
+      entry = typeInto(p, entry, '\u0E34', false).entry
+    }
+    expect(typeInto(p, entry, '\u0E34', false).invalid?.reason).toBe('character')
+  })
+
+  it('refuses a mark on a position whose class would not accept the result', () => {
+    const p = pattern('00')
+    const entry = typeInto(p, emptyEntry(p), '1', false).entry
+    expect(typeInto(p, entry, '\u0E34', false).invalid?.reason).toBe('character')
+  })
+})
+
 describe('a space in an optional position', () => {
   // R3.3 makes the raw blank a space, so "typed a space" and "left blank"
   // are one state rather than two that render differently.
@@ -480,6 +531,17 @@ describe('applyText', () => {
       expect(entryToRaw(p, applyText(p, emptyEntry(p), ' 1-23', PROMPT).entry)).toBe(' 123')
     })
 
+    // A space stands for a blank whatever the position's class is. Reading it
+    // as data means a required position refuses it, the whole string falls
+    // through to the sequential walk, and the value lands one position to the
+    // left of where it was pasted from.
+    it('takes a space standing in for an unfilled required position', () => {
+      const p = pattern('00-00')
+      const result = applyText(p, emptyEntry(p), ' 1-23', PROMPT)
+      expect(entryText(p, result.entry, PROMPT)).toBe('_1-23')
+      expect(entryToRaw(p, result.entry)).toBe(' 123')
+    })
+
     it('recognizes a non-default prompt character', () => {
       const p = pattern('99-00')
       expect(entryToRaw(p, applyText(p, emptyEntry(p), '#1-23', '#').entry)).toBe(' 123')
@@ -566,6 +628,16 @@ describe('applyText', () => {
     it('reports nothing when everything was placed', () => {
       const p = pattern('000-000')
       expect(applyText(p, emptyEntry(p), '12', PROMPT).invalid).toBeUndefined()
+    })
+
+    it('leaves the caret alone when nothing was placed', () => {
+      const p = pattern('000')
+      const entry = caretTo(p, rawToEntry(p, '123'), 1)
+      for (const text of ['x', '']) {
+        const result = applyText(p, entry, text, PROMPT)
+        expect(entryText(p, result.entry, PROMPT)).toBe('123')
+        expect(result.entry.caret).toEqual({ start: 1, end: 1 })
+      }
     })
 
     it('clears the range it replaces first', () => {

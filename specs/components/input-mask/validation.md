@@ -168,6 +168,11 @@ amended requirement has a visible criterion to amend with it
 | V11.2 | `L`/`A` accept Thai letters | R11.2 |
 | V11.3 | **`กิ๊` and `ที่` each occupy one position** — two `Mn` marks on one base are accepted, which a one-mark cap would have broken | R12.1, R12.3 |
 | V11.4 | An `Mc` spacing mark and a ZWJ sequence are refused with `onInvalidInput` `'character'` | R12.3 |
+| V11.3a | **Typing `ก`, then the vowel, then the tone mark as three keystrokes fills one position with `กิ๊`** — the marks join the consonant instead of being offered to the next position, which is what makes Thai typable at all | R12.3b |
+| V11.3b | The caret does not advance on a mark, so the next base character starts the next position | R12.3b |
+| V11.3c | A mark with nothing before it to attach to is refused | R12.3b |
+| V11.3d | The owed-literal queue survives an append: a separator typed after a mark is still swallowed | R12.3b, R4.6 |
+| V11.3e | A mark offered to a position holding a digit is refused, keeping the raw value ASCII | R12.3a, R2.1a |
 | V11.5 | The 8-code-point guard refuses a ninth stacked mark | R12.3 |
 | V11.6 | `เกี๊ยว` occupies **four** positions in an `LLLL` mask, and the docs record this | R12.4 |
 | V11.7 | `ß` with `>` is stored unconverted rather than overflowing its position; Thai is unaffected by `>`/`<` | R11.3, R12.5 |

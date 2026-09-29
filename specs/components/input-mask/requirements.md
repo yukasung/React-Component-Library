@@ -700,6 +700,23 @@ refused.** The limit is set by category, not by counting:
   (arbitrarily stacked marks), not as a linguistic rule. Nothing in Thai comes
   near it.
 
+R12.3a **A combining mark may only join a cluster whose base is a letter.**
+Classification goes by the base character (R12.2), so `"1"` followed by a
+Thai vowel is one cluster whose base is `"1"` — which a digit position would
+accept, putting a non-ASCII cluster into the raw value that R2.1a restricted
+the digit classes to ASCII precisely to keep clean. Marks decorate script;
+the digit classes hold the numbers inside an identifier. A mark offered to a
+position holding a digit is refused with `onInvalidInput`
+(`reason: 'character'`).
+
+R12.3b **A combining mark is typed separately and does not advance the
+caret.** A Thai keyboard sends `กิ๊` as three keystrokes — consonant, vowel,
+tone mark — so the field joins them itself: the mark attaches to the cluster
+in the position before the caret, and the caret stays where it is, ready for
+the next base character. A mark with nothing before it to attach to is
+refused. The owed-literal queue survives the append, since no new position
+was started and the user may still be about to type the separator.
+
 R12.4 **A Thai syllable is not one position, and that is expected.** Thai
 leading vowels are base characters in their own right — `เ` (U+0E40) is
 category `Lo`, not a mark — so `เกี๊ยว` is four clusters (`เ`, `กี๊`, `ย`,

@@ -24,7 +24,15 @@
 //     that drift apart.
 
 import type { MaskPattern, MaskPosition } from './maskPattern'
-import { acceptsCluster, applyCase, splitClusters } from './maskPattern'
+import {
+  acceptsCluster,
+  applyCase,
+  hasLetterBase,
+  isCombiningMark,
+  isStorableCluster,
+  joinsIntoOneCluster,
+  splitClusters,
+} from './maskPattern'
 
 // A caret or selection, in position indices, half-open: start === end is a
 // collapsed caret sitting before that position.
@@ -362,6 +370,9 @@ export function typeInto(
   // just asked for the whole thing to be replaced.
   const base = entry.caret.start !== entry.caret.end ? clearRange(pattern, entry, entry.caret) : entry
 
+  const markResult = typeCombiningMark(pattern, base, cluster)
+  if (markResult) return markResult
+
   const literalResult = typeLiteral(pattern, base, cluster)
   if (literalResult) return literalResult
 
@@ -394,6 +405,53 @@ export function typeInto(
   slots[index] = stored
   const { caret, owed } = advanceFrom(pattern, index)
   return { entry: { slots, caret: collapsed(caret), owedLiterals: owed } }
+}
+
+// A combining mark is not a character of its own: it belongs to the cluster
+// before it. A Thai keyboard sends "กิ๊" as three keystrokes — the consonant,
+// the vowel, the tone mark — so without this the two marks are offered to the
+// *next* position, which refuses them, and Thai cannot be typed at all.
+//
+// Appending leaves the caret where it is, because nothing new was started.
+// The owed-literal queue survives for the same reason: the position the mark
+// joined is the one that advanced past those literals, and the user may still
+// be about to type them.
+function typeCombiningMark(pattern: MaskPattern, entry: MaskEntry, cluster: string): EditResult | undefined {
+  if (!isCombiningMark(cluster)) return undefined
+
+  const target = fillableBefore(pattern, entry.caret.start)
+  const existing = target === null ? null : entry.slots[target]
+  const position = target === null ? undefined : fillableAt(pattern, target)
+  if (target === null || existing === null || position === undefined) {
+    // Nothing to attach to — a mark opening a field has no base.
+    return { entry: settled(entry.caret, entry.slots), invalid: { reason: 'character', input: cluster } }
+  }
+
+  const joined = existing + cluster
+  // Three checks. The mark must actually combine rather than start a cluster
+  // of its own; the result must still be something a position may hold, which
+  // is where the stacked-mark guard applies; and the base must be a letter.
+  //
+  // That last one keeps the digit classes' ASCII promise. Classification goes
+  // by the base character, so "1" plus a Thai vowel is one cluster whose base
+  // is "1" and which a digit position would otherwise accept — putting a
+  // non-ASCII cluster into exactly the raw value that decision was made to
+  // keep ASCII.
+  if (
+    !joinsIntoOneCluster(existing, cluster) ||
+    !isStorableCluster(joined) ||
+    !hasLetterBase(existing) ||
+    !acceptsCluster(position, joined)
+  ) {
+    return {
+      entry: settled(entry.caret, entry.slots),
+      invalid: { reason: 'character', input: cluster, position: target },
+    }
+  }
+
+  const slots = [...entry.slots]
+  slots[target] = joined
+  return { entry: { slots, caret: entry.caret, owedLiterals: entry.owedLiterals } }
 }
 
 // The two ways a typed literal is not a rejection (R4.5). Returns undefined
@@ -500,7 +558,13 @@ function asFormatted(pattern: MaskPattern, clusters: string[], promptChar: strin
       if (cluster !== renderedLiteral(pattern, index)) return undefined
       continue
     }
-    if (cluster === promptChar) continue
+    // A blank position renders as the prompt, and R6.1 admits a space for it
+    // too — text that has been through a system which pads with spaces rather
+    // than prompts. Both mean "nothing here", before the class is consulted:
+    // a required position refuses a space as *data*, and reading it as data
+    // is what made " 1-23" fall through to the sequential walk and land as
+    // "12-3_", moving the value into the wrong positions.
+    if (cluster === promptChar || cluster === ' ') continue
     const stored = storeCluster(position, cluster)
     if (stored === undefined) return undefined
     slots[index] = stored
@@ -541,7 +605,11 @@ function asSequence(
 ): EditResult {
   const slots = [...entry.slots]
   let index = Math.max(0, from)
-  let lastFilled = index
+  // Null until something is actually written. A paste that places nothing —
+  // an empty string, or one the classes refuse outright — must leave the
+  // caret where the user put it rather than stepping forward over a position
+  // it never filled.
+  let lastFilled: number | null = null
   let dropped = false
 
   for (const cluster of clusters) {
@@ -568,8 +636,9 @@ function asSequence(
     lastFilled = landing.at
   }
 
+  const caret = lastFilled === null ? entry.caret : collapsed(advanceFrom(pattern, lastFilled).caret)
   return {
-    entry: settled(collapsed(advanceFrom(pattern, lastFilled).caret), slots),
+    entry: settled(caret, slots),
     ...(dropped ? { invalid: { reason: 'paste' as const, input: text } } : {}),
   }
 }

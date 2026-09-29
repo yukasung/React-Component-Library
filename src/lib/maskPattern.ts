@@ -104,6 +104,32 @@ export function isStorableCluster(cluster: string): boolean {
   return true
 }
 
+// Whether a cluster is a bare combining mark — something that cannot stand on
+// its own and belongs to whatever precedes it. Typed separately by a Thai
+// keyboard, which sends the consonant, the vowel and the tone mark as three
+// keystrokes, so the field has to join them back up itself.
+export function isCombiningMark(cluster: string): boolean {
+  const codePoints = Array.from(cluster)
+  return codePoints.length === 1 && NONSPACING_MARK.test(codePoints[0])
+}
+
+// Whether two clusters join into one when written next to each other. The
+// test is behavioural rather than a category lookup, for the same reason
+// resolvePromptChar's is: what matters is whether the segmenter reads them as
+// one position's worth of text, not what Unicode calls them.
+export function joinsIntoOneCluster(base: string, addition: string): boolean {
+  return splitClusters(base + addition).length === 1
+}
+
+// Whether a cluster's base is a letter — the test for whether a combining
+// mark may join it. Marks exist to decorate script, and a digit position
+// holds ASCII by deliberate decision (see the DIGIT note below), so a
+// decorated digit would put a non-ASCII cluster into a value that decision
+// promised would not contain one.
+export function hasLetterBase(cluster: string): boolean {
+  return LETTER.test(baseChar(cluster))
+}
+
 // A cluster's class is decided by its base character — the vowel and tone
 // marks that follow ride along with it. Without this, `L` would refuse "กิ๊"
 // outright, because a combining mark is not in a letter category.
