@@ -111,6 +111,8 @@ amended requirement has a visible criterion to amend with it
 | V6.4a | **Ambiguity regression**: the same mask pasted `"1203"` raws to `"1203"`, **not** `"123 "` — the raw interpretation is tried before the sequential one, so a data `0` is never eaten as the literal | R6.1 step 2, R6.2 |
 | V6.4b | No literal position ever contributes a cluster to the raw form, under any of the three steps | R6.2 |
 | V6.4c | A mask with no literals resolves identically under steps 1 and 2 | R6.1 |
+| V6.4d | **Sequential keeps the acceptable clusters together**: `0000` pasted `"1a2"` gives `12__` | R6.1 step 3 |
+| V6.4e | **Raw matches by position**: the same mask pasted `"1a23"` gives `1_23`, so the two interpretations differ deliberately rather than by accident | R6.1 step 2 |
 | V6.5 | A paste with dropped characters applies the rest and fires `onInvalidInput` exactly once with `reason: 'paste'` | R6.3, R8.4 |
 | V6.6 | A paste in which everything was placed fires nothing | R8.4 |
 | V6.7 | Pasting over a selection clears the selected positions first | R6.4 |
@@ -148,7 +150,9 @@ amended requirement has a visible criterion to amend with it
 | V9.1 | The input exposes the `textbox` role — no `combobox`, no `spinbutton`, no explicit `role` attribute | R9.1 |
 | V9.2 | `inputMode` is `numeric` for an all-`0`/`9` mask, `text` when the mask contains `#`, `text` when unmasked | R9.3 |
 | V9.3 | **A consumer-supplied `inputMode` wins** — `inputMode="tel"` survives, proving the derived value sits underneath the spread | R9.3 |
-| V9.4 | Left/Right move one position, Home/End reach the first/last fillable position, Enter commits, Escape reverts, Tab leaves | R9.4 |
+| V9.4 | Left/Right move one position, Home reaches the first fillable position, Enter commits, Escape reverts, Tab leaves | R9.4 |
+| V9.4e | **`End` rests after the last position**, where the caret already sits once the field is full, and a further Right stays there | R4.14, R9.4 |
+| V9.4f | From that position: a character gives `'full'` in both modes, Left returns to the last position, Backspace clears it, and a combining mark still joins the cluster before the caret | R4.14 |
 | V9.4a | **Caret placement is correct across multi-unit clusters**: in `mask="LL"` showing `กิ๊_`, Home then Right puts the caret at the second position — offset 3, not offset 1 | R4.11 |
 | V9.4b | A click at any offset inside a cluster resolves to that cluster's position and never splits it | R4.11 |
 | V9.4c | Highlighting a filled position spans the cluster's full UTF-16 length, not one unit | R4.11 |

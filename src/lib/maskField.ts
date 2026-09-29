@@ -295,8 +295,18 @@ export function caretHome(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
   return settled(collapsed(firstFillable(pattern)), entry.slots)
 }
 
+// End goes *past* the last position, not onto it — the ordinary caret at the
+// end of the text, and the same place the caret already lands after filling
+// the field.
+//
+// Resting on the last position instead would borrow the group editor's
+// "a completed last group stays highlighted" behaviour, and it does not
+// transfer: a caret sits *before* the position it names, so overwrite typing
+// there would replace the last character the user just entered, and Backspace
+// would take the second-to-last. Neither is what a caret at the end of a
+// field does anywhere else.
 export function caretEnd(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
-  return settled(collapsed(lastFillable(pattern)), entry.slots)
+  return settled(collapsed(pattern.positions.length), entry.slots)
 }
 
 export function selectRange(entry: MaskEntry, range: PositionRange): MaskEntry {

@@ -367,6 +367,25 @@ just asked for the field to be replaced. Clearing first is what makes
 select-all-and-retype work, and it is the same clearing that R6.4 applies
 before a paste and that R7.2's wipe rule already assumes exists.
 
+R4.14 **The caret may rest after the last position, and stops there.** That
+is the ordinary caret at the end of the text, and it is where the caret
+already ends up once the field is full — so `End` goes there too, and a
+further Right stays put rather than walking off.
+
+It is deliberately *not* the group editor's rule, where a completed last group
+stays highlighted so one more keystroke retypes it. A caret sits **before**
+the position it names, so resting on the last position instead would make
+overwrite typing replace the character just entered, and Backspace take the
+second-to-last. From the end position:
+
+| Key | Result |
+| --- | --- |
+| A character, either mode | `'full'` — there is no position to take it |
+| A combining mark | Joins the cluster before the caret, per R12.3b |
+| Left | The last position |
+| Backspace | Clears the last position |
+| Right, End | Stays |
+
 R4.11 **A position index is not a text offset.** The `<input>`'s selection API
 works in UTF-16 code units, and a position holding a multi-unit cluster makes
 the two diverge: in `mask="LL"` the second position sits at offset 1 while the
@@ -465,7 +484,19 @@ caret:
   the literal without consuming the cluster — the control fills literals
   itself.
 - Otherwise the cluster is offered to the current fillable position and
-  accepted or dropped by its class.
+  accepted or dropped by its class. **A dropped cluster does not advance the
+  target**: the next cluster is offered the same position.
+
+That last rule is the difference between this step and step 2, and it is
+deliberate. Sequential means *fill the acceptable characters consecutively*;
+raw means *match by position*. So the same string lands differently depending
+on which interpretation its length selects, and both answers are right for
+what they mean:
+
+| Mask | Pasted | Step | Result |
+| --- | --- | --- | --- |
+| `0000` | `"1a2"` | 3 — matches neither length | `12__`, the digits kept together |
+| `0000` | `"1a23"` | 2 — matches the fillable count | `1_23`, each cluster at its own position |
 
 R6.2 **Steps 1 and 2 are what keep a literal that looks like data from eating
 it.** Mask `00\000` is two digits, a *literal* `0`, then two digits: rendered
@@ -640,9 +671,9 @@ records. It is **derived, and overridable**:
   to override, and `inputMode="tel"` — which the derivation never produces —
   is a legitimate choice for a phone mask.
 
-R9.4 Keyboard: Left/Right move one position, Home/End go to the first/last
-fillable position, Enter commits, Escape reverts the field to its committed
-value. Tab follows the natural form order.
+R9.4 Keyboard: Left/Right move one position, Home goes to the first fillable
+position and End past the last one (R4.14), Enter commits, Escape reverts.
+Tab follows the natural form order.
 
 R9.5 Screen-reader behavior is whatever a native text input gives. Prompt
 characters are part of the input's value and are therefore announced; this is
