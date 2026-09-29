@@ -312,6 +312,19 @@ describe('InputMask', () => {
 
     // Deleting a position is the proof, not typing one: the field is full,
     // and insert mode has nowhere to shift to, so a digit is rightly refused.
+    it('reports the raw form at every commit, never the formatted text', () => {
+      const onChange = vi.fn()
+      const input = field({ mask: '00-00', onChange })
+      typeKeys(input, '1234')
+      fireEvent.keyDown(input, { key: 'Enter' })
+      fireEvent.keyDown(input, { key: 'Home' })
+      fireEvent.keyDown(input, { key: 'Delete' })
+      typeKeys(input, '9')
+      fireEvent.blur(input)
+      for (const [committed] of onChange.mock.calls) expect(committed).not.toContain('-')
+      expect(onChange.mock.calls.map(([committed]) => committed)).toEqual(['1234', '9234'])
+    })
+
     it('keeps editing after Escape', () => {
       const input = field({ mask: '00-00', value: '1234' })
       fireEvent.keyDown(input, { key: 'Escape' })
@@ -319,6 +332,28 @@ describe('InputMask', () => {
       fireEvent.keyDown(input, { key: 'Home' })
       fireEvent.keyDown(input, { key: 'Delete' })
       expect(input).toHaveValue('_2-34')
+    })
+  })
+
+  describe('a mask or text changed while the field is focused', () => {
+    it('re-applies the value to the new mask without committing', () => {
+      const onChange = vi.fn()
+      const { rerender } = render(
+        <InputMask aria-label="Field" mask="000000" value="123456" onChange={onChange} />,
+      )
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      focus(input)
+      rerender(<InputMask aria-label="Field" mask="000-000" value="123456" onChange={onChange} />)
+      expect(input).toHaveValue('123-456')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('lets a changed text reach the field, parsed through the mask', () => {
+      const { rerender } = render(<InputMask aria-label="Field" mask="00" text="1" />)
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      focus(input)
+      rerender(<InputMask aria-label="Field" mask="00" text="AB" />)
+      expect(input).toHaveValue('__')
     })
   })
 
@@ -352,6 +387,30 @@ describe('InputMask', () => {
     expect(onInvalidInput).not.toHaveBeenCalled()
   })
 
+  describe('value and text together', () => {
+    // Only a text that parses to a complete value replaces the value. The
+    // other rows revert, which is precisely what preserves it.
+    const rows: { text: string; shows: string; committed: string | null; commits: boolean }[] = [
+      { text: '34', shows: '34', committed: '34', commits: true },
+      { text: '1', shows: '1_', committed: '12', commits: false },
+      { text: 'AB', shows: '__', committed: '12', commits: false },
+    ]
+
+    for (const { text, shows, committed, commits } of rows) {
+      it(`text=${JSON.stringify(text)} shows ${shows} and ${commits ? 'replaces' : 'leaves'} the value`, () => {
+        const onChange = vi.fn()
+        render(<InputMask aria-label="Field" mask="00" value="12" text={text} onChange={onChange} />)
+        const input = screen.getByLabelText('Field') as HTMLInputElement
+        expect(input).toHaveValue(shows)
+        focus(input)
+        fireEvent.blur(input)
+        expect(input).toHaveValue(committed)
+        if (commits) expect(onChange).toHaveBeenCalledWith('34')
+        else expect(onChange).not.toHaveBeenCalled()
+      })
+    }
+  })
+
   describe('text', () => {
     it('is applied through the mask, not written verbatim', () => {
       render(<InputMask aria-label="Field" mask="00" text="AB" />)
@@ -361,6 +420,26 @@ describe('InputMask', () => {
     it('is what editing starts from', () => {
       const input = field({ mask: '00', text: '9' })
       expect(input).toHaveValue('9_')
+    })
+
+    it('does not echo a text prop the consumer just set', () => {
+      const onTextChange = vi.fn()
+      const { rerender } = render(
+        <InputMask aria-label="Field" mask="00" text="12" onTextChange={onTextChange} />,
+      )
+      rerender(<InputMask aria-label="Field" mask="00" text="34" onTextChange={onTextChange} />)
+      expect(onTextChange).not.toHaveBeenCalled()
+    })
+
+    it('reports the restored text when an invalid blur reverts', () => {
+      const onTextChange = vi.fn()
+      const input = field({ mask: '000', value: '123', onTextChange })
+      fireEvent.keyDown(input, { key: 'End' })
+      fireEvent.keyDown(input, { key: 'Backspace' })
+      onTextChange.mockClear()
+      fireEvent.blur(input)
+      expect(input).toHaveValue('123')
+      expect(onTextChange).toHaveBeenCalledWith('123')
     })
 
     it('reports the text again when a revert puts it back', () => {

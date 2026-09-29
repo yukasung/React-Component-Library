@@ -853,10 +853,22 @@ decides what the field *shows*; it gets no exemption from what the field may
 | `text="AB"` | `__` — neither character is a digit | Empty: `null`, or revert if `isRequired` (test 1) |
 | `text="1"` | `1_` | Incomplete → **revert** (test 3) |
 
-R12.15 A `value` contradicted by a `text` is therefore discarded at the next
-commit, because the commit reads the field, and `text` set what the field
-holds. Supplying both on purpose is a mistake; the prop's doc comment says so,
-and `text` remains documented as an escape hatch.
+R12.15 **What `text` does to `value` follows from R12.14, and is not always
+to override it.** The override decides what the field shows, the commit reads
+the field, and R3.7 decides what that reading is worth:
+
+| `mask="00"`, `value="12"`, then | Commit |
+| --- | --- |
+| `text="34"` | Commits `"34"`. The `value` is replaced. |
+| `text="1"` | Incomplete, so it **reverts to `"12"`** — the `value` stands. |
+| `text="AB"` | Nothing the mask can take, so the field is empty: reverts to `"12"` while `isRequired`, commits `null` otherwise. |
+
+Only the first row discards the `value`. Saying flatly that a contradicted
+`value` is discarded was wrong for the other two, where reverting is
+precisely what preserves it.
+
+Supplying both on purpose is still a mistake, and the prop's doc comment says
+so; `text` remains documented as an escape hatch.
 
 ## 13. Naming
 

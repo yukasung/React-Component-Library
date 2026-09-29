@@ -185,24 +185,38 @@ export const InputMask = forwardRef<HTMLInputElement, InputMaskProps>(function I
   // the entry would otherwise go on showing — and then commit — what the
   // field held before. Publishing after the render commits, rather than
   // during it, keeps a suspended render from replacing the visible baseline.
+  // Anything that changes what the field *should* be showing has to reach the
+  // entry, or it goes on displaying — and then committing — what the field
+  // held before. A controlled `value`, a `text` override and a changed `mask`
+  // are three routes to one outcome, so they are handled as one: whenever the
+  // baseline the field renders from moves, an open entry is re-seeded from it.
+  //
+  // Published after the render commits rather than during it, so a suspended
+  // render cannot replace the visible baseline.
   const previousControlledValueRef = useRef(value)
-  // Read through a ref rather than listed as a dependency: the pattern is
-  // rebuilt every render, so depending on it would re-run this effect every
-  // render for a value that has not changed.
-  const patternRef = useRef(pattern)
-  patternRef.current = pattern
+  const previousBaselineRef = useRef(baseline)
+  const previousMaskRef = useRef(mask)
+  // Read through refs rather than listed as dependencies: both are rebuilt
+  // every render, so depending on them would re-run this for a baseline that
+  // has not moved.
+  const seedRef = useRef<(source: string) => MaskEntry | null>(() => null)
   useLayoutEffect(() => {
-    if (!isControlled || value === previousControlledValueRef.current) return
-    previousControlledValueRef.current = value
-    lastCommittedRef.current = value
-    const current = patternRef.current
-    setEntry((existing) => (existing && current ? rawToEntry(current, value ?? '') : existing))
-  }, [isControlled, value])
+    if (isControlled && value !== previousControlledValueRef.current) {
+      previousControlledValueRef.current = value
+      lastCommittedRef.current = value
+    }
+    const moved = baseline !== previousBaselineRef.current || mask !== previousMaskRef.current
+    previousBaselineRef.current = baseline
+    previousMaskRef.current = mask
+    if (!moved) return
+    setEntry((existing) => (existing ? seedRef.current(baseline) : existing))
+  }, [isControlled, value, baseline, mask])
 
   function seedEntry(source: string): MaskEntry | null {
     if (!pattern) return null
     return applyText(pattern, emptyEntry(pattern), source, prompt, wholeField).entry
   }
+  seedRef.current = seedEntry
 
   // Every edit lands here, so the caret the model chose becomes the caret the
   // browser shows — converted from a position index to a text offset once, at
