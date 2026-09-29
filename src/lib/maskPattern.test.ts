@@ -183,9 +183,25 @@ describe('applyCase', () => {
     expect(applyCase('a', 'none')).toBe('a')
   })
 
-  // "ß" upper-cases to "SS": two characters for one position.
-  it('skips a conversion that would change the code-point count', () => {
+  // "ß" upper-cases to "SS": two clusters for one position.
+  it('skips a conversion that would take two clusters', () => {
     expect(applyCase('ß', 'upper')).toBe('ß')
+  })
+
+  // "ᾳ" upper-cases to "ΑΙ" — also two clusters, and also refused. Kept
+  // alongside "ß" because it is the case a naive "always convert" fix passes
+  // while still overflowing the position.
+  it('skips a conversion that takes two clusters from one code point', () => {
+    expect('ᾳ'.toUpperCase()).toBe('ΑΙ')
+    expect(applyCase('ᾳ', 'upper')).toBe('ᾳ')
+  })
+
+  // "İ" lower-cases to "i̇": two code points, still one cluster, so it fits
+  // the position and must be applied. Counting code points refuses it.
+  it('applies a conversion that grows in code points but stays one cluster', () => {
+    expect(Array.from('İ'.toLowerCase())).toHaveLength(2)
+    expect(splitClusters('İ'.toLowerCase())).toHaveLength(1)
+    expect(applyCase('İ', 'lower')).toBe('İ'.toLowerCase())
   })
 
   it('leaves Thai unchanged, having no case', () => {
@@ -206,6 +222,26 @@ describe('resolvePromptChar', () => {
 
   it('keeps a multi-code-point cluster that is still one cluster', () => {
     expect(resolvePromptChar(pattern('00'), 'กิ๊')).toBe('กิ๊')
+  })
+
+  // A lone combining mark is one cluster by itself, but two of them in a row
+  // are also one cluster — so rendering it into two positions would make the
+  // field one cluster narrower than it has positions, and every caret offset
+  // would be unmappable.
+  it('falls back when the prompt merges with whatever is beside it', () => {
+    expect(splitClusters('\u0E34')).toHaveLength(1)
+    expect(splitClusters('\u0E34\u0E34')).toHaveLength(1)
+    expect(resolvePromptChar(pattern('00'), '\u0E34')).toBe('_')
+  })
+
+  it('falls back for a zero-width joiner, which merges the same way', () => {
+    expect(resolvePromptChar(pattern('00'), '\u200D')).toBe('_')
+  })
+
+  it('keeps the rendered width equal to the position count for a kept prompt', () => {
+    const prompt = resolvePromptChar(pattern('00-00'), 'กิ๊')
+    const rendered = `${prompt}${prompt}-${prompt}${prompt}`
+    expect(splitClusters(rendered)).toHaveLength(pattern('00-00').renderedWidth)
   })
 
   // The round-trip guard: a "0" prompt on a digit mask makes an empty field

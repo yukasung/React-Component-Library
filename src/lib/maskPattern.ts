@@ -136,14 +136,19 @@ export function acceptsCluster(position: MaskPosition, cluster: string): boolean
   }
 }
 
-// Applies a position's case conversion, skipping it when it would change how
-// many code points the cluster holds. "ß" upper-cases to "SS" — two
-// characters for one position — so it is stored as typed instead of
+// Applies a position's case conversion, skipping it when the result would no
+// longer fit the position. "ß" upper-cases to "SS" and "ᾳ" to "ΑΙ" — two
+// clusters for one position — so those are stored as typed instead of
 // overflowing the position or being refused outright.
+//
+// The test is a count of *clusters*, not of code points, and the two genuinely
+// disagree. "İ" lower-cases to "i̇": two code points, still one cluster, and
+// it fits a position perfectly well. Counting code points would refuse a
+// conversion that is fine, which is how this was first written.
 export function applyCase(cluster: string, caseMode: CaseMode): string {
   if (caseMode === 'none') return cluster
   const converted = caseMode === 'upper' ? cluster.toUpperCase() : cluster.toLowerCase()
-  if (Array.from(converted).length !== Array.from(cluster).length) return cluster
+  if (splitClusters(converted).length !== splitClusters(cluster).length) return cluster
   return converted
 }
 
@@ -217,6 +222,28 @@ export function resolvePattern(mask: string | undefined): MaskPattern | null {
   return pattern
 }
 
+// Whether a string is one cluster that *stays* one cluster next to whatever
+// sits beside it. Being one cluster in isolation is not enough, because the
+// prompt is rendered once per unfilled position and next to the mask's own
+// literals.
+//
+// A lone combining mark is the case that proves it: "\u0E34" segments as one
+// cluster on its own, so a length check passes it — but two of them in a row
+// segment as *one* cluster, and on mask "00" an empty field would render two
+// positions as a single cluster. Every width the template and the caret
+// depend on would be off by one, and no offset could be mapped back to a
+// position. A zero-width joiner does the same thing.
+//
+// Tested behaviourally rather than by Unicode category, because the property
+// that matters here is exactly "does it merge", not "what is it".
+function isStandaloneCluster(text: string): boolean {
+  return (
+    splitClusters(text).length === 1 &&
+    splitClusters(text + text).length === 2 &&
+    splitClusters(`a${text}`).length === 2
+  )
+}
+
 export const DEFAULT_PROMPT_CHAR = '_'
 
 // The character standing in for an unfilled position.
@@ -237,7 +264,7 @@ export const DEFAULT_PROMPT_CHAR = '_'
 // with nothing; " " collides with 9, #, l and a.
 export function resolvePromptChar(pattern: MaskPattern | null, promptChar: string | undefined): string {
   if (promptChar === undefined) return DEFAULT_PROMPT_CHAR
-  if (splitClusters(promptChar).length !== 1) return DEFAULT_PROMPT_CHAR
+  if (!isStandaloneCluster(promptChar)) return DEFAULT_PROMPT_CHAR
   if (pattern) {
     for (const position of pattern.positions) {
       if (acceptsCluster(position, promptChar)) return DEFAULT_PROMPT_CHAR
