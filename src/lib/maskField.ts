@@ -24,15 +24,7 @@
 //     that drift apart.
 
 import type { MaskPattern, MaskPosition } from './maskPattern'
-import {
-  acceptsCluster,
-  applyCase,
-  hasLetterBase,
-  isCombiningMark,
-  isStorableCluster,
-  joinsIntoOneCluster,
-  splitClusters,
-} from './maskPattern'
+import { acceptsCluster, applyCase, isCombiningMark, joinsIntoOneCluster, splitClusters } from './maskPattern'
 
 // A caret or selection, in position indices, half-open: start === end is a
 // collapsed caret sitting before that position.
@@ -428,21 +420,12 @@ function typeCombiningMark(pattern: MaskPattern, entry: MaskEntry, cluster: stri
   }
 
   const joined = existing + cluster
-  // Three checks. The mark must actually combine rather than start a cluster
-  // of its own; the result must still be something a position may hold, which
-  // is where the stacked-mark guard applies; and the base must be a letter.
-  //
-  // That last one keeps the digit classes' ASCII promise. Classification goes
-  // by the base character, so "1" plus a Thai vowel is one cluster whose base
-  // is "1" and which a digit position would otherwise accept — putting a
-  // non-ASCII cluster into exactly the raw value that decision was made to
-  // keep ASCII.
-  if (
-    !joinsIntoOneCluster(existing, cluster) ||
-    !isStorableCluster(joined) ||
-    !hasLetterBase(existing) ||
-    !acceptsCluster(position, joined)
-  ) {
+  // The mark must actually combine rather than start a cluster of its own,
+  // and the result must be something this position may hold. The second check
+  // is doing more work than it looks: acceptsCluster is where the stacked-mark
+  // guard and the letter-base rule both live, so a mark offered to a digit is
+  // refused here by the same code that refuses it in a pasted value.
+  if (!joinsIntoOneCluster(existing, cluster) || !acceptsCluster(position, joined)) {
     return {
       entry: settled(entry.caret, entry.slots),
       invalid: { reason: 'character', input: cluster, position: target },

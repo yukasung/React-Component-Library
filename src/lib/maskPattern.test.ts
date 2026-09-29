@@ -139,6 +139,20 @@ describe('acceptsCluster', () => {
     }
   })
 
+  // Classification goes by the base, so "1" plus a Thai vowel is one cluster
+  // whose base is a digit. Accepting it would put a non-ASCII cluster into
+  // the raw value the digit classes are ASCII to keep clean.
+  it('refuses a decorated digit wherever the cluster comes from', () => {
+    for (const maskClass of ['0', '9', '#', 'A', 'a'] as const) {
+      expect(acceptsCluster(fillable(maskClass), '1\u0E34')).toBe(false)
+    }
+  })
+
+  it('still accepts a decorated letter', () => {
+    expect(acceptsCluster(fillable('L'), 'กิ๊')).toBe(true)
+    expect(acceptsCluster(fillable('A'), 'กิ๊')).toBe(true)
+  })
+
   it('never accepts anything into a literal position', () => {
     expect(acceptsCluster({ type: 'literal', text: '-' }, '-')).toBe(false)
   })

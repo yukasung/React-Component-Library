@@ -429,6 +429,23 @@ describe('combining marks', () => {
     expect(typeInto(p, entry, '\u0E34', false).invalid?.reason).toBe('character')
   })
 
+  // A mark reaches a position by three routes. Enforcing the letter-base rule
+  // at the keystroke alone left the other two accepting "1ิ" and reporting
+  // the field complete.
+  it('refuses a decorated digit through a raw value', () => {
+    const p = pattern('00')
+    const entry = rawToEntry(p, '1\u0E34' + '2')
+    expect(entryText(p, entry, PROMPT)).toBe('_2')
+    expect(commitState(p, entry)).toBe('incomplete')
+  })
+
+  it('refuses a decorated digit through a paste', () => {
+    const p = pattern('00')
+    const result = applyText(p, emptyEntry(p), '1\u0E34' + '2', PROMPT)
+    expect(entryToRaw(p, result.entry)).not.toContain('\u0E34')
+    expect(result.invalid?.reason).toBe('paste')
+  })
+
   it('refuses a mark on a position whose class would not accept the result', () => {
     const p = pattern('00')
     const entry = typeInto(p, emptyEntry(p), '1', false).entry

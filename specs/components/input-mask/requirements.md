@@ -116,9 +116,20 @@ always the empty string"). Unmasked mode is stated on its own terms:
 | `onInvalidInput` | Per R8.4 | **Never fires**, except `'incomplete'` never applies either. |
 | `inputMode` | Derived (R9.3) | `"text"` |
 
-R2.8 Commit in unmasked mode: blur or Enter commits the text as-is, or `null`
-if it is empty. "Incomplete" has no meaning, so only the empty/required branch
-of R3.7 applies.
+R2.8 **Commit in unmasked mode is R3.7 with its middle branch removed.**
+"Incomplete" has no meaning where there are no required positions, so of
+R3.7's three tests only the first two can apply, and `isRequired` decides
+between them exactly as it does with a mask:
+
+| Field state | Result |
+| --- | --- |
+| Empty, `isRequired === false` | Commit `null`. |
+| Empty, `isRequired === true` | **Revert** to the committed value (R7.2), including staying empty when that value was `null`. |
+| Anything typed | Commit the text as-is. |
+
+Saying only "or `null` if it is empty" left two answers for the same field: an
+unmasked, required field holding a committed `"abc"`, cleared and blurred,
+would commit `null` by that sentence and revert by R3.7. It reverts.
 
 R2.9 **Switching into or out of a mask.** Per R12.10 a changed `mask`
 re-applies the current raw form. Crossing this boundary:

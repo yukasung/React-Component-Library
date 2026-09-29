@@ -121,11 +121,8 @@ export function joinsIntoOneCluster(base: string, addition: string): boolean {
   return splitClusters(base + addition).length === 1
 }
 
-// Whether a cluster's base is a letter — the test for whether a combining
-// mark may join it. Marks exist to decorate script, and a digit position
-// holds ASCII by deliberate decision (see the DIGIT note below), so a
-// decorated digit would put a non-ASCII cluster into a value that decision
-// promised would not contain one.
+// Whether a cluster's base is a letter — the test for whether it may carry
+// combining marks at all (see acceptsCluster).
 export function hasLetterBase(cluster: string): boolean {
   return LETTER.test(baseChar(cluster))
 }
@@ -141,6 +138,17 @@ function baseChar(cluster: string): string {
 export function acceptsCluster(position: MaskPosition, cluster: string): boolean {
   if (position.type !== 'fillable') return false
   if (!isStorableCluster(cluster)) return false
+  // Marks decorate script, so a decorated cluster is only ever acceptable
+  // where its base is a letter. Classification goes by the base character, so
+  // "1" plus a Thai vowel is one cluster whose base is "1" and which a digit
+  // position would otherwise take — putting a non-ASCII cluster into exactly
+  // the raw value the digit classes are ASCII to keep clean.
+  //
+  // The rule lives here rather than at the keystroke that types a mark,
+  // because a mark reaches a position by three routes: typed separately,
+  // carried in a raw value, or pasted. Enforcing it at one of them left the
+  // other two accepting "1ิ" and reporting the field complete.
+  if (Array.from(cluster).length > 1 && !hasLetterBase(cluster)) return false
   const base = baseChar(cluster)
   const isSpace = cluster === ' '
   const isDigit = DIGIT.test(base)

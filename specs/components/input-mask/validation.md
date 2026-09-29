@@ -27,7 +27,10 @@ amended requirement has a visible criterion to amend with it
 | --- | --- | --- |
 | V2.1 | With no `mask`, every row of R2.7's table holds — in particular `value` equals the typed text, no character is refused, no prompt characters appear, and `placeholder` defaults to nothing | R2.5, R2.7 |
 | V2.2 | `onInvalidInput` never fires in unmasked mode, for any input | R2.7 |
-| V2.3 | Commit is the text as-is, or `null` when empty | R2.8 |
+| V2.3 | Typed text commits as-is | R2.8 |
+| V2.3a | Empty and `isRequired={false}` commits `null` | R2.8, R3.7 |
+| V2.3b | **Empty and `isRequired` reverts, not commits `null`**: an unmasked required field holding `"abc"`, cleared and blurred, still holds `"abc"` | R2.8, R7.2 |
+| V2.3c | The same field whose committed value was `null` stays empty rather than being given a value | R2.8, R7.2 |
 | V2.4 | masked → unmasked keeps the raw form as text with trailing blanks trimmed; unmasked → masked applies R3.5 | R2.9 |
 | V2.5 | The tokenizer-fallback mask reaches the same mode as an absent one, verified through the component, not only the module | R2.4, R2.5 |
 
