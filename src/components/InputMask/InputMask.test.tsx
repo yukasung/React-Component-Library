@@ -1,4 +1,4 @@
-import { createRef, useState } from 'react'
+import { createRef, StrictMode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -409,6 +409,243 @@ describe('InputMask', () => {
       })
       expect(event.defaultPrevented).toBe(false)
     })
+  })
+
+  describe('promptChar', () => {
+    it('fills every unfilled position with it', () => {
+      render(<InputMask aria-label="Field" mask="00-00" promptChar="#" />)
+      expect(screen.getByLabelText('Field')).toHaveAttribute('placeholder', '##-##')
+    })
+
+    it('falls back when it is not one cluster', () => {
+      render(<InputMask aria-label="Field" mask="00" promptChar="--" />)
+      expect(screen.getByLabelText('Field')).toHaveAttribute('placeholder', '__')
+    })
+
+    // A prompt the mask would take as data makes a filled position
+    // indistinguishable from an empty one.
+    it('falls back when the mask would accept it as data', () => {
+      render(<InputMask aria-label="Field" mask="00" promptChar="0" />)
+      expect(screen.getByLabelText('Field')).toHaveAttribute('placeholder', '__')
+    })
+
+    it('keeps one no position of this mask accepts', () => {
+      render(<InputMask aria-label="Field" mask="LL" promptChar="0" />)
+      expect(screen.getByLabelText('Field')).toHaveAttribute('placeholder', '00')
+    })
+  })
+
+  describe('overwriteMode', () => {
+    it('replaces the character at the caret', () => {
+      const input = field({ mask: '000', value: '123', overwriteMode: true })
+      typeKeys(input, '9')
+      expect(input).toHaveValue('923')
+    })
+
+    it('inserts and pushes along by default', () => {
+      const input = field({ mask: '000', value: '12' })
+      fireEvent.keyDown(input, { key: 'Home' })
+      typeKeys(input, '9')
+      expect(input).toHaveValue('912')
+    })
+  })
+
+  describe('onInvalidInput', () => {
+    it('fires once for a whole paste, not once per character', async () => {
+      const user = userEvent.setup()
+      const onInvalidInput = vi.fn()
+      const input = field({ mask: '0000', onInvalidInput })
+      await user.paste('1ab')
+      expect(input).toHaveValue('1___')
+      expect(onInvalidInput).toHaveBeenCalledTimes(1)
+      expect(onInvalidInput).toHaveBeenCalledWith({ reason: 'paste', input: '1ab' })
+    })
+
+    it('stays quiet for a paste that fits', async () => {
+      const user = userEvent.setup()
+      const onInvalidInput = vi.fn()
+      field({ mask: '000-000', onInvalidInput })
+      await user.paste('123456')
+      expect(onInvalidInput).not.toHaveBeenCalled()
+    })
+
+    it('reports an incomplete commit', () => {
+      const onInvalidInput = vi.fn()
+      const input = field({ mask: '000-000', onInvalidInput })
+      typeKeys(input, '12')
+      fireEvent.blur(input)
+      expect(onInvalidInput).toHaveBeenCalledWith({ reason: 'incomplete' })
+    })
+
+    it('reports a field with nowhere left to put a character', () => {
+      const onInvalidInput = vi.fn()
+      const input = field({ mask: '00', value: '12', onInvalidInput })
+      fireEvent.keyDown(input, { key: 'End' })
+      typeKeys(input, '9')
+      expect(onInvalidInput).toHaveBeenCalledWith({ reason: 'full', input: '9' })
+    })
+
+    it('stays quiet for a prop the mask cannot take', () => {
+      const onInvalidInput = vi.fn()
+      render(<InputMask aria-label="Field" mask="00" value="ab" onInvalidInput={onInvalidInput} />)
+      expect(screen.getByLabelText('Field')).toHaveValue('__')
+      expect(onInvalidInput).not.toHaveBeenCalled()
+    })
+
+    it('hands over a plain object rather than an event', () => {
+      const seen: unknown[] = []
+      const input = field({ mask: '000', onInvalidInput: (info) => seen.push(info) })
+      typeKeys(input, 'a')
+      expect(seen[0]).toEqual({ reason: 'character', input: 'a', position: 0 })
+      expect(seen[0]).not.toHaveProperty('preventDefault')
+    })
+  })
+
+  describe('the caret at the end of the field', () => {
+    it('is where End lands, and a further Right stays there', () => {
+      const input = field({ mask: '00', value: '12' })
+      fireEvent.keyDown(input, { key: 'End' })
+      expect(input.selectionStart).toBe(2)
+      fireEvent.keyDown(input, { key: 'ArrowRight' })
+      expect(input.selectionStart).toBe(2)
+    })
+
+    it('clears the last position on Backspace, not the one before it', () => {
+      const input = field({ mask: '00', value: '12' })
+      fireEvent.keyDown(input, { key: 'End' })
+      fireEvent.keyDown(input, { key: 'Backspace' })
+      expect(input).toHaveValue('1_')
+    })
+  })
+
+  describe('required', () => {
+    it('reverts a wipe to the committed value', () => {
+      const input = field({ mask: '000', value: '123' })
+      fireEvent.change(input, { target: { value: '' } })
+      fireEvent.blur(input)
+      expect(input).toHaveValue('123')
+    })
+
+    // The snap answers a wipe, not a keystroke: refilling the field the
+    // moment the last position empties reads as "this cannot be deleted".
+    it('leaves a field cleared one position at a time alone while editing', () => {
+      const input = field({ mask: '00', value: '12' })
+      fireEvent.keyDown(input, { key: 'End' })
+      fireEvent.keyDown(input, { key: 'Backspace' })
+      expect(input).toHaveValue('1_')
+      fireEvent.keyDown(input, { key: 'Backspace' })
+      expect(input).toHaveValue('__')
+    })
+
+    it('stays empty when there is no committed value to revert to', () => {
+      const input = field({ mask: '000' })
+      typeKeys(input, '12')
+      fireEvent.blur(input)
+      expect(input).toHaveValue('')
+    })
+
+    // Really moving focus, not just firing the event: the point is that
+    // nothing holds the caret in the field to force a correction.
+    it('always lets focus leave', () => {
+      const input = field({ mask: '000' })
+      typeKeys(input, '12')
+      act(() => {
+        input.blur()
+      })
+      expect(input).not.toHaveFocus()
+      expect(input).toHaveValue('')
+    })
+  })
+
+  describe('form integration', () => {
+    it('serializes the formatted text under its name', () => {
+      render(
+        <form data-testid="form">
+          <InputMask aria-label="Field" mask="000-000" name="code" value="123456" />
+        </form>,
+      )
+      const data = new FormData(screen.getByTestId('form') as HTMLFormElement)
+      expect(data.get('code')).toBe('123-456')
+    })
+
+    it('renders no hidden input', () => {
+      const { container } = render(<InputMask aria-label="Field" mask="000" name="code" value="123" />)
+      expect(container.querySelectorAll('input[type="hidden"]')).toHaveLength(0)
+    })
+
+    it('passes validation ARIA straight through', () => {
+      render(
+        <InputMask
+          aria-label="Field"
+          mask="000"
+          aria-invalid
+          aria-describedby="hint"
+          aria-errormessage="err"
+        />,
+      )
+      const input = screen.getByLabelText('Field')
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(input).toHaveAttribute('aria-describedby', 'hint')
+      expect(input).toHaveAttribute('aria-errormessage', 'err')
+    })
+  })
+
+  describe('Thai', () => {
+    it('joins a consonant and its marks into one position', () => {
+      const input = field({ mask: 'LL' })
+      typeKeys(input, 'ก\u0E34\u0E4Aข')
+      expect(input).toHaveValue('กิ๊ข')
+    })
+
+    it('puts the caret past the cluster, not inside it', () => {
+      const input = field({ mask: 'LL' })
+      typeKeys(input, 'ก\u0E34\u0E4A')
+      expect(input.selectionStart).toBe(3)
+    })
+
+    it('refuses a mark on a digit position', () => {
+      const onInvalidInput = vi.fn()
+      const input = field({ mask: '00', onInvalidInput })
+      typeKeys(input, '1\u0E34')
+      expect(input).toHaveValue('1_')
+      expect(onInvalidInput).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'character' }),
+      )
+    })
+  })
+
+  describe('a changed mask', () => {
+    it('re-applies the current value and commits nothing', () => {
+      const onChange = vi.fn()
+      const { rerender } = render(
+        <InputMask aria-label="Field" mask="000000" value="123456" onChange={onChange} />,
+      )
+      expect(screen.getByLabelText('Field')).toHaveValue('123456')
+      rerender(<InputMask aria-label="Field" mask="000-000" value="123456" onChange={onChange} />)
+      expect(screen.getByLabelText('Field')).toHaveValue('123-456')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('crosses into unmasked without losing the data', () => {
+      const { rerender } = render(<InputMask aria-label="Field" mask="000-000" value="123456" />)
+      rerender(<InputMask aria-label="Field" value="123456" />)
+      expect(screen.getByLabelText('Field')).toHaveValue('123456')
+    })
+  })
+
+  it('survives a StrictMode mount and unmount', () => {
+    const { unmount } = render(
+      <StrictMode>
+        <InputMask aria-label="Field" mask="000-000" defaultValue="123456" />
+      </StrictMode>,
+    )
+    expect(screen.getByLabelText('Field')).toHaveValue('123-456')
+    expect(() => unmount()).not.toThrow()
+  })
+
+  it('has no third editability axis on its props', () => {
+    const props = { isRequired: true, isReadOnly: true, isDisabled: true }
+    expect(Object.keys(props)).not.toContain('isEditable')
   })
 
   it('forwards a ref to the input', () => {
