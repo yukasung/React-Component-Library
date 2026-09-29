@@ -91,7 +91,14 @@ rendering something subtly wrong — same principle as `format` in §2.7 of
 R2.5 An empty or absent `mask` means no masking: an ordinary text input. This
 is Wijmo's default (`mask: ''`) and keeps the control usable as a plain field
 while a mask is being chosen at runtime. R2.4's fallback lands in the same
-mode.
+mode, and so does R2.5a's.
+
+R2.5a **A mask with no fillable positions is no mask.** `"--"` tokenizes
+happily — two literal positions — and leaves a field that can never hold
+anything: every keystroke is refused for want of a position to take it, the
+raw form is always empty, and the commit rule reports it empty forever. It
+is treated as an absent mask instead (§2.7), which is what a field with
+nothing to fill in actually is.
 
 R2.6 **Fixed width, optional content.** Every mask position occupies exactly
 one character of the rendered text; the mask's total width never changes.
@@ -367,25 +374,6 @@ just asked for the field to be replaced. Clearing first is what makes
 select-all-and-retype work, and it is the same clearing that R6.4 applies
 before a paste and that R7.2's wipe rule already assumes exists.
 
-R4.14 **The caret may rest after the last position, and stops there.** That
-is the ordinary caret at the end of the text, and it is where the caret
-already ends up once the field is full — so `End` goes there too, and a
-further Right stays put rather than walking off.
-
-It is deliberately *not* the group editor's rule, where a completed last group
-stays highlighted so one more keystroke retypes it. A caret sits **before**
-the position it names, so resting on the last position instead would make
-overwrite typing replace the character just entered, and Backspace take the
-second-to-last. From the end position:
-
-| Key | Result |
-| --- | --- |
-| A character, either mode | `'full'` — there is no position to take it |
-| A combining mark | Joins the cluster before the caret, per R12.3b |
-| Left | The last position |
-| Backspace | Clears the last position |
-| Right, End | Stays |
-
 R4.11 **A position index is not a text offset.** The `<input>`'s selection API
 works in UTF-16 code units, and a position holding a multi-unit cluster makes
 the two diverge: in `mask="LL"` the second position sits at offset 1 while the
@@ -420,6 +408,59 @@ would break the field:
 
 Everything the handler declines passes through to the browser untouched; it
 never `preventDefault`s a key it did not act on.
+
+R4.14 **The caret may rest after the last position, and stops there.** That
+is the ordinary caret at the end of the text, and it is where the caret
+already ends up once the field is full — so `End` goes there too, and a
+further Right stays put rather than walking off.
+
+It is deliberately *not* the group editor's rule, where a completed last group
+stays highlighted so one more keystroke retypes it. A caret sits **before**
+the position it names, so resting on the last position instead would make
+overwrite typing replace the character just entered, and Backspace take the
+second-to-last. From the end position:
+
+| Key | Result |
+| --- | --- |
+| A character, either mode | `'full'` — there is no position to take it |
+| A combining mark | Joins the cluster before the caret, per R12.3b |
+| Left | The last position |
+| Backspace | Clears the last position |
+| Right, End | Stays |
+
+### An editing session, and what may change under it
+
+R4.15 **A session opens on focus and closes on blur, and nothing else closes
+it.** Enter commits and Escape reverts, and the user goes on typing in the
+same field afterwards — so both leave the session open, re-seeded from
+whatever the field now holds.
+
+Closing it early is not a tidying detail. The field's positions only exist
+while the session does, so a field that has lost them is edited as plain
+text, where the mask's literals are part of the value: mask `00-00` typed
+`1234`, committed with Enter and then blurred, would report `"1234"` and then
+`"12-34"`, and typing `AB` after the Enter would commit it.
+
+R4.16 **An external change reaches a session in progress.** `value`, `text`
+and `mask` may all change while the field is focused, and each has to reach
+what the field is showing — otherwise the session goes on displaying, and
+then committing, what the field held before the change.
+
+| Changed | The session must | Why |
+| --- | --- | --- |
+| `value` | Show the new value, and commit from it | Otherwise blur writes the old value back over the parent's |
+| `text` | Show it, parsed through the mask (R12.12) | It is a display override, and a session that ignores it is not displaying |
+| `mask` | Re-apply the **current raw form** (R12.10) to the new positions | Reseeding from the committed value instead discards the edits in progress |
+| `mask`, where there was none | **Open a session** | There is no entry to refresh, and without one the field is still edited as plain text — so a mask arriving mid-session would not mask anything |
+
+None of these commits (R3.6). The last row is the one that is easy to miss,
+because the other three are refreshes and it is a creation.
+
+R4.17 **Escape returns the field to its committed value.** Not to whatever
+`text` currently holds: a consumer that mirrors `onTextChange` back into
+`text` moves that target with every keystroke, so reverting to it would leave
+the abandoned edit on screen. This is the contract `standards.md` §4.5 states
+for every input here.
 
 ## 5. Prompt character and placeholder
 
@@ -625,7 +666,7 @@ R8.4 **When it fires.** Once per rejected *user* action:
 | Action | Fires? | Payload `reason` |
 | --- | --- | --- |
 | A typed character the position's class rejects | yes | `'character'` |
-| A typed character with no position left to take it (field full, insert mode) | yes | `'full'` |
+| A typed character with no position left to take it — the caret past the last position (R4.14), or an insert with no hole to shift into (R12.8) | yes | `'full'` |
 | Paste in which one or more characters were dropped (R6.3) | yes, **once** for the whole paste | `'paste'` |
 | Paste in which every character was placed | no | — |
 | A commit point reached with required positions unfilled (R3.7 test 3) | yes | `'incomplete'` |

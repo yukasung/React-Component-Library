@@ -247,14 +247,18 @@ export function tokenizeMask(mask: string): MaskPattern | undefined {
 }
 
 // The pattern a field should use, or null for an unmasked field. Unmasked is
-// represented as an explicit null rather than as a pattern with no positions:
+// represented as an explicit null rather than as a pattern with nothing in it:
 // it is a separate contract (no rejection, no prompt characters, raw equals
 // the text verbatim), and a caller that has to narrow a null cannot reach it
 // by accident.
 export function resolvePattern(mask: string | undefined): MaskPattern | null {
   if (!mask) return null
   const pattern = tokenizeMask(mask)
-  if (!pattern || pattern.positions.length === 0) return null
+  // No fillable positions is no mask. "--" tokenizes happily, into two
+  // literals, and leaves a field that refuses every keystroke for want of
+  // somewhere to put it and reports itself empty forever — which is a field
+  // with nothing to fill in, said the long way round.
+  if (!pattern || pattern.fillableCount === 0) return null
   return pattern
 }
 

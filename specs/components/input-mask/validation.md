@@ -19,6 +19,7 @@ amended requirement has a visible criterion to amend with it
 | V1.3 | `>` upper-cases following letters, `<` lower-cases, `|` ends conversion; none of the three occupies a rendered position | R2.2 |
 | V1.4 | `.` `,` `:` `/` `$` behave as plain literals, with no culture lookup anywhere in the source | R2.3 |
 | V1.5 | An untokenizable mask (trailing `\`) returns `undefined` from the tokenizer, does not throw, and the field falls back to unmasked mode | R2.4 |
+| V1.5a | **A mask with no fillable positions is unmasked**: `"--"` leaves an ordinary text field rather than one that refuses every keystroke and can never hold a value | R2.5a |
 | V1.6 | The rendered width never varies with what is typed | R2.6 |
 
 ## 2. Unmasked mode
@@ -39,7 +40,7 @@ amended requirement has a visible criterion to amend with it
 | | Criterion | Covers |
 | --- | --- | --- |
 | V3.1 | `onChange` receives the raw form; `onTextChange` receives the formatted text; neither is ever the other | R3.2 |
-| V3.1d | **Escape returns to the committed value, not to a bound `text`** — a consumer mirroring the text back must not keep the abandoned edit on screen | R3.2, standards §4.5 |
+| V3.1d | **Escape returns to the committed value, not to a bound `text`** — a consumer mirroring the text back must not keep the abandoned edit on screen | R4.17 |
 | V3.1a | **`onTextChange` reports a revert.** A field showing `"32"` that Escape returns to `"12"` reports `"12"`, so a consumer mirroring the text is not left holding what the field has stopped showing | R3.2, standards §2.6 |
 | V3.1b | An invalid blur that reverts reports the restored text the same way | R3.2, R3.7 |
 | V3.1c | Setting the `text` prop does not echo back through `onTextChange` | standards §2.6 |
@@ -50,7 +51,7 @@ amended requirement has a visible criterion to amend with it
 | V3.3b | A required position refuses a space | R3.3a |
 | V3.4a | A mask filled with Thai clusters has a raw whose `String.length` exceeds its fillable count, and every rule still holds — proving nothing is implemented against `.length` | R3.3 |
 | V3.5 | **Controlled round trip**: for each case in V3.2, feeding the raw value back as `value` reproduces the identical rendered text | R3.3, R3.5 |
-| V3.5a | **A `value` changed while the field is focused reaches it**: `value="12"`, focus, `value="34"` shows `34`, and the following blur neither restores `12` nor commits it | R3.5, R3.6 |
+| V3.5a | **A `value` changed while the field is focused reaches it**: `value="12"`, focus, `value="34"` shows `34`, and the following blur neither restores `12` nor commits it | R4.16, R3.6 |
 | V3.6 | R3.5's four cases: equal-length positional; shorter filled left to right; longer truncated; a character its position rejects leaving that position unfilled and the rest continuing | R3.5 |
 | V3.7 | Applying `value`, `defaultValue`, `text` or a changed `mask` fires no `onChange` | R3.6 |
 | V3.8 | No production code reduces raw to digits; the docs say the consumer does it | R3.4 |
@@ -71,8 +72,8 @@ amended requirement has a visible criterion to amend with it
 | | Criterion | Covers |
 | --- | --- | --- |
 | V4.1 | `onChange` fires only on blur and Enter; typing alone never commits | R4.1 |
-| V4.1a | **One editing session survives its commits**: Enter then blur with nothing changed in between fires `onChange` once, not twice | R4.1, R3.7 |
-| V4.1b | The mask still applies after Enter and after Escape — the field does not fall back to the unmasked branch, where the formatted text would itself be a value | R4.1, R2.7 |
+| V4.1a | **One editing session survives its commits**: Enter then blur with nothing changed in between fires `onChange` once, not twice | R4.15, R3.7 |
+| V4.1b | The mask still applies after Enter and after Escape — the field does not fall back to the unmasked branch, where the formatted text would itself be a value | R4.15 |
 | V4.1c | Every commit in a session reports the raw form, never the formatted text | R3.2, R4.1 |
 | V4.2 | A refused character neither appears nor moves the caret | R4.3 |
 | V4.3 | An accepted character fills and advances past literals | R4.4 |
@@ -202,10 +203,10 @@ amended requirement has a visible criterion to amend with it
 | V12.3 | Applying `text` fires no `onInvalidInput`, dropped characters included | R12.13 |
 | V12.4 | R12.14's three rows asserted: `text="12"` commits `"12"`; `text="AB"` commits `null` or reverts; `text="1"` reverts | R12.14 |
 | V12.4a | **R12.15's rows asserted separately**, with `value="12"`: `text="34"` commits `"34"`; `text="1"` and `text="AB"` both revert to `"12"` and fire no `onChange` — the `value` is discarded only where the text parses to a complete one | R12.15 |
-| V12.6 | A `mask` changed **while the field is focused** re-applies the current value and fires no `onChange` | R12.10, R12.11 |
-| V12.6a | It re-applies the **edits in progress**, not the committed value: `mask="00"` holding a committed `12` overtyped to `32`, then changed to `0-0`, shows `3-2` | R12.10 |
-| V12.6b | A `mask` **arriving** while the field is focused starts an editing session, so the blur that follows cannot commit unmasked text | R2.9, R12.10 |
-| V12.7 | A `text` changed while the field is focused reaches the field, parsed through the mask | R12.12 |
+| V12.6 | A `mask` changed **while the field is focused** re-applies the current value and fires no `onChange` | R4.16, R12.10, R12.11 |
+| V12.6a | It re-applies the **edits in progress**, not the committed value: `mask="00"` holding a committed `12` overtyped to `32`, then changed to `0-0`, shows `3-2` | R4.16, R12.10 |
+| V12.6b | A `mask` **arriving** while the field is focused starts an editing session, so the blur that follows cannot commit unmasked text | R4.16 |
+| V12.7 | A `text` changed while the field is focused reaches the field, parsed through the mask | R4.16, R12.12 |
 | V12.5 | The `text` divergence from `standards.md` §2.6 is stated in the prop's doc comment | R12.12 |
 
 ## 13. Code standards

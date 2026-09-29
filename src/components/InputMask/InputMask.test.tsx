@@ -258,6 +258,14 @@ describe('InputMask', () => {
       expect(input).toHaveValue('')
     })
 
+    it('falls back to unmasked for a mask with nothing to fill in', () => {
+      render(<InputMask aria-label="Field" mask="--" isRequired={false} />)
+      const input = screen.getByLabelText('Field') as HTMLInputElement
+      expect(input).not.toHaveAttribute('placeholder')
+      fireEvent.change(input, { target: { value: 'anything' } })
+      expect(input).toHaveValue('anything')
+    })
+
     it('falls back to unmasked for a mask it cannot read', () => {
       render(<InputMask aria-label="Field" mask={'000\\'} />)
       const input = screen.getByLabelText('Field')
