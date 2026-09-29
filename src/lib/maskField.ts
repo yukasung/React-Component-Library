@@ -45,7 +45,9 @@ export interface MaskEntry {
   //
   // Every operation that is not a fill empties it. It is part of the entry
   // rather than a separate argument so that "what happened last" travels with
-  // the state it describes, and cannot be forgotten at one call site.
+  // the state it describes, and `settled` below is the single constructor
+  // those operations go through, so the rule is enforced in one place rather
+  // than restated at a dozen call sites that could each miss it.
   owedLiterals: readonly string[]
 }
 
@@ -71,8 +73,27 @@ export type CommitState = 'empty' | 'complete' | 'incomplete'
 // choice the consumer can change without changing what the field holds.
 const RAW_BLANK = ' '
 
-function isFillable(position: MaskPosition): position is Extract<MaskPosition, { type: 'fillable' }> {
+type FillablePosition = Extract<MaskPosition, { type: 'fillable' }>
+
+function isFillable(position: MaskPosition): position is FillablePosition {
   return position.type === 'fillable'
+}
+
+// The fillable position at an index, already narrowed, or undefined when that
+// index holds a literal or nothing. Every walk over `fillableIndices` needs
+// this narrowing, and doing it here keeps the impossible branch — an index in
+// `fillableIndices` that is not fillable — stated once instead of six times.
+function fillableAt(pattern: MaskPattern, index: number): FillablePosition | undefined {
+  const position = pattern.positions[index]
+  return position !== undefined && isFillable(position) ? position : undefined
+}
+
+// Every entry produced by something that is not a fill. Taking the caret and
+// the slots explicitly, and emptying the owed-literal queue itself, is what
+// makes "every other operation empties it" a property of the module rather
+// than a habit of its call sites.
+function settled(caret: PositionRange, slots: readonly (string | null)[]): MaskEntry {
+  return { slots, caret, owedLiterals: [] }
 }
 
 // What a position should store for a cluster it accepts: the cluster itself,
@@ -95,11 +116,7 @@ function storeCluster(
 }
 
 export function emptyEntry(pattern: MaskPattern): MaskEntry {
-  return {
-    slots: pattern.positions.map(() => null),
-    caret: { start: firstFillable(pattern), end: firstFillable(pattern) },
-    owedLiterals: [],
-  }
+  return settled(collapsed(firstFillable(pattern)), pattern.positions.map(() => null))
 }
 
 function firstFillable(pattern: MaskPattern): number {
@@ -134,15 +151,19 @@ function fillableBefore(pattern: MaskPattern, index: number): number | null {
 // lookup below depends on.
 export function entryText(pattern: MaskPattern, entry: MaskEntry, promptChar: string): string {
   let text = ''
-  for (let i = 0; i < pattern.positions.length; i++) {
-    const position = pattern.positions[i]
-    if (position.type === 'literal') {
-      text += position.text
-      continue
-    }
-    text += entry.slots[i] ?? promptChar
+  for (let index = 0; index < pattern.positions.length; index++) {
+    text += renderedAt(pattern, entry, promptChar, index)
   }
   return text
+}
+
+// What one position contributes to the rendered text. The single answer to
+// that question: the text the field shows and the offsets the caret is placed
+// at are both built from it, and two statements of it could disagree.
+function renderedAt(pattern: MaskPattern, entry: MaskEntry, promptChar: string, index: number): string {
+  const position = pattern.positions[index]
+  if (position === undefined) return ''
+  return isFillable(position) ? (entry.slots[index] ?? promptChar) : position.text
 }
 
 // The raw value: literals dropped, one cluster per fillable position, in
@@ -169,12 +190,12 @@ export function rawToEntry(pattern: MaskPattern, raw: string): MaskEntry {
   const count = Math.min(clusters.length, pattern.fillableCount)
   for (let i = 0; i < count; i++) {
     const index = pattern.fillableIndices[i]
-    const position = pattern.positions[index]
-    if (!isFillable(position)) continue
+    const position = fillableAt(pattern, index)
+    if (position === undefined) continue
     const stored = storeCluster(position, clusters[i])
     if (stored !== undefined) slots[index] = stored
   }
-  return { slots, caret: collapsed(firstFillable(pattern)), owedLiterals: [] }
+  return settled(collapsed(firstFillable(pattern)), slots)
 }
 
 // ------------------------------------------------------------------- commit
@@ -187,10 +208,9 @@ export function commitState(pattern: MaskPattern, entry: MaskEntry): CommitState
   let anyFilled = false
   let allRequiredFilled = true
   for (const index of pattern.fillableIndices) {
-    const position = pattern.positions[index]
-    if (!isFillable(position)) continue
-    const filled = entry.slots[index] !== null
-    if (filled) anyFilled = true
+    const position = fillableAt(pattern, index)
+    if (position === undefined) continue
+    if (entry.slots[index] !== null) anyFilled = true
     else if (position.required) allRequiredFilled = false
   }
   if (!anyFilled) return 'empty'
@@ -252,13 +272,6 @@ export function positionSpan(
   return { start, end: start + renderedAt(pattern, entry, promptChar, index).length }
 }
 
-function renderedAt(pattern: MaskPattern, entry: MaskEntry, promptChar: string, index: number): string {
-  const position = pattern.positions[index]
-  if (position === undefined) return ''
-  if (position.type === 'literal') return position.text
-  return entry.slots[index] ?? promptChar
-}
-
 // ------------------------------------------------------------------- caret
 
 function collapsed(index: number): PositionRange {
@@ -266,29 +279,28 @@ function collapsed(index: number): PositionRange {
 }
 
 export function caretTo(pattern: MaskPattern, entry: MaskEntry, index: number): MaskEntry {
-  return { ...entry, caret: collapsed(fillableAtOrAfter(pattern, index)), owedLiterals: [] }
+  return settled(collapsed(fillableAtOrAfter(pattern, index)), entry.slots)
 }
 
 export function caretLeft(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
   const previous = fillableBefore(pattern, entry.caret.start)
-  return { ...entry, caret: collapsed(previous ?? entry.caret.start), owedLiterals: [] }
+  return settled(collapsed(previous ?? entry.caret.start), entry.slots)
 }
 
 export function caretRight(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
-  const next = fillableAtOrAfter(pattern, entry.caret.end + 1)
-  return { ...entry, caret: collapsed(next), owedLiterals: [] }
+  return settled(collapsed(fillableAtOrAfter(pattern, entry.caret.end + 1)), entry.slots)
 }
 
 export function caretHome(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
-  return { ...entry, caret: collapsed(firstFillable(pattern)), owedLiterals: [] }
+  return settled(collapsed(firstFillable(pattern)), entry.slots)
 }
 
 export function caretEnd(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
-  return { ...entry, caret: collapsed(lastFillable(pattern)), owedLiterals: [] }
+  return settled(collapsed(lastFillable(pattern)), entry.slots)
 }
 
 export function selectRange(entry: MaskEntry, range: PositionRange): MaskEntry {
-  return { ...entry, caret: { ...range }, owedLiterals: [] }
+  return settled({ ...range }, entry.slots)
 }
 
 // ------------------------------------------------------------------ editing
@@ -300,25 +312,26 @@ export function clearRange(pattern: MaskPattern, entry: MaskEntry, range: Positi
   for (let i = Math.max(0, range.start); i < Math.min(range.end, pattern.positions.length); i++) {
     if (isFillable(pattern.positions[i])) slots[i] = null
   }
-  return { slots, caret: collapsed(fillableAtOrAfter(pattern, range.start)), owedLiterals: [] }
+  return settled(collapsed(fillableAtOrAfter(pattern, range.start)), slots)
+}
+
+// Backspace and Delete differ only in which position they aim at, so they
+// share everything else: a selection is cleared instead, and a miss at the
+// edge of the field is a no-op that still empties the queue.
+function clearOne(pattern: MaskPattern, entry: MaskEntry, target: number | null): MaskEntry {
+  if (entry.caret.start !== entry.caret.end) return clearRange(pattern, entry, entry.caret)
+  if (target === null || target >= pattern.positions.length) return settled(entry.caret, entry.slots)
+  const slots = [...entry.slots]
+  slots[target] = null
+  return settled(collapsed(target), slots)
 }
 
 export function backspace(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
-  if (entry.caret.start !== entry.caret.end) return clearRange(pattern, entry, entry.caret)
-  const target = fillableBefore(pattern, entry.caret.start)
-  if (target === null) return { ...entry, owedLiterals: [] }
-  const slots = [...entry.slots]
-  slots[target] = null
-  return { slots, caret: collapsed(target), owedLiterals: [] }
+  return clearOne(pattern, entry, fillableBefore(pattern, entry.caret.start))
 }
 
 export function deleteForward(pattern: MaskPattern, entry: MaskEntry): MaskEntry {
-  if (entry.caret.start !== entry.caret.end) return clearRange(pattern, entry, entry.caret)
-  const target = fillableAtOrAfter(pattern, entry.caret.start)
-  if (target >= pattern.positions.length) return { ...entry, owedLiterals: [] }
-  const slots = [...entry.slots]
-  slots[target] = null
-  return { slots, caret: collapsed(target), owedLiterals: [] }
+  return clearOne(pattern, entry, fillableAtOrAfter(pattern, entry.caret.start))
 }
 
 // Advances past `index`, collecting the literals stepped over so a user who
@@ -409,33 +422,36 @@ function shiftRight(
   slots: (string | null)[],
   index: number,
 ): { ok: true } | { ok: false; reason: 'full' | 'character'; position?: number } {
-  const from = pattern.fillableIndices.indexOf(index)
+  const indices = pattern.fillableIndices
+  const from = indices.indexOf(index)
   if (from === -1) return { ok: false, reason: 'full' }
 
-  let hole = -1
-  for (let i = from; i < pattern.fillableIndices.length; i++) {
-    if (slots[pattern.fillableIndices[i]] === null) {
-      hole = i
-      break
-    }
-  }
+  // The first empty fillable position at or after the caret is where the
+  // displaced characters come to rest. Without one there is nowhere to shift
+  // to, which is the only thing that makes an insert impossible — not, as an
+  // earlier rule had it, the last position being occupied, which refuses a
+  // field like "1_3" although its hole is perfectly usable.
+  const hole = indices.findIndex((position, ordinal) => ordinal >= from && slots[position] === null)
   if (hole === -1) return { ok: false, reason: 'full' }
 
-  for (let i = hole; i > from; i--) {
-    const target = pattern.positions[pattern.fillableIndices[i]]
-    const value = slots[pattern.fillableIndices[i - 1]]
-    if (value === null || !isFillable(target)) continue
-    if (!acceptsCluster(target, applyCase(value, target.caseMode))) {
-      return { ok: false, reason: 'character', position: pattern.fillableIndices[i] }
-    }
+  // Everything between the caret and the hole is occupied, by definition of
+  // the hole, so each move below carries a real value. Collected and checked
+  // in full before any of it is written: the shift is all-or-nothing, and a
+  // "000-LL" mask must not half-move a digit towards a letter position.
+  const moves: { to: number; value: string }[] = []
+  for (let ordinal = hole; ordinal > from; ordinal--) {
+    const to = indices[ordinal]
+    const target = fillableAt(pattern, to)
+    const value = slots[indices[ordinal - 1]]
+    if (target === undefined || value === null) continue
+    const cased = applyCase(value, target.caseMode)
+    if (!acceptsCluster(target, cased)) return { ok: false, reason: 'character', position: to }
+    moves.push({ to, value: cased })
   }
-  for (let i = hole; i > from; i--) {
-    const target = pattern.positions[pattern.fillableIndices[i]]
-    const value = slots[pattern.fillableIndices[i - 1]]
-    slots[pattern.fillableIndices[i]] = value === null || !isFillable(target)
-      ? value
-      : applyCase(value, target.caseMode)
-  }
+
+  for (const move of moves) slots[move.to] = move.value
+  // The caller fills this position immediately; clearing it keeps the
+  // postcondition true for anyone who reads this function on its own.
   slots[index] = null
   return { ok: true }
 }
@@ -458,62 +474,65 @@ export function applyText(
   range: PositionRange = entry.caret,
 ): EditResult {
   const clusters = splitClusters(text)
-
-  if (clusters.length === pattern.renderedWidth && matchesShape(pattern, clusters, promptChar)) {
-    return { entry: applyFormatted(pattern, clusters) }
-  }
-  if (clusters.length === pattern.fillableCount) {
-    const applied = rawToEntry(pattern, text)
-    const dropped = countPlaceable(pattern, clusters) !== clusters.length
-    return {
-      entry: { ...applied, caret: collapsed(lastFillable(pattern)) },
-      ...(dropped ? { invalid: { reason: 'paste' as const, input: text } } : {}),
-    }
-  }
-  return applySequential(pattern, clearRange(pattern, entry, range), clusters, text, range.start)
+  return (
+    asFormatted(pattern, clusters, promptChar) ??
+    asRaw(pattern, clusters, text) ??
+    asSequence(pattern, clearRange(pattern, entry, range), clusters, text, range.start)
+  )
 }
 
-// Whether a string is this mask rendered: literals in their places, and every
-// fillable position holding something it accepts, a space, or the prompt.
-function matchesShape(pattern: MaskPattern, clusters: string[], promptChar: string): boolean {
-  for (let i = 0; i < pattern.positions.length; i++) {
-    const position = pattern.positions[i]
-    const cluster = clusters[i]
-    if (position.type === 'literal') {
-      if (cluster !== position.text) return false
+// Step 1. The string is this mask already rendered — literals in their places
+// and every fillable position holding something it accepts, a space or the
+// prompt — so each cluster goes to the position it is sitting on.
+//
+// This is what makes copy-then-paste an identity. Without it, text copied out
+// of the field would have its prompt characters dropped and its remaining
+// clusters slid left, silently moving the value into different positions.
+function asFormatted(pattern: MaskPattern, clusters: string[], promptChar: string): EditResult | undefined {
+  if (clusters.length !== pattern.renderedWidth) return undefined
+  const slots: (string | null)[] = pattern.positions.map(() => null)
+  for (let index = 0; index < pattern.positions.length; index++) {
+    const cluster = clusters[index]
+    const position = fillableAt(pattern, index)
+    if (position === undefined) {
+      // A literal position: the string only matches this mask if it carries
+      // that literal here.
+      if (cluster !== renderedLiteral(pattern, index)) return undefined
       continue
     }
     if (cluster === promptChar) continue
-    if (!acceptsCluster(position, applyCase(cluster, position.caseMode))) return false
+    const stored = storeCluster(position, cluster)
+    if (stored === undefined) return undefined
+    slots[index] = stored
   }
-  return true
+  return { entry: settled(collapsed(lastFillable(pattern)), slots) }
 }
 
-function applyFormatted(pattern: MaskPattern, clusters: string[]): MaskEntry {
-  const slots: (string | null)[] = pattern.positions.map(() => null)
-  for (let i = 0; i < pattern.positions.length; i++) {
-    const position = pattern.positions[i]
-    if (!isFillable(position)) continue
-    const stored = storeCluster(position, clusters[i])
-    if (stored !== undefined) slots[i] = stored
+// Step 2. The string is one cluster per fillable position — the exact inverse
+// of entryToRaw, so a value that came out of onChange goes back in unchanged.
+//
+// This step is the reason the walk is not two steps. Mask "00\000" holds a
+// literal "0" between two pairs of digits; pasted "1203" walked sequentially
+// would hand that third cluster to the literal and silently delete the user's
+// digit. A raw string has exactly one length that can mean "this is the whole
+// value", so testing for it removes the ambiguity.
+function asRaw(pattern: MaskPattern, clusters: string[], text: string): EditResult | undefined {
+  if (clusters.length !== pattern.fillableCount) return undefined
+  const applied = rawToEntry(pattern, text)
+  const placed = pattern.fillableIndices.filter((index, ordinal) => {
+    const position = fillableAt(pattern, index)
+    return position !== undefined && storeCluster(position, clusters[ordinal]) !== undefined
+  }).length
+  return {
+    entry: settled(collapsed(lastFillable(pattern)), applied.slots),
+    ...(placed === clusters.length ? {} : { invalid: { reason: 'paste' as const, input: text } }),
   }
-  return { slots, caret: collapsed(lastFillable(pattern)), owedLiterals: [] }
 }
 
-function countPlaceable(pattern: MaskPattern, clusters: string[]): number {
-  let placed = 0
-  for (let i = 0; i < Math.min(clusters.length, pattern.fillableCount); i++) {
-    const position = pattern.positions[pattern.fillableIndices[i]]
-    if (!isFillable(position)) continue
-    if (storeCluster(position, clusters[i]) !== undefined) placed++
-  }
-  return placed
-}
-
-// The fallback, for a string whose length identifies nothing — a partial
-// paste. Walks the clusters against the positions from the caret, letting a
-// literal be consumed by a matching cluster or skipped without one.
-function applySequential(
+// Step 3. The string's length identifies nothing — a partial paste. The
+// clusters are walked against the positions from the caret, a literal being
+// either consumed by a cluster that matches it or skipped without one.
+function asSequence(
   pattern: MaskPattern,
   entry: MaskEntry,
   clusters: string[],
@@ -522,42 +541,59 @@ function applySequential(
 ): EditResult {
   const slots = [...entry.slots]
   let index = Math.max(0, from)
+  let lastFilled = index
   let dropped = false
-  let last = index
+
   for (const cluster of clusters) {
-    let placed = false
-    while (index < pattern.positions.length && !placed) {
-      const position = pattern.positions[index]
-      if (position.type === 'literal') {
-        // A matching cluster is this literal being retyped; anything else
-        // means the literal is simply not the user's to supply.
-        if (position.text === cluster) {
-          index++
-          placed = true
-          break
-        }
-        index++
-        continue
-      }
-      const stored = storeCluster(position, cluster)
-      if (stored !== undefined) {
-        slots[index] = stored
-        last = index
-        index++
-        placed = true
-        break
-      }
+    const landing = seekLanding(pattern, index, cluster)
+    if (landing === undefined) {
+      // Nothing left of the field to try; the rest of the string goes too.
       dropped = true
       break
     }
-    if (!placed) {
+    index = landing.next
+    // The cluster was a literal being retyped — it belongs to no position.
+    if (landing.at === undefined) continue
+
+    const position = fillableAt(pattern, landing.at)
+    const stored = position === undefined ? undefined : storeCluster(position, cluster)
+    if (stored === undefined) {
+      // This position refused it. The cluster is dropped and the position is
+      // offered to the next one, rather than both being given up.
       dropped = true
-      if (index >= pattern.positions.length) break
+      index = landing.at
+      continue
     }
+    slots[landing.at] = stored
+    lastFilled = landing.at
   }
-  const { caret } = advanceFrom(pattern, last)
+
   return {
-    entry: { slots, caret: collapsed(caret), owedLiterals: [] },
+    entry: settled(collapsed(advanceFrom(pattern, lastFilled).caret), slots),
     ...(dropped ? { invalid: { reason: 'paste' as const, input: text } } : {}),
   }
+}
+
+// Where the next cluster of a sequential paste lands: the first fillable
+// position at or after `from` (`at`), or the literal that cluster matches on
+// the way there (`at` undefined, the literal consumed). Undefined when the
+// field runs out first.
+function seekLanding(
+  pattern: MaskPattern,
+  from: number,
+  cluster: string,
+): { at?: number; next: number } | undefined {
+  for (let index = from; index < pattern.positions.length; index++) {
+    const position = pattern.positions[index]
+    if (isFillable(position)) return { at: index, next: index + 1 }
+    // A matching cluster is this literal being retyped; anything else means
+    // the literal is simply not the user's to supply, so it is stepped over.
+    if (position.text === cluster) return { next: index + 1 }
+  }
+  return undefined
+}
+
+function renderedLiteral(pattern: MaskPattern, index: number): string | undefined {
+  const position = pattern.positions[index]
+  return position !== undefined && position.type === 'literal' ? position.text : undefined
 }
