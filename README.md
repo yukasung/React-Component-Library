@@ -56,6 +56,7 @@ import { InputDate } from '@yukasung/react-components/input-date'
 import { InputTime } from '@yukasung/react-components/input-time'
 import { InputDateTime } from '@yukasung/react-components/input-date-time'
 import { InputTag } from '@yukasung/react-components/input-tag'
+import { InputMask } from '@yukasung/react-components/input-mask'
 // Or import every public API from '@yukasung/react-components'.
 ```
 
@@ -77,6 +78,32 @@ const [tags, setTags] = useState<readonly string[]>([])
   }}
 />
 ```
+
+### InputMask: what it commits is not what it shows
+
+`InputMask` renders the mask's literals itself, and `onChange` reports the
+value without them — one character per fillable position, in order, with a
+space where an optional position was left blank:
+
+```tsx
+<InputMask mask="(999) 000-0000" value={phone} onChange={setPhone} />
+// shows   (02_) 555-1234
+// commits "02 5551234"
+```
+
+The blanks are load-bearing. `"1 23"` and `" 123"` are different values for
+mask `99-00`, and dropping the spaces would make the two indistinguishable —
+so a value fed back through `value` would no longer reproduce the field.
+Reducing the raw value further, if the blanks mean nothing to your domain, is
+the consuming form's call: `value.replace(/ /g, '')`.
+
+Two consequences to plan for:
+
+- `name` serializes what the field **shows**, as it does for every scalar
+  input here — `"(02_) 555-1234"`, not `"02 5551234"`. Build a payload from
+  the committed value, not from `FormData`.
+- `value` is the stripped form, which is the opposite of what some masked-input
+  libraries call `value`. `text`/`onTextChange` carry the formatted text.
 
 ### Scalar input event integration
 

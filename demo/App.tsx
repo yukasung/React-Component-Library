@@ -10,6 +10,7 @@ import {
   parseDraft,
   parseFormattedInput,
   parseNumericFormat,
+  InputMask,
 } from '@yukasung/react-components'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -44,6 +45,13 @@ function Field({
       {note && <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{note}</p>}
     </div>
   )
+}
+
+// The raw value, with its blanks made visible: an optional position left
+// empty is a space, and a space is invisible in a note that is trying to
+// show what the form would receive.
+function rawNote(value: string | null) {
+  return value === null ? 'null' : `"${value.replace(/ /g, '␣')}"`
 }
 
 function formatCommitted(value: number | null) {
@@ -136,6 +144,11 @@ export function App() {
   const [weekDate, setWeekDate] = useState<Date | null>(new Date())
   const [wheelDate, setWheelDate] = useState<Date | null>(new Date())
   const [thaiDate, setThaiDate] = useState<Date | null>(new Date())
+  const [phone, setPhone] = useState<string | null>(null)
+  const [areaPhone, setAreaPhone] = useState<string | null>('02 5551234')
+  const [plate, setPlate] = useState<string | null>(null)
+  const [overwritten, setOverwritten] = useState<string | null>('123456')
+  const [freeText, setFreeText] = useState<string | null>(null)
   const [defaultTime, setDefaultTime] = useState<Date | null>(new Date())
   const [meetingTime, setMeetingTime] = useState<Date | null>(businessHours.start)
   const [alarmTime, setAlarmTime] = useState<Date | null>(new Date(2026, 0, 1, 6, 30))
@@ -541,6 +554,65 @@ export function App() {
             value={new Date(2026, 0, 1, 8, 0)}
             onChange={() => {}}
             isDisabled
+          />
+        </Field>
+      </Section>
+
+      <Section title="InputMask">
+        <Field
+          label="Phone number"
+          htmlFor="input-mask-phone"
+          note={`The committed value is ${rawNote(phone)}`}
+        >
+          <InputMask id="input-mask-phone" mask="000-000-0000" value={phone} onChange={setPhone} />
+        </Field>
+        <Field
+          label="Phone number with an optional area code"
+          htmlFor="input-mask-area"
+          // The gap between what the field shows and what it commits is the
+          // thing to see here: the literals are the control's, and the blank
+          // an optional position was left as survives into the value.
+          note={`The committed value is ${rawNote(areaPhone)} — clear the area code to see its blanks`}
+        >
+          <InputMask
+            id="input-mask-area"
+            mask="(999) 000-0000"
+            value={areaPhone}
+            onChange={setAreaPhone}
+            isRequired={false}
+          />
+        </Field>
+        <Field
+          label="Licence plate, upper-cased as it is typed"
+          htmlFor="input-mask-plate"
+          note={`The committed value is ${rawNote(plate)}`}
+        >
+          <InputMask id="input-mask-plate" mask=">LL 0000" value={plate} onChange={setPlate} isRequired={false} />
+        </Field>
+        <Field
+          label="Overwrite rather than insert"
+          htmlFor="input-mask-overwrite"
+          note="Typing replaces the character at the caret instead of pushing the rest along"
+        >
+          <InputMask
+            id="input-mask-overwrite"
+            mask="000-000"
+            overwriteMode
+            value={overwritten}
+            onChange={setOverwritten}
+          />
+        </Field>
+        <Field
+          label="No mask"
+          htmlFor="input-mask-none"
+          note={`An ordinary text field: ${rawNote(freeText)}`}
+        >
+          <InputMask
+            id="input-mask-none"
+            value={freeText}
+            onChange={setFreeText}
+            isRequired={false}
+            placeholder="Anything at all"
           />
         </Field>
       </Section>
