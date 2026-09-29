@@ -39,6 +39,8 @@ amended requirement has a visible criterion to amend with it
 | V3.2 | R3.3's table reproduced exactly as test cases: `1_-23` → `"1 23"`, `_1-23` → `" 123"`, `(___) 555-1234` → `"   5551234"`, `(02_) 555-1234` → `"02 5551234"` | R3.3 |
 | V3.3 | Unfilled optional positions raw as U+0020, **not** `promptChar` — asserted with a non-default `promptChar` so the two cannot be confused | R3.3 |
 | V3.4 | Raw **cluster count** always equals the mask's fillable count, for every state including fully empty | R3.3 |
+| V3.3a | A space accepted by an optional class blanks the position rather than storing a character: the field renders the prompt there, and the raw value is unchanged by which of the two routes produced it | R3.3a |
+| V3.3b | A required position refuses a space | R3.3a |
 | V3.4a | A mask filled with Thai clusters has a raw whose `String.length` exceeds its fillable count, and every rule still holds — proving nothing is implemented against `.length` | R3.3 |
 | V3.5 | **Controlled round trip**: for each case in V3.2, feeding the raw value back as `value` reproduces the identical rendered text | R3.3, R3.5 |
 | V3.6 | R3.5's four cases: equal-length positional; shorter filled left to right; longer truncated; a character its position rejects leaving that position unfilled and the rest continuing | R3.5 |
@@ -67,10 +69,13 @@ amended requirement has a visible criterion to amend with it
 | V4.5 | The swallow is consumed once per skipped literal: typing `-` twice after `081` in `000-000-0000` swallows the first and refuses the second | R4.5, R4.6 |
 | V4.5a | **A literal run is a queue**: `mask="00--00"` typed `12--34` produces `12--34`, both dashes swallowed, with no rejection and no `onInvalidInput` | R4.6 |
 | V4.5b | A literal in the queue but not at its head is rejected | R4.6 |
+| V4.5c | The caret never rests on a literal position: a click on one lands on the fillable position after it | R4.5, R9.4 |
 | V4.6 | Each of the operations R4.6 names — rejected key, arrow, click, Backspace, Delete, paste, commit, prop re-render — clears the flag, asserted individually | R4.6 |
 | V4.7 | Insert mode shifts within fillable positions across literals; overwrite mode replaces and shifts nothing | R4.7, R12.6, R12.9 |
 | V4.8 | Insert refused all-or-nothing on a class mismatch (`000-LL` cannot shift a digit into a letter position): nothing moves, the key is refused, `onInvalidInput` fires `'character'` | R12.7 |
-| V4.9 | Insert into a full tail fires `'full'` and truncates nothing | R12.8 |
+| V4.9 | Insert with no empty fillable position at or after the caret fires `'full'` and truncates nothing | R12.8 |
+| V4.9a | **Mid-field hole regression**: `mask="000"` holding `1_3`, caret at the first position, insert `9` yields `913` — not refused as `'full'` | R12.8 |
+| V4.9b | The shift stops at that hole: positions beyond it are untouched | R12.8 |
 | V4.10 | Backspace/Delete never remove a literal; a cleared position shows `promptChar` again | R4.8, R4.9 |
 | V4.11 | Editing is `keydown`-driven: text-entry keys and Backspace/Delete are `preventDefault`ed, and the `change` path handles only autofill/IME | R4.12 |
 | V4.11a | **Typing over a selection clears it first**: a full field, `Ctrl+A`, then a digit leaves the field holding just that digit — not refused as `'full'` | R4.10 |

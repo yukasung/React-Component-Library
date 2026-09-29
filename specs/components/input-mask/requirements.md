@@ -180,6 +180,19 @@ The unfilled-optional character in the raw form is a **space** (U+0020),
 never `promptChar`: the raw form is data, and `promptChar` is a display
 choice the consumer can change without changing what the field holds.
 
+R3.3a **A typed space and an unfilled optional position are the same state.**
+R3.3 makes the raw blank a space, so there is no third thing an optional
+position can hold: a space accepted by `9`, `#`, `l` or `a` blanks that
+position rather than storing a character in it.
+
+Without this the two states render differently — `" "` against the prompt
+character — while producing identical raw values, and `entryToRaw` followed
+by feeding the result back through R3.5 would stop reproducing what the field
+was showing. That round trip is the whole reason the raw form is positional.
+
+A required position refuses a space as it refuses anything else its class
+does not accept.
+
 R3.4 **Reducing raw to a domain value is the consumer's job.** A consumer that
 wants digits only calls `.replace(/ /g, '')` — it knows, as the component
 cannot, whether the blanks are meaningful (an optional area code) or noise.
@@ -273,10 +286,8 @@ literals to the next fillable position.
 R4.5 **Typing a literal.** Typing `081-234-5678` straight through must work,
 exactly as typing `2026-07-15` does in `InputDate` today — and R4.4 is what
 makes that non-trivial, because by the time the user types `-`, the caret has
-already been moved past it. Two cases, and the second is the one R4.4 creates:
+already been moved past it. One case:
 
-- **The caret sits on a literal position holding that character** — the caret
-  moves past it. (Reachable in overwrite mode, or after Left/Home.)
 - **The caret was just auto-advanced past one or more literals, and the typed
   character is the next one still owed** — the keystroke is **swallowed**:
   nothing changes and the caret stays. This is not a rejection and
@@ -284,6 +295,13 @@ already been moved past it. Two cases, and the second is the one R4.4 creates:
   asking for.
 
 Anything else is a rejection (R4.3).
+
+An earlier draft listed a second case — the caret sitting *on* a literal
+position holding that character — and it is unreachable. The caret is always
+normalized onto a fillable position (R9.4 moves it one fillable position at a
+time, and a click on a literal lands on the position after it), so it never
+comes to rest on a literal in any mode. Keeping the rule would have meant
+keeping a branch no input can reach.
 
 R4.6 **The "just auto-advanced" state is an ordered queue, not a flag.** A
 single boolean cannot answer a mask whose literals come in runs: `00--00`
@@ -709,9 +727,18 @@ would be rejected, nothing moves, the typed character is refused, and
 shift a digit into a letter position, and silently dropping it would lose data
 the user can see.
 
-R12.8 If the last fillable position is occupied, there is nowhere to shift to:
-the insertion is refused and `onInvalidInput` fires with `reason: 'full'`.
-Insert mode never truncates the tail.
+R12.8 **The shift stops at the first empty fillable position at or after the
+caret.** That hole is where the displaced characters come to rest; everything
+beyond it is untouched. If there is no such hole, there is nowhere to shift
+to: the insertion is refused and `onInvalidInput` fires with
+`reason: 'full'`. Insert mode never truncates the tail.
+
+Stated as "the last fillable position is occupied" this rule was wrong, and
+in a way a mask with optional positions reaches easily. `mask="000"` holding
+`1_3` — a hole in the middle, left by an optional position or by clearing one
+position — would refuse an insert at the first position, although shifting
+the `1` into the hole loses nothing and yields `913`. Holes *before* the
+caret are irrelevant, since the shift only ever moves rightward.
 
 R12.9 Overwrite mode (`overwriteMode === true`) replaces the character at the
 caret and shifts nothing, so neither R12.7 nor R12.8 applies to it.
