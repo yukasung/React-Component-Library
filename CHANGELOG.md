@@ -23,6 +23,15 @@ No unreleased changes.
   holding the option-list rules (ordering, filtering, header summary,
   select-all state) independently of the component.
 
+### Fixed
+
+- The package is linked to its repository again, which is what lets the release
+  workflow publish it. The `repository` field had been removed in August 2026, so
+  every tag after `v0.1.0` failed to publish with a `403 write_package` and the
+  intervening versions reached the registry by hand.
+- `package-lock.json` was left at `0.2.4` through the `0.3.0` release and is now
+  in step with `package.json`, so `npm ci` resolves the version it should.
+
 ## [0.3.0] - 2026-09-29
 
 ### Added
