@@ -1,8 +1,6 @@
 # MultiSelect — Requirements
 
-**Status:** approved and **implemented**. Shipped to `main`; unreleased —
-`CHANGELOG.md` carries it under `[Unreleased]`, and `package.json` is still at
-`0.3.0`.
+**Status:** approved, **implemented** and **released in 0.4.0**.
 
 Amended four times, every time after review. **Decisions** #20–#31 record the
 deltas; the whole table is the durable record and this log is only the

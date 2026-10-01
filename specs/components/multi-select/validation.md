@@ -1,8 +1,8 @@
 # MultiSelect — Validation
 
-**Status:** approved. **Every criterion is met except `V12.9`**, which asks
-that the control render styled in `demo/` and in the docs dev server — that is a
-visual check nothing here can perform, and it is outstanding.
+**Status:** approved, and **every criterion is met**. `V12.9` — that the
+control render styled in `demo/` and in the docs dev server — was confirmed by
+eye, since it is the one criterion no automated check here can discharge.
 
 Behavioural criteria are discharged by 122 tests in
 `src/components/MultiSelect/MultiSelect.test.tsx` and 62 in

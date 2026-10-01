@@ -26,7 +26,7 @@ Create an access token with the `read:packages` scope, then add the GitHub Packa
 Install the published version:
 
 ```bash
-npm install @yukasung/react-components@0.3.0
+npm install @yukasung/react-components@0.4.0
 ```
 
 ## Usage
