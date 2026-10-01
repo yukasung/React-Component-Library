@@ -11,7 +11,21 @@ import {
   parseFormattedInput,
   parseNumericFormat,
   InputMask,
+  MultiSelect,
 } from '@yukasung/react-components'
+
+const countryOptions = [
+  { value: 'th', label: 'Thailand' },
+  { value: 'us', label: 'United States' },
+  { value: 'gb', label: 'United Kingdom' },
+  { value: 'ae', label: 'United Arab Emirates' },
+  { value: 'jp', label: 'Japan' },
+  { value: 'sg', label: 'Singapore' },
+  { value: 'vn', label: 'Vietnam' },
+  { value: 'kh', label: 'Cambodia' },
+  { value: 'la', label: 'Laos' },
+  { value: 'mm', label: 'Myanmar' },
+]
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -158,6 +172,9 @@ export function App() {
   const [deadline, setDeadline] = useState<Date | null>(new Date())
   const [thaiDateTime, setThaiDateTime] = useState<Date | null>(new Date())
   const [tags, setTags] = useState<readonly string[]>(['Important', 'VIP'])
+  const [countries, setCountries] = useState<readonly string[]>([])
+  const [searchable, setSearchable] = useState<readonly string[]>(['th', 'jp'])
+  const [portalled, setPortalled] = useState<readonly string[]>([])
 
   const liveDefault = useLiveText(defaultVal)
   const liveQuantity = useLiveText(quantity)
@@ -636,6 +653,87 @@ export function App() {
               placeholder: 'Type a tag and press Enter',
             }}
           />
+        </Field>
+      </Section>
+
+      <Section title="MultiSelect">
+        <Field
+          label="Countries"
+          htmlFor="multi-select-default"
+          note={`Committed value: ${countries.length > 0 ? `[${countries.join(', ')}]` : '[]'}`}
+        >
+          <MultiSelect
+            id="multi-select-default"
+            aria-label="Countries"
+            options={countryOptions}
+            value={countries}
+            onChange={setCountries}
+            placeholder="Select countries"
+          />
+        </Field>
+
+        <Field
+          label="With a filter and select-all"
+          htmlFor="multi-select-searchable"
+          note={`Committed value: [${searchable.join(', ')}] — the header summarises, the value is the array`}
+        >
+          <MultiSelect
+            id="multi-select-searchable"
+            aria-label="Searchable countries"
+            options={countryOptions}
+            value={searchable}
+            onChange={setSearchable}
+            showFilterInput
+            showSelectAllCheckbox
+            headerFormat="{count} countries"
+            placeholder="Search countries"
+          />
+        </Field>
+
+        <Field
+          label="Read-only and disabled"
+          htmlFor="multi-select-readonly"
+          note="Read-only keeps the value submittable; disabled removes it from submission"
+        >
+          <MultiSelect
+            id="multi-select-readonly"
+            aria-label="Read-only countries"
+            options={countryOptions}
+            value={['th', 'jp']}
+            isReadOnly
+          />
+          <div className="mt-3">
+            <MultiSelect
+              aria-label="Disabled countries"
+              options={countryOptions}
+              value={['th']}
+              isDisabled
+            />
+          </div>
+        </Field>
+
+        {/* The popup has to escape a clipping ancestor, which is what portal is
+            for — without it the list is cut off by the overflow below. */}
+        <Field
+          label="Inside a scrolling container (portal)"
+          htmlFor="multi-select-portal"
+          note={`Committed value: [${portalled.join(', ')}]`}
+        >
+          <div className="h-24 overflow-y-auto rounded-lg border border-gray-300 p-3 dark:border-gray-700">
+            <div className="h-40">
+              <MultiSelect
+                id="multi-select-portal"
+                aria-label="Portalled countries"
+                options={countryOptions}
+                value={portalled}
+                onChange={setPortalled}
+                showFilterInput
+                showSelectAllCheckbox
+                portal
+                placeholder="Select countries"
+              />
+            </div>
+          </div>
         </Field>
       </Section>
     </div>

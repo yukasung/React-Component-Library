@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+
+- `MultiSelect`, a closed-set multiple-choice field, published at
+  `@yukasung/react-components/multi-select`. Options are `{ value, label }`
+  objects and `onChange` reports the checked values in `options` order; the
+  field itself shows a summary header (`"3 items selected"`) rather than growing
+  with the selection, which is what distinguishes it from `InputTag`. Optional
+  filter input, select-all checkbox, and a portalled popup.
+- The `multi-select` spec under `specs/components/`, and `src/lib/optionList.ts`
+  holding the option-list rules (ordering, filtering, header summary,
+  select-all state) independently of the component.
 
 ## [0.3.0] - 2026-09-29
 

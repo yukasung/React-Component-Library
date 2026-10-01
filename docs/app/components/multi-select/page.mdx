@@ -1,0 +1,495 @@
+import { Callout } from 'nextra/components'
+import {
+  CaseSensitiveSearchDemo,
+  CheckOnFilterDemo,
+  CustomFilterDemo,
+  DefaultDemo,
+  DefaultValueDemo,
+  FilterInputPlaceholderDemo,
+  HeaderFormatDemo,
+  HeaderFormatterDemo,
+  IsDisabledDemo,
+  IsReadOnlyDemo,
+  IsRequiredDemo,
+  MaxDropdownHeightDemo,
+  MaxHeaderItemsDemo,
+  NameDemo,
+  OnChangeDemo,
+  OptionsDemo,
+  PlaceholderDemo,
+  PortalDemo,
+  SelectAllLabelDemo,
+  ShowDropdownButtonDemo,
+  ShowFilterInputDemo,
+  ShowSelectAllCheckboxDemo,
+  ValueDemo,
+} from './demo'
+import { PropertyIndex, PropertySignature } from './property-index'
+
+export const metadata = {
+  title: 'MultiSelect',
+  description:
+    'Input สำหรับเลือกหลายรายการจากรายการที่กำหนดไว้ แสดงผลสรุปของสิ่งที่เลือกไว้ในช่องเดียว',
+}
+
+# MultiSelect
+
+MultiSelect คือ input สำหรับเลือกได้หลายรายการจากรายการที่กำหนดไว้ล่วงหน้า แต่ละแถวใน dropdown มี checkbox และตัว field แสดงเป็นข้อความสรุปว่าเลือกอะไรไว้
+
+<DefaultDemo />
+
+<Callout type="info">
+  ความสูงของ field ไม่เปลี่ยนตามจำนวนที่เลือก ต่างจาก [InputTag](/components/input-tag) ที่แสดงทุกรายการเป็น chip
+  — MultiSelect จึงเหมาะกับรายการยาวที่เลือกได้หลายสิบรายการ ส่วน InputTag เหมาะเมื่อผู้ใช้ต้องเห็นและลบรายการที่เลือกได้ทีละตัว
+  และต้องเพิ่มค่าที่ไม่มีในรายการได้
+</Callout>
+
+## Import
+
+```tsx
+import { MultiSelect } from '@yukasung/react-components'
+```
+
+## Properties
+
+<PropertyIndex />
+
+### options
+
+<PropertySignature name="options" type="readonly { value: string; label: string }[]" />
+
+รายการตัวเลือกทั้งหมด `label` คือข้อความที่แสดงในแถวและในข้อความสรุป ส่วน `value` คือค่าที่ `onChange` รายงานและเป็นค่าที่ form ส่งออกไป
+
+การแยก `label` กับ `value` ออกจากกันทำให้ข้อความที่ผู้ใช้เห็นต่างจากค่าที่ระบบใช้ได้ ซึ่งเป็นรูปแบบที่ข้อมูลจริงมักต้องการ (id กับชื่อ)
+
+<OptionsDemo />
+
+```tsx
+<MultiSelect
+  aria-label="แผนก"
+  options={[
+    { value: 'litigation', label: 'คดีความ' },
+    { value: 'corporate', label: 'กฎหมายธุรกิจ' },
+  ]}
+  value={value}
+  onChange={setValue}
+/>
+```
+
+`value` ต้องไม่ซ้ำกันภายใน `options` ถ้าซ้ำจะแสดงเฉพาะรายการแรก
+
+### value
+
+<PropertySignature name="value" type="readonly string[]" />
+
+ค่าที่ควบคุมจากภายนอก เป็น array ของ `value` ใน `options`
+
+ค่าที่ `onChange` รายงานจะ **เรียงตามลำดับใน `options`** เสมอ ไม่ใช่ลำดับที่ผู้ใช้คลิก ลำดับการคลิกไม่ปรากฏในข้อความสรุปอยู่แล้ว การเรียงให้เป็นลำดับเดียวจึงทำให้เทียบ array สองชุดว่าเท่ากันได้ตรงไปตรงมา และการติ๊กทีละรายการกับการกด select all ให้ผลเป็น array เดียวกัน
+
+<ValueDemo />
+
+```tsx
+const [value, setValue] = useState<readonly string[]>(['jp', 'th'])
+
+<MultiSelect aria-label="ประเทศ" options={countries} value={value} onChange={setValue} />
+```
+
+<Callout type="info">
+  ค่าที่ไม่ตรงกับ `options` ใด ๆ จะถูกเก็บไว้ ไม่ถูกตัดออก เพราะกรณีที่ `options` โหลดมาช้ากว่าค่าที่ดึงจากฐานข้อมูลเป็นเรื่องปกติ
+  ถ้าตัดออกข้อมูลของผู้ใช้จะหายไปตั้งแต่ render แรก ค่าเหล่านั้นจะถูกนับในข้อความสรุปและใช้ตัวมันเองเป็น label จนกว่า `options` จะมาถึง
+</Callout>
+
+### defaultValue
+
+<PropertySignature name="defaultValue" type="readonly string[]" />
+
+ค่าเริ่มต้นสำหรับการใช้งานแบบ uncontrolled ค่าเริ่มต้นคือ `[]`
+
+<DefaultValueDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} defaultValue={['sg']} onChange={setValue} />
+```
+
+### onChange
+
+<PropertySignature name="onChange" type="(value: readonly string[]) => void" />
+
+ทำงานเมื่อค่าเปลี่ยน รับ array ของ `value` ไม่ใช่ event และไม่ใช่ object ของตัวเลือก
+
+`onChange` ทำงาน **ทันทีที่ติ๊กแต่ละครั้ง** ไม่ต้องรอ blur การติ๊ก checkbox ไม่มีสถานะกลางที่ยังพิมพ์ไม่เสร็จเหมือนการพิมพ์ข้อความ จึงถือเป็นการเปลี่ยนค่าที่ชัดเจนในตัวเอง เหมือนการคลิกเลือกวันในปฏิทิน
+
+<OnChangeDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} value={value} onChange={setValue} />
+```
+
+<Callout type="warning">
+  ค่าที่ควรใช้สร้าง payload ส่งหลังบ้านคือค่าที่ได้จาก `onChange` เท่านั้น ข้อความสรุปที่แสดงใน field (เช่น
+  `"3 items selected"`) เป็นข้อความสำหรับอ่าน ไม่ใช่ค่า
+</Callout>
+
+### placeholder
+
+<PropertySignature name="placeholder" type="string" />
+
+ข้อความที่แสดงเมื่อยังไม่ได้เลือกอะไร เมื่อเลือกแล้วจะถูกแทนด้วยข้อความสรุป
+
+<PlaceholderDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} placeholder="ยังไม่ได้เลือกประเทศ" />
+```
+
+### headerFormat
+
+<PropertySignature name="headerFormat" type="string" />
+
+รูปแบบข้อความสรุปที่ใช้เมื่อเลือกเกิน `maxHeaderItems` รายการ ค่าเริ่มต้นคือ `'{count} items selected'`
+
+`{count}` จะถูกแทนด้วยจำนวนที่เลือก และแทนทุกตำแหน่งที่พบ
+
+<HeaderFormatDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  value={value}
+  onChange={setValue}
+  headerFormat="เลือกไว้ {count} ประเทศ"
+/>
+```
+
+<Callout type="info">
+  รองรับเฉพาะ `{count}` ตรงตัว ไม่มีการจัดรูปแบบตัวเลขตาม locale ถ้าเขียนเป็น `{count:n0}` จะแสดงออกมาตามที่เขียน
+  แทนที่จะหายไปเงียบ ๆ เพื่อให้เห็นว่าเขียนผิด
+</Callout>
+
+### maxHeaderItems
+
+<PropertySignature name="maxHeaderItems" type="number" />
+
+จำนวนรายการสูงสุดที่ยังไล่ชื่อได้ในข้อความสรุป ค่าเริ่มต้นคือ `2`
+
+เลือกไม่เกินจำนวนนี้จะแสดงเป็น label คั่นด้วย `, ` เกินจากนั้นจะใช้ `headerFormat` ตั้งเป็น `0` เพื่อให้ใช้รูปแบบจำนวนตั้งแต่รายการแรก
+
+<MaxHeaderItemsDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  value={value}
+  onChange={setValue}
+  maxHeaderItems={3}
+  headerFormat="เลือกไว้ {count} ประเทศ"
+/>
+```
+
+### headerFormatter
+
+<PropertySignature
+  name="headerFormatter"
+  type="(checked: readonly { value: string; label: string }[]) => string"
+/>
+
+กำหนดข้อความสรุปเองทั้งหมด แทนที่ `headerFormat` และ `maxHeaderItems` รวมถึงกรณีที่ยังไม่ได้เลือกอะไร
+
+รับ array ของตัวเลือกที่ถูกเลือก เรียงตามลำดับเดียวกับค่าที่ commit และคืนค่าเป็น `string` เพราะข้อความสรุปคือค่าของ `<input>` คืน `''` เพื่อให้ `placeholder` แสดงตามปกติ
+
+<HeaderFormatterDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  value={value}
+  onChange={setValue}
+  headerFormatter={(checked) =>
+    checked.length === 0 ? 'ยังไม่ได้เลือก' : checked.map((item) => item.label).join(' / ')
+  }
+/>
+```
+
+### showFilterInput
+
+<PropertySignature name="showFilterInput" type="boolean" />
+
+แสดงช่องค้นหาไว้เหนือรายการใน dropdown ค่าเริ่มต้นคือ `false`
+
+การค้นหาเป็นการตัดรายการที่แสดงเท่านั้น ไม่เปลี่ยนค่าที่เลือกไว้ รายการที่ถูกเลือกแล้วแต่ถูกซ่อนด้วยคำค้นยังคงถูกเลือกอยู่ และยังอยู่ในค่าที่ commit
+
+เมื่อเปิด option นี้ การพิมพ์ตัวอักษรขณะ focus อยู่ที่ field จะเปิด dropdown และพิมพ์ตัวนั้นลงช่องค้นหาให้เลย
+
+<ShowFilterInputDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  value={value}
+  onChange={setValue}
+  showFilterInput
+/>
+```
+
+### filterInputPlaceholder
+
+<PropertySignature name="filterInputPlaceholder" type="string" />
+
+placeholder ของช่องค้นหา ค่าเริ่มต้นคือ `'Filter'` และใช้เป็นชื่อสำหรับ screen reader ของช่องนั้นด้วย
+
+<FilterInputPlaceholderDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  showFilterInput
+  filterInputPlaceholder="พิมพ์เพื่อค้นหา"
+/>
+```
+
+### caseSensitiveSearch
+
+<PropertySignature name="caseSensitiveSearch" type="boolean" />
+
+ให้การค้นหาแยกตัวพิมพ์ใหญ่เล็ก ค่าเริ่มต้นคือ `false`
+
+<CaseSensitiveSearchDemo />
+
+```tsx
+<MultiSelect aria-label="Countries" options={countries} showFilterInput caseSensitiveSearch />
+```
+
+### customFilter
+
+<PropertySignature
+  name="customFilter"
+  type="(option: { value: string; label: string }, filterText: string) => boolean"
+/>
+
+เปลี่ยนเงื่อนไขการค้นหาทั้งหมด แทนการค้นจาก `label` แบบ substring เหมาะกับการค้นจากรหัส หรือค้นจากหลายฟิลด์พร้อมกัน
+
+เมื่อกำหนด `customFilter` ไว้ ฟังก์ชันนี้จะถูกเรียกแม้คำค้นยังว่าง จึงใช้กำหนด "รายการที่แสดงตั้งต้น" ได้ด้วย และ `caseSensitiveSearch` จะไม่มีผล เพราะการจัดการตัวพิมพ์เป็นหน้าที่ของฟังก์ชันที่ส่งเข้ามา
+
+<CustomFilterDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  showFilterInput
+  customFilter={(option, text) => option.value.startsWith(text.toLowerCase())}
+/>
+```
+
+### checkOnFilter
+
+<PropertySignature name="checkOnFilter" type="boolean" />
+
+ติ๊กรายการที่ตรงกับคำค้นให้อัตโนมัติเมื่อคำค้นแคบลง ค่าเริ่มต้นคือ `false`
+
+จะทำงานเฉพาะเมื่อผู้ใช้แก้คำค้นเอง **และ** ชุดรายการที่ตรงใหม่เป็นสับเซ็ตของชุดเดิม คือคำค้นแคบลง ถ้าชุดรายการกว้างขึ้น — ซึ่งรวมถึงการลบตัวอักษรเกือบทุกครั้ง — จะไม่ติ๊กอะไรเพิ่ม และการล้างคำค้นตอนปิด dropdown ก็ไม่ติ๊กด้วย
+
+การทำงานเป็นการ **เพิ่ม** เท่านั้น ไม่เคยเอาค่าที่เลือกไว้ออก
+
+<CheckOnFilterDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  value={value}
+  onChange={setValue}
+  showFilterInput
+  checkOnFilter
+/>
+```
+
+<Callout type="warning">
+  option นี้ทำให้การพิมพ์เปลี่ยนค่าที่ commit ซึ่งต่างจากพฤติกรรมปกติของ control นี้ ถ้าต้องการให้ผู้ใช้เลือกทั้งชุดที่ค้นเจอ
+  การใช้ `showSelectAllCheckbox` ร่วมกับ `showFilterInput` ให้ผลเดียวกันด้วยการคลิกที่ชัดเจนหนึ่งครั้ง
+</Callout>
+
+### showSelectAllCheckbox
+
+<PropertySignature name="showSelectAllCheckbox" type="boolean" />
+
+แสดง checkbox สำหรับเลือกทั้งหมดไว้เหนือรายการ ค่าเริ่มต้นคือ `false`
+
+ทำงานกับ **รายการที่มองเห็นอยู่** เท่านั้น ถ้ากำลังค้นหาอยู่ก็คือเฉพาะรายการที่ตรงกับคำค้น รายการที่ถูกซ่อนไว้จะไม่ถูกแตะต้อง ดังนั้นการเอาเครื่องหมายออกขณะค้นหาจะไม่ล้างค่าทั้งหมด
+
+สถานะของมันมีสามแบบเทียบกับรายการที่มองเห็น คือเลือกทั้งหมด ไม่เลือกเลย และเลือกบางส่วน
+
+<ShowSelectAllCheckboxDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  value={value}
+  onChange={setValue}
+  showSelectAllCheckbox
+  showFilterInput
+/>
+```
+
+### selectAllLabel
+
+<PropertySignature name="selectAllLabel" type="string" />
+
+ข้อความกำกับ checkbox เลือกทั้งหมด ค่าเริ่มต้นคือ `'Select All'`
+
+<SelectAllLabelDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  showSelectAllCheckbox
+  selectAllLabel="เลือกทั้งหมด"
+/>
+```
+
+### showDropdownButton
+
+<PropertySignature name="showDropdownButton" type="boolean" />
+
+แสดงปุ่มเปิด dropdown ที่ท้าย field ค่าเริ่มต้นคือ `true`
+
+ปิดได้เมื่อไม่ต้องการปุ่ม แต่ field ยังเปิด dropdown ได้ด้วยการคลิกหรือด้วยคีย์บอร์ดเหมือนเดิม
+
+<ShowDropdownButtonDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} showDropdownButton={false} />
+```
+
+### maxDropdownHeight
+
+<PropertySignature name="maxDropdownHeight" type="number" />
+
+ความสูงสูงสุดของรายการใน dropdown เป็น pixel ค่าเริ่มต้นคือ `240`
+
+จำกัดเฉพาะส่วนรายการ ช่องค้นหาและ checkbox เลือกทั้งหมดอยู่นอกส่วนที่เลื่อน จึงยังเห็นและใช้งานได้เสมอแม้รายการจะยาว
+
+<MaxDropdownHeightDemo />
+
+```tsx
+<MultiSelect
+  aria-label="ประเทศ"
+  options={countries}
+  showFilterInput
+  showSelectAllCheckbox
+  maxDropdownHeight={120}
+/>
+```
+
+### isRequired
+
+<PropertySignature name="isRequired" type="boolean" />
+
+ประกาศว่าต้องเลือกอย่างน้อยหนึ่งรายการ ค่าเริ่มต้นคือ `false`
+
+<Callout type="warning">
+  `isRequired` ใส่เพียง `aria-required` เพื่อบอก screen reader เท่านั้น **ไม่บังคับอะไร** และไม่เปลี่ยนพฤติกรรมของ field
+  — ไม่มีการเติมค่าให้เอง และ blur ออกจาก field ที่ว่างได้ตามปกติ การตรวจว่าเลือกแล้วหรือยังเป็นหน้าที่ของ form ที่ใช้ control นี้
+  เพราะ browser ไม่มีการตรวจความถูกต้องสำหรับค่าที่เป็น array
+</Callout>
+
+<IsRequiredDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} value={value} onChange={setValue} isRequired />
+
+// form ตรวจเอง
+const error = value.length === 0 ? 'ต้องเลือกอย่างน้อยหนึ่งประเทศ' : undefined
+```
+
+### isReadOnly
+
+<PropertySignature name="isReadOnly" type="boolean" />
+
+ยัง focus ได้และยังส่งค่าไปกับ form แต่เปลี่ยนค่าไม่ได้ และ dropdown ไม่เปิด
+
+<IsReadOnlyDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} value={['th', 'jp']} isReadOnly />
+```
+
+### isDisabled
+
+<PropertySignature name="isDisabled" type="boolean" />
+
+ใช้งานไม่ได้ ไม่อยู่ในลำดับ tab และไม่ถูกส่งไปกับ form
+
+<IsDisabledDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} value={['th']} isDisabled />
+```
+
+### name
+
+<PropertySignature name="name" type="string" />
+
+ชื่อฟิลด์สำหรับการ submit แบบ form ปกติ
+
+จะสร้าง `<input type="hidden">` หนึ่งตัวต่อหนึ่งค่าที่เลือก เรียงตามลำดับเดียวกับค่าที่ commit ไม่ได้ส่งข้อความสรุปที่แสดงใน field ออกไป เพราะข้อความอย่าง `"3 items selected"` ไม่ใช่ค่า
+
+<NameDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" name="countries" options={countries} value={value} onChange={setValue} />
+```
+
+### portal
+
+<PropertySignature name="portal" type="boolean" />
+
+render dropdown ไว้ที่ `document.body` แทนที่จะอยู่ในตำแหน่งเดิมของ DOM ค่าเริ่มต้นคือ `false`
+
+ใช้เมื่อ field อยู่ในกล่องที่ `overflow` ตัดเนื้อหา เช่นใน modal หรือ panel ที่เลื่อนได้ ซึ่งถ้าไม่ใช้ portal รายการจะถูกตัด
+
+<PortalDemo />
+
+```tsx
+<MultiSelect aria-label="ประเทศ" options={countries} value={value} onChange={setValue} portal />
+```
+
+กำหนดลำดับชั้นของ dropdown ได้ด้วย `portalZIndex` หรือด้วย CSS custom property `--rc-z-popup` บน field หรือ element แม่ใด ๆ
+
+## การใช้งานด้วยคีย์บอร์ด
+
+เมื่อเปิด dropdown focus จะย้ายเข้าไปใน dropdown — ไปที่ช่องค้นหาถ้ามี ถ้าไม่มีก็ไปที่ checkbox เลือกทั้งหมด ถ้าไม่มีทั้งสองก็ไปที่ตัวรายการ
+
+| ปุ่ม | ขณะปิด | ขณะเปิด |
+| --- | --- | --- |
+| `ArrowDown` / `ArrowUp` | เปิด dropdown | เลื่อนแถวที่กำลังเล็งอยู่ |
+| `Alt`+`ArrowDown` | เปิด dropdown | — |
+| `Alt`+`ArrowUp` | — | ปิด และกลับไปที่ field |
+| `Enter` | เปิด dropdown | ติ๊กแถวที่เล็งอยู่ โดยไม่ปิด |
+| `Space` | เปิด dropdown | ติ๊กแถวที่เล็งอยู่ (ในช่องค้นหาคือการพิมพ์เว้นวรรค) |
+| `Home` / `End` | — | ไปแถวแรก / แถวสุดท้าย |
+| `Escape` | — | ปิด ล้างคำค้น และกลับไปที่ field |
+| `Tab` | ไปช่องถัดไปใน form | เดินไปตามส่วนต่าง ๆ ใน dropdown และกลับไปที่ field เมื่อถึงปลาย |
+
+ในช่องค้นหา ปุ่มที่เป็นของช่องข้อความยังทำงานตามปกติทั้งหมด — `Space` พิมพ์เว้นวรรค `Home`/`End` ย้าย cursor และ `Ctrl`+`A` เลือกข้อความในช่อง การติ๊กแถวจากช่องค้นหาจึงใช้ `Enter` เท่านั้น
+
+ตัว control นับเป็นหนึ่ง tab stop ใน form และ dropdown ไม่กักปุ่ม `Tab` ไว้
+
+## การเข้าถึง
+
+field เป็น `<input>` จริงที่มี `role="combobox"` และเป็น `readOnly` เพื่อไม่ให้แก้ข้อความสรุปได้โดยตรง
+
+ชื่อสำหรับ screen reader ของทุกส่วนกำหนดเองได้ และมีค่าเริ่มต้นเป็นภาษาอังกฤษ — `dropdownAriaLabel` สำหรับปุ่มเปิด dropdown (`'Toggle options'`), `optionsAriaLabel` สำหรับตัวรายการ (`'Options'`) และ `popupAriaLabel` สำหรับตัว dropdown เอง
+
+`popupAriaLabel` จะใช้ `aria-label` ของ field เป็นค่าเริ่มต้นถ้ากำหนดไว้ ถ้ากำกับ field ด้วย `<label>` หรือ `aria-labelledby` แทน ควรกำหนด `popupAriaLabel` เองเพื่อให้ชื่อตรงกัน
+
+ส่วนสถานะความถูกต้อง ให้ส่งผ่าน `aria-invalid`, `aria-describedby` และ `aria-errormessage` ได้ตามปกติ — control ไม่มี prop สำหรับข้อความ error และไม่มีสไตล์สำหรับสถานะผิดพลาด เพราะเป็นหน้าที่ของ form
+
+ไอคอนเปลี่ยนได้ด้วย `dropdownIcon` และ `checkedIcon`

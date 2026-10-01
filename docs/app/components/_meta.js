@@ -5,4 +5,5 @@ export default {
   'input-date-time': 'InputDateTime',
   'input-tag': 'InputTag',
   'input-mask': 'InputMask',
+  'multi-select': 'MultiSelect',
 }

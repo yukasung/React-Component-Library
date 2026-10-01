@@ -57,6 +57,7 @@ import { InputTime } from '@yukasung/react-components/input-time'
 import { InputDateTime } from '@yukasung/react-components/input-date-time'
 import { InputTag } from '@yukasung/react-components/input-tag'
 import { InputMask } from '@yukasung/react-components/input-mask'
+import { MultiSelect } from '@yukasung/react-components/multi-select'
 // Or import every public API from '@yukasung/react-components'.
 ```
 
