@@ -14,7 +14,7 @@ const fail = (message) => {
   throw new Error(`Package verification failed: ${message}`)
 }
 
-const expectedEntries = ['.', './input-number', './input-date', './input-time', './input-date-time', './input-tag', './input-mask']
+const expectedEntries = ['.', './input-number', './input-date', './input-time', './input-date-time', './input-tag', './input-mask', './multi-select']
 
 for (const entry of expectedEntries) {
   const target = manifest.exports?.[entry]
@@ -168,7 +168,7 @@ while (graph.length > 0) {
 
 // Import the public built entry points, not source aliases. This also walks
 // every component's runtime dependency graph and fails on missing chunks.
-const components = ['InputNumber', 'InputDate', 'InputTime', 'InputDateTime', 'InputTag', 'InputMask']
+const components = ['InputNumber', 'InputDate', 'InputTime', 'InputDateTime', 'InputTag', 'InputMask', 'MultiSelect']
 const barrel = await import(pathToFileURL(resolve(root, manifest.exports['.'].import)).href)
 for (const [index, entry] of expectedEntries.slice(1).entries()) {
   const name = components[index]
@@ -182,9 +182,16 @@ for (const [index, entry] of expectedEntries.slice(1).entries()) {
       }
     }
   }
-  const html = renderToStaticMarkup(createElement(exported[name], name === 'InputTag'
-    ? { ariaLabel: 'Tags', options: [], removeLabel: (tag) => `Remove ${tag}` }
-    : { 'aria-label': name, defaultValue: null }))
+  // MultiSelect requires `options` and its value is an array, so the shared
+  // `defaultValue: null` probe does not apply to it; it still carries rc-scalar
+  // and still renders an <input>, so it needs no branch below.
+  const probes = {
+    InputTag: { ariaLabel: 'Tags', options: [], removeLabel: (tag) => `Remove ${tag}` },
+    MultiSelect: { 'aria-label': name, options: [] },
+  }
+  const html = renderToStaticMarkup(
+    createElement(exported[name], probes[name] ?? { 'aria-label': name, defaultValue: null }),
+  )
   if (!html.includes(name === 'InputTag' ? 'rc-input-tag' : 'rc-scalar')) {
     fail(`${entry} renders without its component style scope`)
   }

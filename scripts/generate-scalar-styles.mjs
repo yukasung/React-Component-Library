@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const scope = ':where(.rc-scalar, .rc-scalar *)'
 // Compile separately from consumer CSS: no app scanning, Preflight, theme
 // variables or property registrations can escape into the host application.
-const sources = ['InputNumber/InputNumber.tsx', 'InputDate/InputDate.tsx', 'InputTime/InputTime.tsx', 'InputDateTime/InputDateTime.tsx', 'InputDateTime/styles.ts', 'InputMask/InputMask.tsx']
+const sources = ['InputNumber/InputNumber.tsx', 'InputDate/InputDate.tsx', 'InputTime/InputTime.tsx', 'InputDateTime/InputDateTime.tsx', 'InputDateTime/styles.ts', 'InputMask/InputMask.tsx', 'MultiSelect/MultiSelect.tsx', 'MultiSelect/OptionPopup.tsx', 'MultiSelect/OptionRow.tsx', 'MultiSelect/icons.tsx', 'MultiSelect/styles.ts']
 const theme = `
   --color-gray-50: #f9fafb; --color-gray-100: #f2f4f7;
   --color-gray-200: #e4e7ec; --color-gray-300: #d0d5dd;

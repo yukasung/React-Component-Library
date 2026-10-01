@@ -5,13 +5,26 @@ import postcss from 'postcss'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 const scalarStyles = readFileSync(resolve(process.cwd(), 'src/scalar-utilities.css'), 'utf8')
-import { InputNumber, InputDate, InputTime, InputDateTime, InputMask } from './index'
+import { InputNumber, InputDate, InputTime, InputDateTime, InputMask, MultiSelect } from './index'
+
+// Pre-built elements rather than a component-plus-props map: the components do
+// not share a props type, so spreading a generic bag over the union does not
+// type-check. Each element is checked at its own site instead, and the five that
+// render from nothing are written exactly as they were.
+const cases = {
+  InputNumber: <InputNumber />,
+  InputDate: <InputDate />,
+  InputTime: <InputTime />,
+  InputDateTime: <InputDateTime />,
+  InputMask: <InputMask />,
+  MultiSelect: <MultiSelect aria-label="Options" options={[{ value: 'a', label: 'A' }]} />,
+}
 
 describe('standalone scalar style scope', () => {
-  for (const [name, Component] of Object.entries({ InputNumber, InputDate, InputTime, InputDateTime, InputMask })) {
+  for (const [name, element] of Object.entries(cases)) {
     it(`${name} scopes its input, buttons and popups`, async () => {
       const user = userEvent.setup()
-      const { container } = render(<Component />)
+      const { container } = render(element)
       const scope = container.querySelector('.rc-scalar')
       expect(scope).not.toBeNull()
       expect(scope).toContainElement(container.querySelector('input'))
@@ -25,6 +38,14 @@ describe('standalone scalar style scope', () => {
       if (timeButton) {
         await user.click(timeButton)
         expect(screen.getByRole('listbox')).toHaveClass('rc-scalar')
+        expect(screen.getAllByRole('option').length).toBeGreaterThan(0)
+      }
+      // The option popup is the one surface whose scope would otherwise go
+      // unverified, and it is portalled out of `container` when asked to be.
+      const optionsButton = screen.queryByRole('button', { name: 'Toggle options' })
+      if (optionsButton) {
+        await user.click(optionsButton)
+        expect(screen.getByRole('dialog')).toHaveClass('rc-scalar')
         expect(screen.getAllByRole('option').length).toBeGreaterThan(0)
       }
     })

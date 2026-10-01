@@ -5,6 +5,7 @@ import { InputDate } from './InputDate/InputDate'
 import { InputTime } from './InputTime/InputTime'
 import { InputDateTime } from './InputDateTime/InputDateTime'
 import { InputMask } from './InputMask/InputMask'
+import { MultiSelect } from './MultiSelect/MultiSelect'
 
 // `selectionOnClick` is what a non-cancelled click leaves behind. The group
 // editors highlight the group the pointer landed in, so the selection has
@@ -83,5 +84,63 @@ describe.each(cases.slice(1))('$name pointer events', ({ Component, draft, forma
       if (selectionOnClick === 'caret') expect(width).toBe(0)
       else expect(width).toBeGreaterThan(0)
     })
+  })
+})
+
+// The cases above all commit by typing a draft into the field. MultiSelect has
+// no draft — its <input> is readOnly and holds a derived header, and `change` is
+// not a commit point for it — so forcing it into that array would assert a
+// contract it is specified not to have. The event-composition contract §9.5
+// exists to protect *does* apply to it, so it is asserted here rather than
+// skipped.
+//
+// InputTag is deliberately absent: its `onBlur` is a declared prop rather than
+// an InputHTMLAttributes passthrough and it takes required props of its own, so
+// including it would mean changing or special-casing a shipped control.
+describe('collection controls without a typed draft', () => {
+  const options = [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }]
+
+  it('runs focus and blur consumers once, with the commit before blur', () => {
+    const calls: string[] = []
+    const onFocus = vi.fn()
+    const onBlur = vi.fn(() => calls.push('blur'))
+    render(
+      <MultiSelect
+        aria-label="Options"
+        options={options}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onChange={() => calls.push('change')}
+      />,
+    )
+    const input = document.querySelector('input')!
+    fireEvent.focus(input)
+    expect(onFocus).toHaveBeenCalledTimes(1)
+    fireEvent.click(input)
+    fireEvent.click(document.querySelectorAll('[role="option"]')[0])
+    const outside = document.createElement('button')
+    document.body.appendChild(outside)
+    fireEvent.blur(input, { relatedTarget: outside })
+    outside.remove()
+    expect(onBlur).toHaveBeenCalledTimes(1)
+    expect(calls).toEqual(['change', 'blur'])
+  })
+
+  it('lets consumer key cancellation prevent the popup opening', () => {
+    const onKeyDown = vi.fn((event: React.KeyboardEvent<HTMLInputElement>) => event.preventDefault())
+    render(<MultiSelect aria-label="Options" options={options} onKeyDown={onKeyDown} />)
+    const input = document.querySelector('input')!
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(onKeyDown).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('lets consumer click cancellation prevent the popup opening', () => {
+    const onClick = vi.fn((event: React.MouseEvent<HTMLInputElement>) => event.preventDefault())
+    render(<MultiSelect aria-label="Options" options={options} onClick={onClick} />)
+    const input = document.querySelector('input')!
+    fireEvent.click(input)
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 })

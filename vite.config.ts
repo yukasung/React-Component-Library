@@ -20,6 +20,7 @@ export default defineConfig({
         'input-date-time': fileURLToPath(new URL('./src/input-date-time.ts', import.meta.url)),
         'input-tag': fileURLToPath(new URL('./src/input-tag.ts', import.meta.url)),
         'input-mask': fileURLToPath(new URL('./src/input-mask.ts', import.meta.url)),
+        'multi-select': fileURLToPath(new URL('./src/multi-select.ts', import.meta.url)),
       },
       formats: ['es'],
       fileName: (_format, entryName) => entryName,
