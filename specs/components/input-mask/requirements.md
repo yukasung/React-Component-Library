@@ -1,6 +1,6 @@
 # InputMask — Requirements
 
-**Status:** complete, awaiting approval. Not implemented.
+**Status:** approved, **implemented** and **released in 0.3.0**. Durable architecture rationale now lives in `CLAUDE.md`; this document remains the record of what was agreed and why.
 
 Defines **what** `InputMask` must do. How it is built is `plan.md`'s job.
 

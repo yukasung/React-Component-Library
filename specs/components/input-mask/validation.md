@@ -1,6 +1,6 @@
 # InputMask — Validation
 
-**Status:** draft, awaiting approval.
+**Status:** approved; the component shipped in 0.3.0.
 
 Definition of Done for [`requirements.md`](requirements.md), implemented per
 [`plan.md`](plan.md). Every criterion is checkable: a test, a command, or a

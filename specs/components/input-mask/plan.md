@@ -1,6 +1,6 @@
 # InputMask — Implementation plan
 
-**Status:** draft, awaiting approval. Not implemented.
+**Status:** approved and **implemented**, released in 0.3.0.
 
 Implements [`requirements.md`](requirements.md) (approved). Rules inherited
 from [`../standards.md`](../standards.md) and `CLAUDE.md` are not restated.
