@@ -48,7 +48,7 @@ The package compiles the component utilities itself. Do not add its source or `d
 
 Library development: after editing scalar utility classes or the calendar theme, run `npm run generate:styles` to refresh the checked-in stylesheet used by the demo and docs. `npm run build` also regenerates it; `node scripts/generate-scalar-styles.mjs --check` checks for stale generated output.
 
-Published entry points at version `0.3.0` are:
+Published entry points are:
 
 ```ts
 import { InputNumber } from '@yukasung/react-components/input-number'
@@ -156,6 +156,78 @@ normal focus order through remove buttons and the custom-tag input; leaving
 the whole field closes the menu and reports one `onBlur`. Escape in another
 control is not intercepted. Inline and portalled menus share this
 keyboard contract.
+
+### MultiSelect: the header is not the value
+
+`MultiSelect` shows a summary of the selection — `"Thailand, Japan"`, or
+`"3 items selected"` past `maxHeaderItems` — and that text is display only.
+What a form submits is the committed array:
+
+```tsx
+<MultiSelect aria-label="Countries" options={countries} value={value} onChange={setValue} />
+// shows   3 items selected
+// commits ['th', 'jp', 'sg']
+```
+
+Three contracts follow from that, none of them visible in the prop table:
+
+- **`onChange` fires on every toggle**, not on blur. Checking a box has no
+  half-finished state the way typing does, so there is nothing to defer; it is
+  a deliberate value change, like picking a date in a calendar. Expect one call
+  per checkbox and one per select-all click, never one per row of a select-all.
+- **`name` serializes one hidden input per selected value**, read with
+  `new FormData(form).getAll('countries')`. The header text is never submitted —
+  `"3 items selected"` is not a value in any reading. An empty selection
+  contributes no entries, and `isDisabled` excludes them from submission.
+- **`isRequired` sets `aria-required` only.** It changes no behaviour: nothing
+  snaps back, nothing is fabricated, and an empty field blurs normally. The
+  field is `readOnly`, which bars it from constraint validation, so a native
+  `required` attribute would be inert rather than merely ineffective — validate
+  the array in your form. Pass `aria-invalid`, `aria-describedby`,
+  `aria-errormessage` and `aria-labelledby` to attach feedback to the combobox.
+
+The committed array is always in `options` order, not the order the user
+clicked, so two selections of the same options compare equal. A value matching
+no option is **kept** rather than dropped — options arriving after a value is
+ordinary when a form hydrates from a record — and is counted in the header
+using its own string until its option appears.
+
+**Choosing between this and `InputTag`:** `MultiSelect` is one fixed-height row
+whatever is selected, over a closed list, with checkboxes and an optional
+filter. `InputTag` shows every selection as a removable chip and grows
+vertically, and can admit values that are not in `options`. Three tags favour
+`InputTag`; forty options favour `MultiSelect`.
+
+### MultiSelect focus and keyboard
+
+Opening the drop-down moves focus **into** it, because the popup is a dialog:
+to the filter input if there is one, otherwise the select-all checkbox,
+otherwise the list itself. The field keeps its focus ring the whole time, and
+`onBlur` fires only when focus leaves the control altogether — moves between
+the field and the popup's parts report nothing, portalled popup included.
+
+The control is **one tab stop**. While the popup is open, Tab walks its parts
+in order and falls back to the field at either end, closing the popup; it is
+never trapped, and Escape always closes and returns focus to the field. Escape
+does not undo checks — they were committed when they were made.
+
+Closed, the field opens on Arrow Down/Up, Alt+Arrow Down, Enter, Space, or —
+with `showFilterInput` — on any printable character, which goes straight into
+the filter. A modifier chord does not: Ctrl/Cmd+A is select-all, not the letter
+`a`.
+
+Inside the filter input every key a text field owns keeps its text meaning —
+Space inserts a space, Home/End move the caret, Ctrl/Cmd+A selects the text —
+so **Enter is the only selection gesture there**. In the list, Space and Enter
+both toggle the active row without closing, Home/End jump to the first and last
+visible row, and Arrow Up on the first row hands focus to the select-all
+checkbox when one exists.
+
+Filtering never changes the value: a selected option the filter hides stays
+selected and stays in the committed array, and select-all acts on the visible
+rows only, so clearing it under a filter does not empty the field. The opt-in
+`checkOnFilter` is the one exception — it checks matching options as the filter
+narrows, and because that makes typing commit values, it is off by default.
 
 ### Date validation and popup behavior
 

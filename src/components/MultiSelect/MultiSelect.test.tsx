@@ -109,6 +109,18 @@ describe('onChange', () => {
     expect(onChange).toHaveBeenLastCalledWith(['th', 'jp'])
   })
 
+  it('keeps every toggle when Escape closes the popup — there is no undo', () => {
+    const { onChange } = setup()
+    fireEvent.click(field())
+    fireEvent.click(rowFor('Thailand'))
+    fireEvent.click(rowFor('United Kingdom'))
+    fireEvent.click(rowFor('Japan'))
+    expect(onChange).toHaveBeenCalledTimes(3)
+    fireEvent.keyDown(listbox(), { key: 'Escape' })
+    expect(field()).toHaveValue('3 items selected')
+    expect(onChange).toHaveBeenCalledTimes(3)
+  })
+
   it('removes a value when its row is toggled again', () => {
     const { onChange } = setup({ defaultValue: ['th'] })
     fireEvent.click(field())
