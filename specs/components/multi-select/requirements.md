@@ -1,16 +1,29 @@
 # MultiSelect — Requirements
 
-**Status:** approved. Not implemented. `plan.md` and `validation.md` are
-written and awaiting approval alongside this document's second amendment.
+**Status:** approved and **implemented**. Shipped to `main`; unreleased —
+`CHANGELOG.md` carries it under `[Unreleased]`, and `package.json` is still at
+`0.3.0`.
 
-Amended twice, both times after review:
+Amended four times, every time after review. **Decisions** #20–#31 record the
+deltas; the whole table is the durable record and this log is only the
+chronology:
 
 1. Before approval — four findings on the focus and keyboard model and on
-   `checkOnFilter`'s trigger (**Decisions** #20–#23). The prop surface did not
-   change.
-2. After approval, with `plan.md` and `validation.md` written — nine findings,
-   of which five changed behaviour (**Decisions** #24–#28) and one changed the
-   prop surface: `onBlur` is now declared rather than inherited (R9.5d).
+   `checkOnFilter`'s trigger (#20–#23). The prop surface did not change.
+2. After approval, with `plan.md` and `validation.md` written — five findings,
+   of which four changed behaviour (#24–#28) and one changed the prop surface:
+   `onBlur` and `onFocus` are declared rather than inherited (R9.5d, R9.2).
+3. Before implementation — accessible names for the dialog and listbox (#29) and
+   `onFocus`'s boundary filtering (#30), plus a rewrite of #28: `checkOnFilter`'s
+   trigger became two gates over **set membership** rather than over the shape of
+   the edit, because "every deletion widens the match set" turned out to be false
+   (R5.7b). That is why #28 appears in this round and the one above it.
+4. During implementation — two cases the approved text left unstated, filled in
+   and marked as such: the active row when the filter changes (R13.2a) and
+   `customFilter` owning the empty-filter case (#31, R5.3a/R5.3b). Plus two
+   defects found in a browser rather than by a test, both of which amended a
+   rule rather than only the code: focus must leave the popup before it is
+   unmounted (R9.5c) and a modifier chord is not printable text (R9.6b).
 
 Defines **what** `MultiSelect` must do. How it is built is
 [`plan.md`](plan.md)'s job and how it is checked is

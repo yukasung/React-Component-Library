@@ -1,7 +1,18 @@
 # MultiSelect — Validation
 
-**Status:** draft, awaiting approval, alongside `requirements.md`'s second
-amendment.
+**Status:** approved. **Every criterion is met except `V12.9`**, which asks
+that the control render styled in `demo/` and in the docs dev server — that is a
+visual check nothing here can perform, and it is outstanding.
+
+Behavioural criteria are discharged by 122 tests in
+`src/components/MultiSelect/MultiSelect.test.tsx` and 62 in
+`src/lib/optionList.test.ts`; the inspection criteria were checked against the
+source and the build. Worth knowing when reading the rest: three defects in this
+component were found by a check other than a test — an uncompiled utility class,
+unnormalised hidden inputs, and a popup whose height measurement fed back on
+itself — the last of which reached a browser with 119 green tests behind it,
+because jsdom has no layout engine. A green suite here is not evidence about
+layout.
 
 Definition of Done for [`requirements.md`](requirements.md), implemented per
 [`plan.md`](plan.md). Every criterion is checkable: a test, a command, or a

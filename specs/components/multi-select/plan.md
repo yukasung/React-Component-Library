@@ -1,7 +1,10 @@
 # MultiSelect — Implementation plan
 
-**Status:** draft, awaiting approval, alongside `requirements.md`'s second
-amendment. Not implemented.
+**Status:** approved and **implemented**. This document describes what was
+built, not what was intended — where the two diverged during implementation the
+text was corrected, and the divergences worth knowing about are §0.5's role
+split, §1.7a's helper signatures, §2.2's derived visible set and §4.5a's
+asymmetric focus/blur boundary tests.
 
 Implements [`requirements.md`](requirements.md). Rules inherited
 from [`../standards.md`](../standards.md) and `CLAUDE.md` are not restated.
